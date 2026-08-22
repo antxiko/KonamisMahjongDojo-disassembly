@@ -479,7 +479,7 @@ submodo_1_del_estado_11:
 ; SUBMODO 2 DEL ESTADO 11: LA MANO JUGANDOSE, y el submodo mas largo con diferencia (103,7 s de los 130,3 del estado 11 en el demo, medido). Cada fotograma mueve un turno y decide si la mano sigue o se acaba. Las tres salidas son: 0x42A8 si la mano termina normal, 0x429E si termina con jugada cantada (salta al submodo 5 en vez de al 3) y el `ret` de 0x4258 mientras aun quede algo pendiente.
 ; ----------------------------------------------------------------------
 submodo_2_del_estado_11:
-	call L_4FE1		;4248   ; mueve el turno
+	call juega_el_turno		;4248   ; mueve el turno
 	ld hl,0e302h		;424b
 	bit 2,(hl)		;424e   ; bit 2 de 0xE302: el turno es de la maquina
 	ex de,hl			;4250
@@ -2338,7 +2338,7 @@ despacha_el_reparto:
 	jp nc,borra_la_mano_de_trabajo		;4d9c
 	rra			;4d9f   ; bit 3
 	jp nc,ensena_la_mano_ficha_a_ficha		;4da0
-	jp c,L_4EAE		;4da3
+	jp c,cierra_el_reparto		;4da3
 
 ; ----------------------------------------------------------------------
 ; EL REPARTO INICIAL. Copia catorce fichas a 0xE32B, deja los dos contadores de mano en trece, saca las trece de 0xE12C una a una con 0x4F64 y remata con la catorce en 0xE139. Y en cuanto termina llama a 0x48E1, que puede sembrarle un trio y una o dos escaleras encima de lo repartido.
@@ -2461,7 +2461,7 @@ L_4E6F:
 	ld (hl),a			;4e6f
 	inc hl			;4e70
 	djnz L_4E6F		;4e71
-	call L_4F96		;4e73
+	call ordena_la_mano		;4e73
 	ld hl,0e1a9h		;4e76
 	set 2,(hl)		;4e79   ; bit 2 de 0xE1A9: hecho
 	ret			;4e7b
@@ -2483,7 +2483,7 @@ ensena_la_mano_ficha_a_ficha:
 L_4E92:
 	ld a,(0e1b7h)		;4e92
 	cp 00eh		;4e95   ; a las catorce se acaba
-	jr z,L_4EAE		;4e97
+	jr z,cierra_el_reparto		;4e97
 	push af			;4e99
 	ld hl,0e12ch		;4e9a
 	call suma_a_a_hl		;4e9d   ; la ficha que toca de la mano repartida
@@ -2495,67 +2495,71 @@ L_4E92:
 	ld hl,0e1b7h		;4ea9
 	inc (hl)			;4eac   ; una ficha mas colocada
 	ret			;4ead
-L_4EAE:
+
+; ----------------------------------------------------------------------
+; FASE 4, la ultima del reparto. Borra 205 bytes de trabajo, saca DOS fichas mas -0xE1D3 y 0xE1D4-, sortea 0xE33D con las correcciones de abajo y baja el bit 0 de 0xE1A8, que es la senal de "reparto terminado" que espera el submodo 1 del estado 11. En el demo la primera de las dos fichas no se sortea: se le mete 0x32 a pelo.
+; ----------------------------------------------------------------------
+cierra_el_reparto:
 	ld hl,0e2b6h		;4eae
 	ld de,0e2b7h		;4eb1
-	ld bc,000cdh		;4eb4
+	ld bc,000cdh		;4eb4   ; 205 bytes de trabajo, a cero
 	ld (hl),000h		;4eb7
 	ldir		;4eb9
-	call reparte_una_ficha		;4ebb
+	call reparte_una_ficha		;4ebb   ; la primera de las dos fichas
 	ld hl,0e002h		;4ebe
-	bit 6,(hl)		;4ec1
+	bit 6,(hl)		;4ec1   ; bit 6 de 0xE002: con partida vale la sorteada
 	jr nz,L_4EC7		;4ec3
-	ld a,032h		;4ec5
+	ld a,032h		;4ec5   ; y en el demo, siempre la misma: 0x32
 L_4EC7:
 	ld (0e1d3h),a		;4ec7
-	call reparte_una_ficha		;4eca
+	call reparte_una_ficha		;4eca   ; la segunda, esta siempre sorteada
 	ld (0e1d4h),a		;4ecd
 	call L_7015		;4ed0
 	ld hl,0e2b6h		;4ed3
 	ld de,0e2b7h		;4ed6
 	ld (hl),000h		;4ed9
-	ld bc,00030h		;4edb
+	ld bc,00030h		;4edb   ; otros 48 bytes limpios
 	ldir		;4ede
 L_4EE0:
 	call saca_un_numero_al_azar		;4ee0
-	ld (0e33dh),a		;4ee3
-	cp 014h		;4ee6
+	ld (0e33dh),a		;4ee3   ; el numero que se sortea aqui
+	cp 014h		;4ee6   ; de 20 para arriba
 	jr c,L_4EF1		;4ee8
 	ld a,(0e040h)		;4eea
 	rra			;4eed
-	rra			;4eee
+	rra			;4eee   ; EL BIT 1 DE LA DIFICULTAD: solo con la tecla 3 se rechaza y se repite
 	jr c,L_4EE0		;4eef
 L_4EF1:
 	ld a,(0e058h)		;4ef1
-	rra			;4ef4
+	rra			;4ef4   ; bit 0 de 0xE058
 	jr nc,L_4EFE		;4ef5
 	ld a,(0e064h)		;4ef7
-	and 003h		;4efa
+	and 003h		;4efa   ; los dos bits bajos de la semilla
 	jr z,L_4F0E		;4efc
 L_4EFE:
 	ld hl,0e33dh		;4efe
 	ld a,(hl)			;4f01
-	cp 008h		;4f02
+	cp 008h		;4f02   ; por debajo de 8 no se deja
 	jr nc,L_4F0E		;4f04
 	ld a,(0e064h)		;4f06
 	and 003h		;4f09
-	add a,008h		;4f0b
+	add a,008h		;4f0b   ; se sube a un valor entre 8 y 11
 	ld (hl),a			;4f0d
 L_4F0E:
 	ld a,(0e04bh)		;4f0e
-	cp 007h		;4f11
+	cp 007h		;4f11   ; con 0xE04B en siete o mas
 	jr c,L_4F22		;4f13
 	ld a,(0e065h)		;4f15
-	rra			;4f18
+	rra			;4f18   ; y el bit 0 de 0xE065 a cero
 	jr c,L_4F22		;4f19
 	ld a,(0e33dh)		;4f1b
-	rra			;4f1e
+	rra			;4f1e   ; el valor se parte por la mitad
 	ld (0e33dh),a		;4f1f
 L_4F22:
 	ld hl,0e1a8h		;4f22
-	res 0,(hl)		;4f25
+	res 0,(hl)		;4f25   ; bit 0 de 0xE1A8 abajo: el reparto ha terminado
 	inc hl			;4f27
-	ld (hl),000h		;4f28
+	ld (hl),000h		;4f28   ; y el submodo, a cero
 	ret			;4f2a
 
 ; ----------------------------------------------------------------------
@@ -2622,30 +2626,38 @@ L_4F74:
 	call suma_a_a_hl		;4f7a
 	ld a,(hl)			;4f7d
 	cp 004h		;4f7e   ; cuatro copias es el maximo: de ese tipo no queda ninguna
-	jr c,L_4F8A		;4f80
+	jr c,saca_la_ficha_de_e065		;4f80
 	ld a,(0e064h)		;4f82   ; se resiembra la semilla y se sortea otra vez
 	ld (0e065h),a		;4f85
 	jr reparte_una_ficha		;4f88
-L_4F8A:
-	inc (hl)			;4f8a
+
+; ----------------------------------------------------------------------
+; Sube el contador al que apunta HL y devuelve el codigo de la ficha cuyo indice esta en 0xE065, pasandolo por la tabla de los 34 tipos. Es la salida de 0x4F74 cuando el tipo sorteado si tenia copias libres.
+; ----------------------------------------------------------------------
+saca_la_ficha_de_e065:
+	inc (hl)			;4f8a   ; una copia mas repartida de ese tipo
 	ld a,(0e065h)		;4f8b
-	ld hl,04fbfh		;4f8e
+	ld hl,04fbfh		;4f8e   ; la tabla de los 34 tipos
 	call suma_a_a_hl		;4f91
 	ld a,(hl)			;4f94
 	ret			;4f95
-L_4F96:
-	ld hl,0e12ch		;4f96
+
+; ----------------------------------------------------------------------
+; ORDENA LOS CATORCE HUECOS DE LA MANO, y por eso las fichas se ven agrupadas por palo en vez de en el orden en que salieron. Es una ordenacion por seleccion a la vieja usanza: por cada hueco recorre lo que queda buscando el mayor y lo trae, usando A' para el intercambio porque el Z80 no tiene otro sitio donde dejarlo. La entrada de 0x4F99 sirve para ordenar cualquier otra tira de catorce.
+; ----------------------------------------------------------------------
+ordena_la_mano:
+	ld hl,0e12ch		;4f96   ; la mano
 L_4F99:
-	ld b,00eh		;4f99
+	ld b,00eh		;4f99   ; catorce huecos
 L_4F9B:
-	ld a,(hl)			;4f9b
+	ld a,(hl)			;4f9b   ; el candidato de esta vuelta
 	ld c,b			;4f9c
 	ld d,h			;4f9d
 	ld e,l			;4f9e
 L_4F9F:
-	cp (hl)			;4f9f
-	jr c,L_4FA7		;4fa0
-	ex af,af'			;4fa2
+	cp (hl)			;4f9f   ; compara con el que toca
+	jr c,L_4FA7		;4fa0   ; el candidato es menor: se queda como esta
+	ex af,af'			;4fa2   ; y si no, se intercambian pasando por A'
 	ld a,(hl)			;4fa3
 	ex af,af'			;4fa4
 	ld (hl),a			;4fa5
@@ -2655,7 +2667,7 @@ L_4FA7:
 	dec c			;4fa8
 	jr nz,L_4F9F		;4fa9
 	ex de,hl			;4fab
-	ld (hl),a			;4fac
+	ld (hl),a			;4fac   ; el elegido, a su sitio
 	inc hl			;4fad
 	djnz L_4F9B		;4fae
 	ret			;4fb0
@@ -2680,26 +2692,30 @@ DATA_los_treinta_y_cuatro_tipos:
 ; ======================================================================
 
 
-L_4FE1:
+
+; ----------------------------------------------------------------------
+; EL TURNO. Decide a cual de los dos le toca -0xE206, que sale de mirar si 0xE1AA vale 0x1F o 0x3F-, copia sus dieciocho bytes de mano al buffer de trabajo de 0xE32B, juega, y devuelve el resultado a la mano de quien fuera. Las dos manos viven en 0xE13A y 0xE14C, y todo lo que se juega se hace sobre la copia.
+; ----------------------------------------------------------------------
+juega_el_turno:
 	ld b,001h		;4fe1
 	ld a,(0e1aah)		;4fe3
-	cp 01fh		;4fe6
+	cp 01fh		;4fe6   ; los dos valores que ponen el turno en el segundo jugador
 	jr z,L_4FEF		;4fe8
 	cp 03fh		;4fea
 	jr z,L_4FEF		;4fec
 	dec b			;4fee
 L_4FEF:
 	ld a,b			;4fef
-	ld (0e206h),a		;4ff0
-	ld hl,0e13ah		;4ff3
+	ld (0e206h),a		;4ff0   ; de quien es el turno
+	ld hl,0e13ah		;4ff3   ; la mano del primero
 	or a			;4ff6
 	jr z,L_4FFC		;4ff7
-	ld hl,0e14ch		;4ff9
+	ld hl,0e14ch		;4ff9   ; o la del segundo
 L_4FFC:
 	ld de,0e32bh		;4ffc
-	ld bc,00012h		;4fff
+	ld bc,00012h		;4fff   ; dieciocho bytes de mano
 	ldir		;5002
-	call L_517A		;5004
+	call L_517A		;5004   ; y a jugar
 	ld a,(0e206h)		;5007
 	rra			;500a
 	jr c,L_5013		;500b
@@ -2714,34 +2730,34 @@ L_5013:
 L_501F:
 	ld hl,0e32bh		;501f
 	ld bc,00012h		;5022
-	ldir		;5025
+	ldir		;5025   ; la mano jugada vuelve a su sitio
 	ld a,(0e1a9h)		;5027
-	cp 0ffh		;502a
+	cp 0ffh		;502a   ; 0xFF: caso aparte
 	jp z,L_5661		;502c
 	or a			;502f
 	jp nz,L_56B6		;5030
 	ld hl,0e1c7h		;5033
-	bit 0,(hl)		;5036
-	jr z,L_50B7		;5038
+	bit 0,(hl)		;5036   ; bit 0 de 0xE1C7
+	jr z,despacha_la_fase_de_la_mano		;5038
 	res 0,(hl)		;503a
 	ld a,(0e206h)		;503c
 	rra			;503f
 	jr c,L_505B		;5040
 	call L_66E7		;5042
-	ld a,(0e040h)		;5045
+	ld a,(0e040h)		;5045   ; LA DIFICULTAD otra vez: sin el bit 0 no se comprueba nada
 	rra			;5048
 	jr nc,L_505B		;5049
 	ld a,(0e1d1h)		;504b
-	rra			;504e
+	rra			;504e   ; bit 0 de 0xE1D1
 	jr c,L_505B		;504f
-	call busca_en_las_dos_listas		;5051
+	call busca_en_las_dos_listas		;5051   ; cruza la mano contra las dos listas
 	ld hl,0e1cdh		;5054
-	bit 6,(hl)		;5057
-	jr nz,L_50A7		;5059
+	bit 6,(hl)		;5057   ; bit 6 de 0xE1CD: hay coincidencia
+	jr nz,apaga_la_marca_y_sigue		;5059
 L_505B:
 	call L_5F3E		;505b
 	ld a,(0e302h)		;505e
-	rra			;5061
+	rra			;5061   ; bit 0 de 0xE302
 	jr c,L_50A4		;5062
 	ld a,(0e206h)		;5064
 	rra			;5067
@@ -2749,15 +2765,15 @@ L_505B:
 	ld hl,0e1cch		;506b
 	ld a,(0e1beh)		;506e
 	inc a			;5071
-	cp (hl)			;5072
+	cp (hl)			;5072   ; comparar con 0xE1CC
 	jr nz,L_5079		;5073
 	xor a			;5075
-	ld (0e1cdh),a		;5076
+	ld (0e1cdh),a		;5076   ; no cuadra: se olvida lo apuntado
 L_5079:
 	ld a,040h		;5079
-	ld (0e1a9h),a		;507b
+	ld (0e1a9h),a		;507b   ; 0x40 en 0xE1A9
 	ld a,(0e1beh)		;507e
-	cp 00ah		;5081
+	cp 00ah		;5081   ; diez fichas
 	jp nc,L_56F7		;5083
 	call L_583C		;5086
 	ld a,(0e208h)		;5089
@@ -2771,44 +2787,56 @@ L_5079:
 	inc a			;5099
 	ld b,a			;509a
 	ld hl,0e14ch		;509b
-	call L_4F9B		;509e
+	call L_4F9B		;509e   ; y se reordena la mano con lo nuevo
 	jp L_56F7		;50a1
 L_50A4:
 	call L_67A1		;50a4
-L_50A7:
+
+; ----------------------------------------------------------------------
+; Baja el bit 6 de 0xE1CD -la marca de coincidencia- y, si el turno es del primero, saca el dibujo 2 del rincon, que es el unico de los tres que suena.
+; ----------------------------------------------------------------------
+apaga_la_marca_y_sigue:
 	ld hl,0e1cdh		;50a7
-	res 6,(hl)		;50aa
+	res 6,(hl)		;50aa   ; bit 6 abajo: la marca ya esta usada
 	ld a,(0e206h)		;50ac
-	rra			;50af
-	jr c,L_50B7		;50b0
+	rra			;50af   ; de quien es el turno
+	jr c,despacha_la_fase_de_la_mano		;50b0
 	ld a,002h		;50b2
-	call pinta_uno_de_los_tres_dibujos		;50b4
-L_50B7:
+	call pinta_uno_de_los_tres_dibujos		;50b4   ; el dibujo que suena
+
+; ----------------------------------------------------------------------
+; El despachador de la mano: ocho ramas colgadas de los bits de 0xE1AA, con los `rra` encadenados bajando bit a bit. El PRIMER bit que este a cero manda; si estan los ocho puestos, se va a 0x5654. Es el mismo truco que 0x4D91 usa para el reparto.
+; ----------------------------------------------------------------------
+despacha_la_fase_de_la_mano:
 	ld a,(0e1aah)		;50b7
-	rra			;50ba
-	jp nc,L_50DD		;50bb
-	rra			;50be
+	rra			;50ba   ; bit 0
+	jp nc,arranca_la_mano		;50bb
+	rra			;50be   ; bit 1
 	jp nc,L_527F		;50bf
-	rra			;50c2
+	rra			;50c2   ; bit 2
 	jp nc,L_535E		;50c3
-	rra			;50c6
+	rra			;50c6   ; bit 3
 	jp nc,L_540C		;50c7
-	rra			;50ca
+	rra			;50ca   ; bit 4
 	jp nc,L_5436		;50cb
-	rra			;50ce
+	rra			;50ce   ; bit 5
 	jp nc,L_5460		;50cf
-	rra			;50d2
+	rra			;50d2   ; bit 6
 	jp nc,L_54EB		;50d3
-	rra			;50d6
+	rra			;50d6   ; bit 7
 	jp nc,L_55A2		;50d7
-	jp L_5654		;50da
-L_50DD:
+	jp L_5654		;50da   ; los ocho puestos
+
+; ----------------------------------------------------------------------
+; Pone en pie todos los contadores de una mano nueva: los dos limites de 0xE1C0, la cantidad de la DIFICULTAD sumada a 0xE33D, los contadores a 13, los indices a 0xFF y 0x12, y de quien es el turno. Es el punto donde la dificultad elegida se convierte por fin en un numero que el juego usa.
+; ----------------------------------------------------------------------
+arranca_la_mano:
 	ld hl,0e1c0h		;50dd
 	ld a,(0e04dh)		;50e0
-	rra			;50e3
-	ld a,012h		;50e4
+	rra			;50e3   ; bit 0 de 0xE04D: quien es mano
+	ld a,012h		;50e4   ; dieciocho
 	jr c,L_50EA		;50e6
-	ld a,014h		;50e8
+	ld a,014h		;50e8   ; o veinte
 L_50EA:
 	ld (hl),a			;50ea
 	inc hl			;50eb
@@ -2817,48 +2845,48 @@ L_50EA:
 	ld a,014h		;50f0
 L_50F2:
 	ld (hl),a			;50f2
-	ld b,003h		;50f3
-	ld a,(0e040h)		;50f5
-	rra			;50f8
+	ld b,003h		;50f3   ; la cantidad por defecto: tres
+	ld a,(0e040h)		;50f5   ; LA DIFICULTAD, y aqui se vuelve un numero: 3, 5 o 7
+	rra			;50f8   ; bit 0: la tecla 1 se queda con tres
 	jr c,L_5102		;50f9
-	ld b,007h		;50fb
-	rra			;50fd
+	ld b,007h		;50fb   ; la tecla 3 vale siete
+	rra			;50fd   ; bit 1
 	jr c,L_5102		;50fe
-	ld b,005h		;5100
+	ld b,005h		;5100   ; y la tecla 2, cinco
 L_5102:
 	ld a,(0e064h)		;5102
-	rra			;5105
+	rra			;5105   ; el bit 0 de la semilla decide si la dificultad cuenta esta vez
 	ld a,(0e33dh)		;5106
-	dec a			;5109
+	dec a			;5109   ; una menos
 	jr c,L_510D		;510a
-	add a,b			;510c
+	add a,b			;510c   ; y aqui se le suma
 L_510D:
-	ld (0e1bbh),a		;510d
-	ld a,0ffh		;5110
+	ld (0e1bbh),a		;510d   ; el numero con el que se juega la mano. MEDIDO en openMSX, una pasada por tecla: la 1 da 0xE33D=28 y 0xE1BB=30 (28-1+3), la 2 da 29 y 33 (29-1+5), y la 3 da 11 y 10 (11-1, sin sumar, porque esa vez la semilla salio impar). Las tres cuadran con lo que dice este codigo, incluida la vez que no suma.
+	ld a,0ffh		;5110   ; 0xFF: aun no hay ninguna elegida
 	ld (0e1beh),a		;5112
 	ld (0e1bfh),a		;5115
-	ld a,00dh		;5118
+	ld a,00dh		;5118   ; trece fichas
 	ld (0e1c2h),a		;511a
 	ld (0e207h),a		;511d
 	ld (0e1c3h),a		;5120
 	ld (0e208h),a		;5123
-	ld a,012h		;5126
+	ld a,012h		;5126   ; dieciocho
 	ld (0e1ceh),a		;5128
 	ld (0e20ch),a		;512b
 	ld a,(0e04dh)		;512e
-	ld (0e22ah),a		;5131
-	xor 001h		;5134
+	ld (0e22ah),a		;5131   ; quien es mano
+	xor 001h		;5134   ; y el contrario
 	ld (0e1d1h),a		;5136
 	or a			;5139
 	jr nz,L_5144		;513a
 	ld a,03fh		;513c
-	ld (0e1aah),a		;513e
+	ld (0e1aah),a		;513e   ; 0x3F: las seis fases de la mano por hacer
 	call L_598F		;5141
 L_5144:
 	ld hl,0e240h		;5144
 	ld de,0e241h		;5147
 	ld (hl),000h		;514a
-	ld bc,00076h		;514c
+	ld bc,00076h		;514c   ; 118 bytes de trabajo a cero
 	ldir		;514f
 	ld hl,051f4h		;5151
 	ld de,0e0a8h		;5154

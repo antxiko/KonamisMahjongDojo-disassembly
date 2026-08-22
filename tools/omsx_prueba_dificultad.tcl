@@ -60,8 +60,10 @@ proc mira {etiqueta} {
     set e1   [debug read memory 0xE001]
     set e2   [debug read memory 0xE002]
     set e40  [debug read memory 0xE040]
-    say [format "%-14s estado=%2d submodo=%2d  0xE002=0x%02X  0xE040=0x%02X" \
-             $etiqueta $e0 $e1 $e2 $e40]
+    set e1bb [debug read memory 0xE1BB]
+    set e33d [debug read memory 0xE33D]
+    say [format "%-14s estado=%2d submodo=%2d  0xE002=0x%02X  0xE040=0x%02X  0xE1BB=%3d  0xE33D=%3d" \
+             $etiqueta $e0 $e1 $e2 $e40 $e1bb $e33d]
 }
 
 # Muestreo continuo: reprograma PRIMERO, trabaja despues y dentro de un catch.
@@ -73,7 +75,8 @@ proc latido {} {
         set e0  [debug read memory 0xE000]
         set e2  [debug read memory 0xE002]
         set e40 [debug read memory 0xE040]
-        set clave "$e0/$e2/$e40"
+        set e1bb [debug read memory 0xE1BB]
+        set clave "$e0/$e2/$e40/$e1bb"
         if {![info exists ::ultimo] || $clave ne $::ultimo} {
             set ::ultimo $clave
             mira "cambio"
