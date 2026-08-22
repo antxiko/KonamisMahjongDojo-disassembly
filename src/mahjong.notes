@@ -799,3 +799,343 @@ L 0x45EC limpia_la_pantalla_entera
 B 0x45EC Borra el aviso de abajo y luego los 768 bytes de la tabla de nombres a partir de 0x7800. Lo llama el estado 8 al empezar la partida.
 C 0x45ef 0x7800, la tabla de nombres del tercer tercio
 C 0x45f2 768 bytes, la pantalla entera
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 4: la mano de enfrente, los tres dibujos del rincon, los
+# buscadores de coincidencia y el desfile del recuento. 0x46DC-0x48E0.
+#
+# UN DETALLE DEL FORMATO DE LAS LISTAS: los destinos que traen dentro son de
+# DIECISEIS bits y se salen de la VRAM -0x7962, 0x7942-, porque la VRAM del
+# MSX1 son 16 KB. Los dos bits de arriba sobran y SETWRT se los come: 0x7962 es
+# 0x3962, o sea la fila 11, columna 2 de la tabla de nombres. No es un fallo,
+# es como estan escritas todas las listas del cartucho.
+# ---------------------------------------------------------------------------
+
+L 0x46DC vuelca_la_mano_de_este_lado
+B 0x46DC Vuelca 36 columnas de 48 bytes desde 0xE2E5, un byte por celda. Es la gemela de 0x46B1 sin el espejo de bits: las dos recorren el mismo trozo de RAM hacia atras -lo que da la vuelta al dibujo de arriba abajo- y solo una le da tambien la vuelta de izquierda a derecha. Una mano, vista desde los dos lados de la mesa.
+C 0x46df 36 columnas
+C 0x46e2 rellena el trozo de 0xE2E5 antes de volcar la columna
+C 0x46e9 48 bytes cada una
+C 0x46eb el byte tal cual, sin espejar
+C 0x46f1 hacia ATRAS por la memoria
+
+L 0x46F9 limpia_y_pinta_los_ceros
+B 0x46F9 Borra 48 bytes de la VRAM en 0x6000 y suelta encima la lista de 0x4708. Cae en el interprete con un `jr`, sin gastar un `call`.
+C 0x46fa 0x6000, que en la VRAM de 16 KB es 0x2000: los colores
+C 0x4703 y encima, la lista de siete bytes de aqui al lado
+
+L 0x472B saca_una_posicion
+B 0x472B Devuelve en A un byte de la tabla de 0x4735, indexando con el A de entrada. Son cuatro filas de diez posiciones que bajan de seis en seis, una por orientacion de la mesa.
+C 0x472f indexa la tabla con A
+
+L 0x476F pinta_uno_de_los_tres_dibujos
+B 0x476F Pinta en la fila 11 y la 12 de la columna 2 uno de los tres dibujos de 0x47C2, 0x47D8 y 0x47EB, con el numero en A. Antes borra el sitio con la lista de fondo. El dibujo 2 es distinto de los otros dos: suena al aparecer -pero solo si el que habia antes no era ya el 2- y detras se queda una espera larga a pelo. Se pide desde seis sitios distintos del juego de la mano.
+C 0x4773 borra las dos filas antes de pintar nada
+C 0x477a el dibujo 2 es el unico que suena
+C 0x477f y solo suena si el que habia no era ya el 2
+C 0x4786 sonido 0x8D
+C 0x478d se apunta cual queda puesto, para la vez siguiente
+C 0x4790 cada puntero son dos bytes
+C 0x479b y a pintarlo
+C 0x479f otra vez el 2: ademas de sonar, se para un momento
+
+L 0x47A8 para_un_momento
+B 0x47A8 Espera a pelo: 255 vueltas de 255. No mira el reloj ni la interrupcion, cuenta y ya. Como todo esto corre DENTRO de la interrupcion, mientras dura no avanza nada mas.
+C 0x47a8 255 vueltas de fuera
+C 0x47aa por 255 de dentro
+
+L 0x4833 busca_en_las_dos_listas
+B 0x4833 Cruza la lista de 0xE1F5 contra dos sitios: primero contra los cuatro bytes de 0xE233 (por 0x487D) y luego contra la lista a la que apunta 0xE203, con C entradas. En cuanto encuentra un byte que este en las dos, levanta el bit 6 de 0xE1CD y pone 0xE1AC a cero, que es la senal que mira el submodo 2 del estado 11 para cantar jugada.
+C 0x483f la segunda lista donde buscar
+C 0x4843 cuantas entradas tiene, una mas de las que dice 0xE1BE
+C 0x484e bit 6 de 0xE1CD: hay coincidencia
+C 0x4853 y 0xE1AC a cero
+
+L 0x4856 recorre_la_lista_larga
+B 0x4856 El bucle de busqueda: por cada byte de HL recorre los C bytes de (0xE203) buscando uno igual. Un cero en cualquiera de las dos listas la termina. El `pop de` de 0x486B es una salida a lo bruto: se come la direccion de retorno para volver DOS niveles arriba de golpe cuando la lista de HL se acaba.
+C 0x485d un cero termina la lista de dentro
+C 0x4860 encontrado: se vuelve con el byte en A
+C 0x4864 no estaba: al siguiente de la lista de fuera
+C 0x486b se come el retorno y sale dos niveles arriba
+
+L 0x486D recorre_los_cuatro_de_e233
+B 0x486D La misma busqueda contra los CUATRO bytes fijos de 0xE233. Entra por 0x487D, que es quien comprueba primero que la lista de HL no este vacia.
+C 0x4870 cuatro bytes, ni uno mas
+C 0x4874 el cero corta antes de los cuatro
+C 0x4877 encontrado
+C 0x487f lista vacia: no hay nada que cruzar
+
+L 0x4882 marca_la_coincidencia
+B 0x4882 Levanta el bit 6 de 0xE1CD y borra 0xE1AC. Es lo que hacen las dos busquedas al encontrar algo, y lo que el submodo 2 del estado 11 lee en 0x427C para irse a cantar la jugada.
+
+L 0x488D desfila_el_recuento
+B 0x488D EL DESFILE DE LA PANTALLA FINAL, y quien la termina. Corre uno de cada ocho fotogramas y va escribiendo por parejas: 0xE05D es donde toca, y cada diez pasos baja 0x50 en la VRAM -dos filas y media- y sube el contador de columna. A la CUARTA columna pone 0xE1A8 a cero, que es exactamente lo que el submodo 3 del estado 12 esta esperando en 0x43D4 para dar la partida por cerrada.
+C 0x4890 uno de cada ocho fotogramas
+C 0x4893 por donde va el desfile
+C 0x489c a los diez pasos se cambia de sitio
+C 0x48a2 0x50 mas abajo en la VRAM
+C 0x48a9 y el contador vuelve a uno
+C 0x48b0 a la cuarta columna se acaba
+C 0x48b6 dentro de la misma columna se avanza de dos en dos
+C 0x48c4 sonido 1 en cada paso: el tecleo del recuento
+
+L 0x48C8 cierra_el_recuento
+B 0x48C8 Pone 0xE1A8 a cero de golpe, los ocho bits. Es la senal de "ya no queda nada pendiente" que espera el ultimo submodo del estado 12.
+
+L 0x48CE saca_un_numero_menor_que_h
+B 0x48CE Pide numeros al azar a 0x4F2B hasta que sale uno que vale. Con 0xE208 por debajo de 4 devuelve 1 sin mas; si no, insiste hasta dar con uno que no pase de H. Es un bucle de rechazo, o sea que el tiempo que tarda depende de la suerte.
+C 0x48d4 con menos de cuatro no se sortea nada
+C 0x48da si se pasa de H, otro numero
+C 0x48de por debajo de cuatro, siempre el 1
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 5: EL REPARTO, Y QUE NO ES DEL TODO AL AZAR. 0x48E1-0x49A5.
+#
+# EL HALLAZGO DE ESTA TANDA. 0x4DC8 reparte trece fichas del muro, una a una,
+# y en cuanto termina llama a 0x48E1, que SOBREESCRIBE algunos de esos huecos
+# con combinaciones ya hechas: un trio de la misma ficha y una o dos escaleras
+# de tres seguidas. No lo hace siempre: 0xE062 tiene que valer 3 o mas, y ese
+# contador solo sube (0x5EE1 y 0x76A9), asi que las dos primeras manos se
+# reparten limpias y de la tercera en adelante van sembradas.
+#
+# Y en el DEMO no se reparte nada: 0x495C copia de la ROM la mano fija de
+# 0x4968, catorce codigos de ficha. Por eso el attract sale siempre igual.
+#
+# LO QUE NO ESTA CERRADO, y se marca: de quien es la mano de 0xE12C-0xE139. Se
+# sabe que son catorce huecos, que el demo la carga entera de la ROM y que
+# 0x4DC8 la llena del muro; no se ha medido si es la del jugador o la de la
+# maquina. Hasta medirlo no se publica.
+# ---------------------------------------------------------------------------
+
+L 0x48E1 siembra_la_mano
+B 0x48E1 SIEMBRA COMBINACIONES EN LA MANO YA REPARTIDA. Sin partida se va a 0x495C y copia la mano fija de la ROM. Con partida, y solo a partir de la tercera vez (0xE062), mete un TRIO en los huecos 0, 3 y 8 y luego una o dos ESCALERAS por 0x4918. Para el trio sortea tipos hasta dar con uno del que no haya ya dos copias.
+C 0x48e4 bit 6 de 0xE002: hay partida
+C 0x48e6 en el demo la mano no se sortea, se copia de la ROM
+C 0x48eb las dos primeras manos van limpias
+C 0x48f2 con este numero alto no se siembra trio, solo escaleras
+C 0x48f6 saca una ficha al azar
+C 0x48f9 y mira cuantas copias hay ya de ese tipo
+C 0x48fd con dos o mas ya repartidas, no cabe un trio: otra
+C 0x4901 apunta las TRES copias de golpe
+C 0x4904 el primer hueco de la mano
+C 0x490a tres huecos mas alla
+C 0x4910 y cinco mas: el trio queda repartido, no seguido
+C 0x4917 una mano mas sembrada
+
+L 0x4918 siembra_una_o_dos_escaleras
+B 0x4918 Siembra una escalera, o dos si 0xE063 es par: el `rra` saca el bit 0 y el `call nc` mete la primera solo cuando no hay acarreo, y luego la segunda va siempre. Al salir pone el contador a cero.
+C 0x491d el bit 0 de la cuenta de manos sembradas
+C 0x491e con el bit a cero, dos escaleras en vez de una
+C 0x4925 y el contador vuelve a empezar
+
+L 0x4928 siembra_una_escalera
+B 0x4928 Mete tres fichas seguidas del mismo palo. Sortea hasta que le sale una que sirva, y para eso descarta dos cosas: los HONORES, que no forman escalera (codigo 0x31 o mas), y los numeros 7, 8 y 9, porque encima de ellos no caben dos mas. Ademas comprueba que de los tres tipos no haya ya cuatro copias repartidas, que son todas las que existen. Los tres huecos que ocupa son el 1, el 6 y el 11.
+C 0x492c codigo 0x30 o mas: es un honor, no forma escalera
+C 0x4930 el numero dentro del palo
+C 0x4932 del 7 para arriba no caben dos fichas encima
+C 0x4936 los contadores de los tres tipos seguidos
+C 0x4939 la ficha y las dos de encima
+C 0x493c cuatro copias ya repartidas: no queda ninguna, otra escalera
+C 0x4944 apunta las tres
+C 0x4949 el segundo hueco de la mano
+C 0x494f cinco mas alla, y la ficha siguiente
+C 0x4956 y otros cinco, con la tercera
+
+L 0x495C carga_la_mano_del_demo
+B 0x495C Copia los catorce codigos de 0x4968 a 0xE12C. Es lo que hace el demo en lugar de repartir, y por eso el attract juega siempre la misma mano.
+C 0x4962 catorce fichas
+
+L 0x4976 saca_una_ficha_al_azar
+B 0x4976 Devuelve una ficha al azar: pide un numero a 0x4F2B, se queda con H como INDICE de 0 a 33 y lo pasa por la tabla de 0x4FBF para sacar el CODIGO, con el palo en el nibble alto y el numero en el bajo. Sale con C = el indice y B = el codigo. Los dos hacen falta: el indice para contar copias en 0xE186 y el codigo para saber si es honor o que numero lleva.
+C 0x4979 el indice, de 0 a 33
+C 0x497b la tabla de los 34 tipos de ficha
+C 0x4981 y el codigo que le corresponde
+
+L 0x4984 apunta_al_contador_del_tipo
+B 0x4984 Deja HL y DE apuntando al contador de copias del tipo que hay en C, dentro de la tabla de 0xE186. Ahi se lleva la cuenta de cuantas de cada tipo se han repartido ya, y por eso el sembrado puede comprobar que no se pasa de cuatro.
+C 0x4986 la tabla de copias repartidas por tipo
+
+L 0x498F saca_del_muro
+B 0x498F Saca la ficha siguiente del muro y adelanta el puntero. Hay DOS punteros, 0xE06A y 0xE06C, y el bit 0 de 0xE206 dice cual toca: son los dos extremos por los que se roba. Adelanta el puntero primero y devuelve la ficha de la posicion anterior.
+C 0x4992 bit 0 de 0xE206: por que extremo se roba
+C 0x499e adelanta el puntero antes de leer nada
+C 0x49a2 y lee de donde estaba
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 6: EL AZAR Y EL MURO. 0x4D72-0x4F8A.
+#
+# NO HAY MURO BARAJADO. Las fichas de una partida no salen de una tira
+# revuelta al empezar: se SORTEAN una a una segun hacen falta, y lo que impide
+# que salga una quinta copia de un tipo es la tabla de contadores de 0xE186,
+# treinta y cuatro bytes, uno por tipo. Si el sorteo saca un tipo que ya tiene
+# cuatro repartidas, se resiembra y se vuelve a sortear. Es muestreo sin
+# reemplazo por rechazo, no una baraja.
+#
+# La tira de fichas de verdad, 0x49A6, existe y se usa: es de donde roba el
+# demo, cuando no hay partida y aun no hay mano repartida.
+# ---------------------------------------------------------------------------
+
+L 0x4F2B saca_un_numero_al_azar
+B 0x4F2B EL GENERADOR DE NUMEROS AL AZAR, y devuelve directamente un tipo de ficha: sale con H entre 0 y 33. Por dentro es una division: mete la semilla de 0xE064 por ocho vueltas de `adc hl,hl` restando 57 cuando cabe, de modo que H acaba valiendo la semilla modulo 57 y L el cociente, que pasa a ser la semilla nueva. Como 57 es mas que 34, los restos de 34 a 56 no valen: en vez de doblarlos -que cargaria el dado hacia los primeros tipos- los TIRA y vuelve a sortear. Y si el byte bajo de la semilla se queda a cero, la resiembra con el registro R del refresco, para que no se clave.
+C 0x4f2d 57, el modulo de la division
+C 0x4f2f la semilla
+C 0x4f33 semilla a cero: hay que resembrarla o se queda clavada
+C 0x4f36 el registro R del refresco de memoria, que nunca para
+C 0x4f3b ocho vueltas, una por bit
+C 0x4f3e va metiendo bits por abajo
+C 0x4f46 cabe el 57: se resta y queda el resto
+C 0x4f4e la semilla nueva, para la proxima
+C 0x4f53 si el resto se pasa de 57 algo va mal: se resiembra
+C 0x4f5e 34: de ahi para arriba no hay tipo de ficha, se tira y otra vez
+
+L 0x4F64 reparte_una_ficha
+B 0x4F64 De donde sale la ficha siguiente. Con mano ya repartida (bit 0 de 0xE1A8) o con partida en marcha, se SORTEA; si no, se roba de la tira fija por 0x498F, que es lo que hace el demo. Al sortear comprueba la tabla de copias de 0xE186: de cada tipo hay cuatro fichas y ni una mas, asi que si el sorteo saca un tipo agotado se resiembra la semilla y se vuelve a tirar.
+C 0x4f67 bit 0 de 0xE1A8: ya hay mano repartida
+C 0x4f6d y bit 6 de 0xE002: hay partida
+C 0x4f71 ni una cosa ni la otra: se roba de la tira fija
+C 0x4f77 la tabla de copias repartidas por tipo
+C 0x4f7e cuatro copias es el maximo: de ese tipo no queda ninguna
+C 0x4f82 se resiembra la semilla y se sortea otra vez
+
+L 0x4D72 prepara_el_reparto
+B 0x4D72 Deja la mesa a cero para una mano nueva: borra los 34 contadores de copias por tipo, apunta 0xE054 al principio de la mano y guarda en 0xE1B7 de quien es el turno, con el contrario en 0xE33F.
+C 0x4d72 los 34 contadores, uno por tipo de ficha
+C 0x4d7b a cero: no hay ninguna repartida
+C 0x4d7f donde empieza la mano
+C 0x4d88 de quien es el turno
+C 0x4d8b y el contrario, que es el otro jugador
+
+L 0x4D91 despacha_el_reparto
+B 0x4D91 Reparte por fases, una por bit de 0xE1A9: los `rra` encadenados van bajando bits y el primero que este a cero manda. Sin ningun bit puesto se empieza por 0x4DA6, que es el reparto inicial.
+C 0x4d94 bit 0: aun no ha empezado el reparto
+C 0x4d97 bit 1
+C 0x4d9b bit 2
+C 0x4d9f bit 3
+
+L 0x4DA6 reparte_la_mano
+B 0x4DA6 EL REPARTO INICIAL. Copia catorce fichas a 0xE32B, deja los dos contadores de mano en trece, saca las trece de 0xE12C una a una con 0x4F64 y remata con la catorce en 0xE139. Y en cuanto termina llama a 0x48E1, que puede sembrarle un trio y una o dos escaleras encima de lo repartido.
+C 0x4daf catorce fichas
+C 0x4db4 trece en la mano, la catorce va aparte
+C 0x4dbe por que extremo se empieza a robar
+C 0x4dce trece fichas, una a una
+C 0x4dd0 la ficha siguiente
+C 0x4dd5 y a su hueco de la mano
+C 0x4de3 0x39, que no es un codigo de ficha valido: el hueco vacio
+C 0x4de7 y si no, una ficha de verdad
+C 0x4ded AQUI SE SIEMBRA la mano recien repartida
+C 0x4df3 bit 0 de 0xE1A9: el reparto ya esta hecho
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 7: la barra de arriba, el rotulo que baja y el arranque de la
+# mano. 0x4B50-0x4CE3.
+#
+# Y UNA TERCERA CONFIRMACION DE LA DIFICULTAD, por si hicieran falta: 0x4CB8
+# pinta un rotulo distinto en la barra segun 0xE040, con tres listas -0x4D36,
+# 0x4D3E y 0x4D47- y los `rra` que miran sus bits 0 y 1. Con 0xE040 valiendo
+# 1, 2 o 4 sale una lista distinta cada vez. Las tres dificultades no solo
+# llegan al juego: se VEN durante toda la partida.
+# ---------------------------------------------------------------------------
+
+L 0x4B50 monta_el_rotulo_que_baja
+B 0x4B50 Prepara la caida del rotulo del principio: diecisiete pasos en 0xE00A, la altura a cero en 0xE00E, los colores del bloque de 0x4BB0 descomprimidos en 0x2200 y los patrones de al lado rellenos a 0xF0. Cada paso lo da 0x4B75.
+C 0x4b50 diecisiete pasos de caida
+C 0x4b55 y empieza arriba del todo
+C 0x4b5b los colores, en formato B sin cabecera de destino
+C 0x4b64 y los patrones del mismo tercio, con el byte fijo 0xF0
+
+L 0x4B75 baja_el_rotulo_un_paso
+B 0x4B75 Baja el rotulo una fila: sube 0x20 la altura de 0xE00E, la resta de 0x3AAA para saber donde toca pintar -o sea que cuanto mas ha bajado, mas arriba empieza- y suelta tres tiras de tiles consecutivos con 0x4BA1. Detras borra lo que dejo la fila anterior. Devuelve el paso que queda en 0xE00A, y el estado 1 lo mira para saber cuando parar.
+C 0x4b78 una fila entera de la pantalla
+C 0x4b81 desde abajo hacia arriba
+C 0x4b87 los tiles del rotulo empiezan en el 0x40
+C 0x4b89 tres celdas la primera tira
+C 0x4b8e doce celdas la segunda
+C 0x4b99 y detras, a borrar lo de antes
+C 0x4b9f un paso menos
+
+L 0x4BA1 pinta_una_tira_de_tiles
+B 0x4BA1 Pinta B celdas seguidas con tiles que van subiendo de uno en uno desde A, y deja DE una fila mas abajo. Es el ladrillo con el que 0x4B75 construye el rotulo.
+C 0x4ba6 el tile siguiente
+C 0x4baa y al terminar, una fila mas abajo
+
+L 0x4C43 pone_los_marcadores_a_30000
+B 0x4C43 EL MARCADOR DE SALIDA: 30.000 puntos para cada uno. Escribe 0x0300 en 0xE045 y en 0xE048, que son los bytes medio y alto de los dos contadores BCD; el bajo ya estaba a cero. Cuadra con lo medido en los volcados del paso 2, que daban 030000 y 030000 nada mas empezar. Lo llama el estado 9.
+C 0x4c43 0x0300 en BCD son 30.000 con el byte bajo a cero
+C 0x4c46 el marcador de 0xE044
+C 0x4c49 y el de 0xE047
+C 0x4c4c limpia y pinta los ceros
+
+L 0x4C59 monta_la_mano
+B 0x4C59 Deja la mesa lista para jugar: borra 398 bytes de variables desde 0xE127, pinta la barra y la mano, y decide si hay que enseñar alguno de los dos rotulos cortos. El primero sale con 0xE04B en cinco o mas, el segundo cuando 0xE04C y 0xE04D comparten algun bit; cada uno deja su marca en los bits 0 y 1 de 0xE127, y segun cual sea suena 3 o 12.
+C 0x4c5f 398 bytes de variables de la mano
+C 0x4c76 de cinco para arriba sale el primer rotulo
+C 0x4c83 y se apunta que ha salido
+C 0x4c8c los dos bytes tienen que compartir algun bit
+C 0x4c98 la marca del segundo rotulo
+C 0x4c9d ninguno de los dos: no suena nada
+C 0x4ca2 sonido 3 para uno
+C 0x4ca6 y sonido 12 para el otro
+C 0x4cac la marca se gasta al sonar
+
+L 0x4CB8 pinta_la_barra_de_arriba
+B 0x4CB8 Repinta la barra de arriba entera: la limpia con el tile 1, suelta los dos marcadores con su signo, el rotulo de tres trozos y el contador de 0xE04A, y remata con el rotulo de la DIFICULTAD, que elige entre tres listas mirando los bits 0 y 1 de 0xE040. Con la tecla 1 sale 0x4D36, con la 3 sale 0x4D3E y con la 2 la tercera, 0x4D47.
+C 0x4cb8 el tile 1 es el blanco
+C 0x4cba 192 celdas: las seis filas de la barra
+C 0x4cc3 los dos marcadores con su signo
+C 0x4ccc y el contador de 0xE04A
+C 0x4ccf LA DIFICULTAD, tal como la dejo la pantalla del estado 8
+C 0x4cd2 bit 0: la tecla 1
+C 0x4cd8 bit 1: la tecla 3
+C 0x4cde y si no es ninguno de los dos, la tecla 2
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 8: LAS CUATRO FASES DEL REPARTO, y una regla del mahjong de
+# verdad metida en el codigo. 0x4DF6-0x4EAD.
+#
+# EL REPARTO VA EN TANDAS DE CUATRO, Y LA ULTIMA DE UNA. Lo decide 0x4E59: si
+# el contador de fichas ya repartidas vale 12, la tanda siguiente es de UNA; si
+# no, de CUATRO. O sea 4 + 4 + 4 + 1 = 13, que es exactamente como se reparte
+# una mano en el mahjong japones. No es un detalle de dibujo: el bucle no
+# termina hasta que el contador llega a trece.
+#
+# Las cuatro fases cuelgan de los bits de 0xE1A9 y las despacha 0x4D91. Cada
+# una corre a su ritmo -cada 32, cada 16 o cada 4 fotogramas- porque lo que se
+# esta haciendo es la ANIMACION del reparto, no el reparto en si, que ya lo
+# hizo 0x4DA6 de golpe.
+# ---------------------------------------------------------------------------
+
+L 0x4DF6 reparte_una_tanda
+B 0x4DF6 FASE 1 DEL REPARTO: las tandas. Cada 32 fotogramas suena el golpe de la ficha y le toca a uno de los dos, alternandose con el bit 0 de 0xE1B7. Cada tanda copia CUATRO fichas -o UNA, si ya van doce- y cuando el contador de cualquiera de los dos llega a trece se pasa a la fase siguiente.
+C 0x4df9 una tanda cada 32 fotogramas
+C 0x4dfe sonido 7: el golpe de la ficha en la mesa
+C 0x4e04 le toca al otro
+C 0x4e06 el bit 0 dice a cual de los dos
+C 0x4e0f cuantas van y cuantas tocan ahora
+C 0x4e28 trece: este ya tiene su mano entera
+C 0x4e2d el otro jugador, con su propio contador
+C 0x4e39 y su propia mano
+C 0x4e4c trece tambien
+C 0x4e50 el turno vuelve al primero
+C 0x4e56 bit 1 de 0xE1A9: las tandas se han acabado
+
+L 0x4E59 cuantas_tocan_ahora
+B 0x4E59 CUANTAS FICHAS LLEVA LA TANDA SIGUIENTE, y aqui esta la regla: si ya van DOCE repartidas, la tanda es de UNA; si no, de CUATRO. Suma esa cantidad al contador que entra en A y lo devuelve. Cuatro, cuatro, cuatro y una: trece.
+C 0x4e5b doce repartidas: la ultima va de una en una
+C 0x4e5f y hasta entonces, de cuatro en cuatro
+C 0x4e61 el contador con la tanda ya sumada
+
+L 0x4E63 borra_la_mano_de_trabajo
+B 0x4E63 FASE 2: cada 16 fotogramas borra los catorce huecos de 0xE13A y ordena lo que haga falta con 0x4F96. Es el hueco de en medio entre repartir y enseñar.
+C 0x4e66 cada 16 fotogramas
+C 0x4e6d catorce huecos
+C 0x4e79 bit 2 de 0xE1A9: hecho
+
+L 0x4E7C ensena_la_mano_ficha_a_ficha
+B 0x4E7C FASE 3: va pasando las fichas de 0xE12C a 0xE13A de UNA EN UNA, cada cuatro fotogramas y con su sonido, hasta las catorce. Es lo que se ve como la mano colocandose. El hueco catorce solo se rellena de verdad si toca; si no, se marca con 0x39, que no es un codigo de ficha valido.
+C 0x4e7f cada cuatro fotogramas, una ficha
+C 0x4e84 sonido 1: la ficha colocandose
+C 0x4e8d 0x39, la marca de hueco vacio
+C 0x4e95 a las catorce se acaba
+C 0x4e9d la ficha que toca de la mano repartida
+C 0x4ea4 y su hueco en la mano que se ve
+C 0x4eac una ficha mas colocada

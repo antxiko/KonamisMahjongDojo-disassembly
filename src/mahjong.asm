@@ -256,7 +256,7 @@ L_4118:
 	ld a,(0e003h)		;4118   ; ESTADO 1: parpadeo del rotulo, un fotograma de cada dos
 	rra			;411b   ; el bit 0 del contador de fotogramas: solo los impares
 	ret nc			;411c
-	call L_4B75		;411d
+	call baja_el_rotulo_un_paso		;411d
 	ret nz			;4120
 	ld hl,085bfh		;4121
 	call L_409D		;4124   ; pinta el rotulo
@@ -287,7 +287,7 @@ L_414E:
 L_4151:
 	call pinta_una_franja_del_tapete		;4151   ; ESTADO 9: otros 24 fotogramas de cuenta pintando la mesa
 	ret p			;4154
-	call L_4C43		;4155   ; pinta la mesa de la mano que va a empezar
+	call pone_los_marcadores_a_30000		;4155   ; pinta la mesa de la mano que va a empezar
 	ld a,010h		;4158   ; 0x10 y luego inc a: 17 fotogramas de espera
 	inc a			;415a
 	jp L_41FC		;415b
@@ -368,7 +368,7 @@ submodo_0_del_estado_10:
 L_41B6:
 	call pinta_una_franja_del_tapete		;41b6   ; SUBMODO 1 DEL ESTADO 10: reparte la mano
 	ret p			;41b9
-	call L_4C59		;41ba   ; el reparto
+	call monta_la_mano		;41ba   ; el reparto
 	ld hl,03959h		;41bd
 	ld (0e1c5h),hl		;41c0
 	ld hl,0e064h		;41c3
@@ -381,7 +381,7 @@ L_41CE:
 	inc hl			;41cf
 	ld a,(0e003h)		;41d0   ; el segundo byte de la semilla, siempre el contador de fotogramas
 	ld (hl),a			;41d3
-	call L_4D72		;41d4
+	call prepara_el_reparto		;41d4
 	ld hl,0e1a8h		;41d7
 	set 0,(hl)		;41da   ; bit 0 de 0xE1A8: hay mano repartida
 	ld a,(0e04ch)		;41dc
@@ -498,7 +498,7 @@ submodo_2_del_estado_11:
 	ld a,(0e1d1h)		;4267   ; bit 0 de 0xE1D1: hay que saltarse la comprobacion
 	rra			;426a
 	jr c,L_42A8		;426b
-	call L_4833		;426d
+	call busca_en_las_dos_listas		;426d
 	ld a,(0e1cdh)		;4270
 	rra			;4273
 	jr nc,L_4279		;4274
@@ -701,7 +701,7 @@ L_43C6:
 	ret nz			;43ca
 	jp avanza_de_submodo		;43cb
 L_43CE:
-	call L_488D		;43ce   ; SUBMODO 3 DEL ESTADO 12: el recuento, y hasta que 0xE1A8 no quede a cero no se sale
+	call desfila_el_recuento		;43ce   ; SUBMODO 3 DEL ESTADO 12: el recuento, y hasta que 0xE1A8 no quede a cero no se sale
 	ld a,(0e1a8h)		;43d1
 	or a			;43d4   ; mientras quede un solo bit puesto, aqui se sigue
 	ret nz			;43d5
@@ -803,7 +803,7 @@ DATA_desplazamientos_de_borrado:
 
 
 L_446F:
-	call L_4B50		;446f
+	call monta_el_rotulo_que_baja		;446f
 L_4472:
 	ld hl,083b1h		;4472
 	ld de,06600h		;4475
@@ -1274,33 +1274,41 @@ L_46D5:
 	djnz L_46D5		;46d8
 	pop bc			;46da
 	ret			;46db
-L_46DC:
+
+; ----------------------------------------------------------------------
+; Vuelca 36 columnas de 48 bytes desde 0xE2E5, un byte por celda. Es la gemela de 0x46B1 sin el espejo de bits: las dos recorren el mismo trozo de RAM hacia atras -lo que da la vuelta al dibujo de arriba abajo- y solo una le da tambien la vuelta de izquierda a derecha. Una mano, vista desde los dos lados de la mesa.
+; ----------------------------------------------------------------------
+vuelca_la_mano_de_este_lado:
 	call prepara_escritura_vram		;46dc
-	ld c,024h		;46df
+	ld c,024h		;46df   ; 36 columnas
 L_46E1:
 	push bc			;46e1
-	call L_7883		;46e2
+	call L_7883		;46e2   ; rellena el trozo de 0xE2E5 antes de volcar la columna
 	pop bc			;46e5
 	ld hl,0e2e5h		;46e6
-	ld b,030h		;46e9
+	ld b,030h		;46e9   ; 48 bytes cada una
 L_46EB:
-	ld a,(hl)			;46eb
+	ld a,(hl)			;46eb   ; el byte tal cual, sin espejar
 	exx			;46ec
 	out (c),a		;46ed
 	exx			;46ef
 	inc de			;46f0
-	dec hl			;46f1
+	dec hl			;46f1   ; hacia ATRAS por la memoria
 	djnz L_46EB		;46f2
 	dec c			;46f4
 	jr nz,L_46E1		;46f5
 	ei			;46f7
 	ret			;46f8
-L_46F9:
+
+; ----------------------------------------------------------------------
+; Borra 48 bytes de la VRAM en 0x6000 y suelta encima la lista de 0x4708. Cae en el interprete con un `jr`, sin gastar un `call`.
+; ----------------------------------------------------------------------
+limpia_y_pinta_los_ceros:
 	xor a			;46f9
-	ld de,06000h		;46fa
+	ld de,06000h		;46fa   ; 0x6000, que en la VRAM de 16 KB es 0x2000: los colores
 	ld bc,00030h		;46fd
 	call rellena_la_vram		;4700
-	ld hl,04708h		;4703
+	ld hl,04708h		;4703   ; y encima, la lista de siete bytes de aqui al lado
 	jr pinta_lista_formato_b		;4706
 
 ; ----------------------------------------------------------------------
@@ -1345,10 +1353,14 @@ prepara_lectura_vram:
 	ld c,a			;4728
 	exx			;4729
 	ret			;472a
-L_472B:
+
+; ----------------------------------------------------------------------
+; Devuelve en A un byte de la tabla de 0x4735, indexando con el A de entrada. Son cuatro filas de diez posiciones que bajan de seis en seis, una por orientacion de la mesa.
+; ----------------------------------------------------------------------
+saca_una_posicion:
 	push hl			;472b
 	ld hl,04735h		;472c
-	call suma_a_a_hl		;472f
+	call suma_a_a_hl		;472f   ; indexa la tabla con A
 	ld a,(hl)			;4732
 	pop hl			;4733
 	ret			;4734
@@ -1370,45 +1382,53 @@ DATA_cuatro_filas_de_posiciones:
 ; ======================================================================
 
 
-L_476F:
+
+; ----------------------------------------------------------------------
+; Pinta en la fila 11 y la 12 de la columna 2 uno de los tres dibujos de 0x47C2, 0x47D8 y 0x47EB, con el numero en A. Antes borra el sitio con la lista de fondo. El dibujo 2 es distinto de los otros dos: suena al aparecer -pero solo si el que habia antes no era ya el 2- y detras se queda una espera larga a pelo. Se pide desde seis sitios distintos del juego de la mano.
+; ----------------------------------------------------------------------
+pinta_uno_de_los_tres_dibujos:
 	push hl			;476f
 	push de			;4770
 	push bc			;4771
 	push af			;4772
-	ld hl,047b8h		;4773
+	ld hl,047b8h		;4773   ; borra las dos filas antes de pintar nada
 	call pinta_lista_formato_b		;4776
 	pop af			;4779
-	cp 002h		;477a
+	cp 002h		;477a   ; el dibujo 2 es el unico que suena
 	push af			;477c
 	jr nz,L_478B		;477d
-	ld a,(0e061h)		;477f
+	ld a,(0e061h)		;477f   ; y solo suena si el que habia no era ya el 2
 	cp 002h		;4782
 	jr z,L_478B		;4784
-	ld a,08dh		;4786
+	ld a,08dh		;4786   ; sonido 0x8D
 	call L_9C4A		;4788
 L_478B:
 	pop af			;478b
 	push af			;478c
-	ld (0e061h),a		;478d
-	add a,a			;4790
+	ld (0e061h),a		;478d   ; se apunta cual queda puesto, para la vez siguiente
+	add a,a			;4790   ; cada puntero son dos bytes
 	ld hl,047b2h		;4791
 	call suma_a_a_hl		;4794
 	ld e,(hl)			;4797
 	inc hl			;4798
 	ld d,(hl)			;4799
 	ex de,hl			;479a
-	call pinta_lista_formato_b		;479b
+	call pinta_lista_formato_b		;479b   ; y a pintarlo
 	pop af			;479e
-	cp 002h		;479f
-	call z,L_47A8		;47a1
+	cp 002h		;479f   ; otra vez el 2: ademas de sonar, se para un momento
+	call z,para_un_momento		;47a1
 	pop bc			;47a4
 	pop de			;47a5
 	pop hl			;47a6
 	ret			;47a7
-L_47A8:
-	ld h,0ffh		;47a8
+
+; ----------------------------------------------------------------------
+; Espera a pelo: 255 vueltas de 255. No mira el reloj ni la interrupcion, cuenta y ya. Como todo esto corre DENTRO de la interrupcion, mientras dura no avanza nada mas.
+; ----------------------------------------------------------------------
+para_un_momento:
+	ld h,0ffh		;47a8   ; 255 vueltas de fuera
 L_47AA:
-	ld b,0ffh		;47aa
+	ld b,0ffh		;47aa   ; por 255 de dentro
 L_47AC:
 	djnz L_47AC		;47ac
 	dec h			;47ae
@@ -1486,51 +1506,63 @@ L_481E:
 	ld hl,0e1ach		;482d
 	ld (hl),001h		;4830
 	ret			;4832
-L_4833:
+
+; ----------------------------------------------------------------------
+; Cruza la lista de 0xE1F5 contra dos sitios: primero contra los cuatro bytes de 0xE233 (por 0x487D) y luego contra la lista a la que apunta 0xE203, con C entradas. En cuanto encuentra un byte que este en las dos, levanta el bit 6 de 0xE1CD y pone 0xE1AC a cero, que es la senal que mira el submodo 2 del estado 11 para cantar jugada.
+; ----------------------------------------------------------------------
+busca_en_las_dos_listas:
 	ld hl,0e1f5h		;4833
 	call L_487D		;4836
 	ld hl,0e1f5h		;4839
 	ld de,0e15eh		;483c
-	ld (0e203h),de		;483f
-	ld a,(0e1beh)		;4843
+	ld (0e203h),de		;483f   ; la segunda lista donde buscar
+	ld a,(0e1beh)		;4843   ; cuantas entradas tiene, una mas de las que dice 0xE1BE
 	inc a			;4846
 	ld c,a			;4847
 	call L_4865		;4848
 	ld hl,0e1cdh		;484b
-	set 6,(hl)		;484e
+	set 6,(hl)		;484e   ; bit 6 de 0xE1CD: hay coincidencia
 	ld hl,0e1ach		;4850
-	ld (hl),000h		;4853
+	ld (hl),000h		;4853   ; y 0xE1AC a cero
 	ret			;4855
-L_4856:
+
+; ----------------------------------------------------------------------
+; El bucle de busqueda: por cada byte de HL recorre los C bytes de (0xE203) buscando uno igual. Un cero en cualquiera de las dos listas la termina. El `pop de` de 0x486B es una salida a lo bruto: se come la direccion de retorno para volver DOS niveles arriba de golpe cuando la lista de HL se acaba.
+; ----------------------------------------------------------------------
+recorre_la_lista_larga:
 	ld de,(0e203h)		;4856
 	ld b,c			;485a
 L_485B:
 	ld a,(de)			;485b
 	or a			;485c
-	jr z,L_4864		;485d
+	jr z,L_4864		;485d   ; un cero termina la lista de dentro
 	cp (hl)			;485f
-	ret z			;4860
+	ret z			;4860   ; encontrado: se vuelve con el byte en A
 	inc de			;4861
 	djnz L_485B		;4862
 L_4864:
-	inc hl			;4864
+	inc hl			;4864   ; no estaba: al siguiente de la lista de fuera
 L_4865:
 	ld a,(hl)			;4865
 	or a			;4866
 	jr z,L_486B		;4867
-	jr L_4856		;4869
+	jr recorre_la_lista_larga		;4869
 L_486B:
-	pop de			;486b
+	pop de			;486b   ; se come el retorno y sale dos niveles arriba
 	ret			;486c
-L_486D:
+
+; ----------------------------------------------------------------------
+; La misma busqueda contra los CUATRO bytes fijos de 0xE233. Entra por 0x487D, que es quien comprueba primero que la lista de HL no este vacia.
+; ----------------------------------------------------------------------
+recorre_los_cuatro_de_e233:
 	ld de,0e233h		;486d
-	ld b,004h		;4870
+	ld b,004h		;4870   ; cuatro bytes, ni uno mas
 L_4872:
 	ld a,(de)			;4872
 	or a			;4873
-	jr z,L_487C		;4874
+	jr z,L_487C		;4874   ; el cero corta antes de los cuatro
 	cp (hl)			;4876
-	jr z,L_4882		;4877
+	jr z,marca_la_coincidencia		;4877   ; encontrado
 	inc de			;4879
 	djnz L_4872		;487a
 L_487C:
@@ -1538,138 +1570,170 @@ L_487C:
 L_487D:
 	ld a,(hl)			;487d
 	or a			;487e
-	ret z			;487f
-	jr L_486D		;4880
-L_4882:
+	ret z			;487f   ; lista vacia: no hay nada que cruzar
+	jr recorre_los_cuatro_de_e233		;4880
+
+; ----------------------------------------------------------------------
+; Levanta el bit 6 de 0xE1CD y borra 0xE1AC. Es lo que hacen las dos busquedas al encontrar algo, y lo que el submodo 2 del estado 11 lee en 0x427C para irse a cantar la jugada.
+; ----------------------------------------------------------------------
+marca_la_coincidencia:
 	ld hl,0e1cdh		;4882
 	set 6,(hl)		;4885
 	ld hl,0e1ach		;4887
 	ld (hl),000h		;488a
 	ret			;488c
-L_488D:
+
+; ----------------------------------------------------------------------
+; EL DESFILE DE LA PANTALLA FINAL, y quien la termina. Corre uno de cada ocho fotogramas y va escribiendo por parejas: 0xE05D es donde toca, y cada diez pasos baja 0x50 en la VRAM -dos filas y media- y sube el contador de columna. A la CUARTA columna pone 0xE1A8 a cero, que es exactamente lo que el submodo 3 del estado 12 esta esperando en 0x43D4 para dar la partida por cerrada.
+; ----------------------------------------------------------------------
+desfila_el_recuento:
 	ld a,(0e003h)		;488d
-	and 007h		;4890
+	and 007h		;4890   ; uno de cada ocho fotogramas
 	ret nz			;4892
-	ld de,(0e05dh)		;4893
+	ld de,(0e05dh)		;4893   ; por donde va el desfile
 	ld hl,0e05fh		;4897
 	inc (hl)			;489a
 	ld a,(hl)			;489b
-	cp 00ah		;489c
+	cp 00ah		;489c   ; a los diez pasos se cambia de sitio
 	jr nz,L_48B6		;489e
 	ld a,050h		;48a0
-	call suma_a_a_de		;48a2
+	call suma_a_a_de		;48a2   ; 0x50 mas abajo en la VRAM
 	ld (0e05dh),de		;48a5
-	ld (hl),001h		;48a9
+	ld (hl),001h		;48a9   ; y el contador vuelve a uno
 	ld hl,0e060h		;48ab
 	inc (hl)			;48ae
 	ld a,(hl)			;48af
-	cp 004h		;48b0
-	jr z,L_48C8		;48b2
+	cp 004h		;48b0   ; a la cuarta columna se acaba
+	jr z,cierra_el_recuento		;48b2
 	jr L_48BC		;48b4
 L_48B6:
-	inc de			;48b6
+	inc de			;48b6   ; dentro de la misma columna se avanza de dos en dos
 	inc de			;48b7
 	ld (0e05dh),de		;48b8
 L_48BC:
 	ld hl,0e128h		;48bc
 	call L_6F72		;48bf
 	ld a,001h		;48c2
-	call L_9C4A		;48c4
+	call L_9C4A		;48c4   ; sonido 1 en cada paso: el tecleo del recuento
 	ret			;48c7
-L_48C8:
+
+; ----------------------------------------------------------------------
+; Pone 0xE1A8 a cero de golpe, los ocho bits. Es la senal de "ya no queda nada pendiente" que espera el ultimo submodo del estado 12.
+; ----------------------------------------------------------------------
+cierra_el_recuento:
 	ld hl,0e1a8h		;48c8
 	ld (hl),000h		;48cb
 	ret			;48cd
-L_48CE:
-	call L_4F2B		;48ce
+
+; ----------------------------------------------------------------------
+; Pide numeros al azar a 0x4F2B hasta que sale uno que vale. Con 0xE208 por debajo de 4 devuelve 1 sin mas; si no, insiste hasta dar con uno que no pase de H. Es un bucle de rechazo, o sea que el tiempo que tarda depende de la suerte.
+; ----------------------------------------------------------------------
+saca_un_numero_menor_que_h:
+	call saca_un_numero_al_azar		;48ce
 	ld a,(0e208h)		;48d1
-	cp 004h		;48d4
+	cp 004h		;48d4   ; con menos de cuatro no se sortea nada
 	jr c,L_48DE		;48d6
 	inc a			;48d8
 	cp h			;48d9
-	jr c,L_48CE		;48da
+	jr c,saca_un_numero_menor_que_h		;48da   ; si se pasa de H, otro numero
 	ld a,h			;48dc
 	ret			;48dd
 L_48DE:
-	ld a,001h		;48de
+	ld a,001h		;48de   ; por debajo de cuatro, siempre el 1
 	ret			;48e0
-L_48E1:
+
+; ----------------------------------------------------------------------
+; SIEMBRA COMBINACIONES EN LA MANO YA REPARTIDA. Sin partida se va a 0x495C y copia la mano fija de la ROM. Con partida, y solo a partir de la tercera vez (0xE062), mete un TRIO en los huecos 0, 3 y 8 y luego una o dos ESCALERAS por 0x4918. Para el trio sortea tipos hasta dar con uno del que no haya ya dos copias.
+; ----------------------------------------------------------------------
+siembra_la_mano:
 	ld a,(0e002h)		;48e1
-	bit 6,a		;48e4
-	jr z,L_495C		;48e6
+	bit 6,a		;48e4   ; bit 6 de 0xE002: hay partida
+	jr z,carga_la_mano_del_demo		;48e6   ; en el demo la mano no se sortea, se copia de la ROM
 	ld a,(0e062h)		;48e8
-	cp 003h		;48eb
+	cp 003h		;48eb   ; las dos primeras manos van limpias
 	ret c			;48ed
-	call L_4F2B		;48ee
+	call saca_un_numero_al_azar		;48ee
 	ld a,h			;48f1
-	cp 011h		;48f2
-	jr nc,L_4918		;48f4
+	cp 011h		;48f2   ; con este numero alto no se siembra trio, solo escaleras
+	jr nc,siembra_una_o_dos_escaleras		;48f4
 L_48F6:
-	call L_4976		;48f6
-	call L_4984		;48f9
+	call saca_una_ficha_al_azar		;48f6   ; saca una ficha al azar
+	call apunta_al_contador_del_tipo		;48f9   ; y mira cuantas copias hay ya de ese tipo
 	ld a,(hl)			;48fc
-	cp 002h		;48fd
+	cp 002h		;48fd   ; con dos o mas ya repartidas, no cabe un trio: otra
 	jr nc,L_48F6		;48ff
-	inc (hl)			;4901
+	inc (hl)			;4901   ; apunta las TRES copias de golpe
 	inc (hl)			;4902
 	inc (hl)			;4903
-	ld hl,0e12ch		;4904
+	ld hl,0e12ch		;4904   ; el primer hueco de la mano
 	ld (hl),c			;4907
 	ld a,003h		;4908
-	call suma_a_a_hl		;490a
+	call suma_a_a_hl		;490a   ; tres huecos mas alla
 	ld (hl),c			;490d
 	ld a,005h		;490e
-	call suma_a_a_hl		;4910
+	call suma_a_a_hl		;4910   ; y cinco mas: el trio queda repartido, no seguido
 	ld (hl),c			;4913
 	ld hl,0e063h		;4914
-	inc (hl)			;4917
-L_4918:
+	inc (hl)			;4917   ; una mano mas sembrada
+
+; ----------------------------------------------------------------------
+; Siembra una escalera, o dos si 0xE063 es par: el `rra` saca el bit 0 y el `call nc` mete la primera solo cuando no hay acarreo, y luego la segunda va siempre. Al salir pone el contador a cero.
+; ----------------------------------------------------------------------
+siembra_una_o_dos_escaleras:
 	ld hl,0e063h		;4918
 	push hl			;491b
 	ld a,(hl)			;491c
-	rra			;491d
-	call nc,L_4928		;491e
-	call L_4928		;4921
+	rra			;491d   ; el bit 0 de la cuenta de manos sembradas
+	call nc,siembra_una_escalera		;491e   ; con el bit a cero, dos escaleras en vez de una
+	call siembra_una_escalera		;4921
 	pop hl			;4924
-	ld (hl),000h		;4925
+	ld (hl),000h		;4925   ; y el contador vuelve a empezar
 	ret			;4927
-L_4928:
-	call L_4976		;4928
+
+; ----------------------------------------------------------------------
+; Mete tres fichas seguidas del mismo palo. Sortea hasta que le sale una que sirva, y para eso descarta dos cosas: los HONORES, que no forman escalera (codigo 0x31 o mas), y los numeros 7, 8 y 9, porque encima de ellos no caben dos mas. Ademas comprueba que de los tres tipos no haya ya cuatro copias repartidas, que son todas las que existen. Los tres huecos que ocupa son el 1, el 6 y el 11.
+; ----------------------------------------------------------------------
+siembra_una_escalera:
+	call saca_una_ficha_al_azar		;4928
 	ld a,b			;492b
-	cp 030h		;492c
-	jr nc,L_4928		;492e
-	and 00fh		;4930
-	cp 007h		;4932
-	jr nc,L_4928		;4934
-	call L_4984		;4936
-	ld b,003h		;4939
+	cp 030h		;492c   ; codigo 0x30 o mas: es un honor, no forma escalera
+	jr nc,siembra_una_escalera		;492e
+	and 00fh		;4930   ; el numero dentro del palo
+	cp 007h		;4932   ; del 7 para arriba no caben dos fichas encima
+	jr nc,siembra_una_escalera		;4934
+	call apunta_al_contador_del_tipo		;4936   ; los contadores de los tres tipos seguidos
+	ld b,003h		;4939   ; la ficha y las dos de encima
 L_493B:
 	ld a,(hl)			;493b
-	cp 004h		;493c
-	jr nc,L_4928		;493e
+	cp 004h		;493c   ; cuatro copias ya repartidas: no queda ninguna, otra escalera
+	jr nc,siembra_una_escalera		;493e
 	inc hl			;4940
 	djnz L_493B		;4941
 	ex de,hl			;4943
-	inc (hl)			;4944
+	inc (hl)			;4944   ; apunta las tres
 	inc hl			;4945
 	inc (hl)			;4946
 	inc hl			;4947
 	inc (hl)			;4948
-	ld hl,0e12dh		;4949
+	ld hl,0e12dh		;4949   ; el segundo hueco de la mano
 	ld (hl),c			;494c
 	ld a,005h		;494d
-	call suma_a_a_hl		;494f
+	call suma_a_a_hl		;494f   ; cinco mas alla, y la ficha siguiente
 	inc c			;4952
 	ld (hl),c			;4953
 	ld a,005h		;4954
-	call suma_a_a_hl		;4956
+	call suma_a_a_hl		;4956   ; y otros cinco, con la tercera
 	inc c			;4959
 	ld (hl),c			;495a
 	ret			;495b
-L_495C:
+
+; ----------------------------------------------------------------------
+; Copia los catorce codigos de 0x4968 a 0xE12C. Es lo que hace el demo en lugar de repartir, y por eso el attract juega siempre la misma mano.
+; ----------------------------------------------------------------------
+carga_la_mano_del_demo:
 	ld hl,04968h		;495c
 	ld de,0e12ch		;495f
-	ld bc,0000eh		;4962
+	ld bc,0000eh		;4962   ; catorce fichas
 	ldir		;4965
 	ret			;4967
 
@@ -1685,26 +1749,38 @@ DATA_mano_de_ejemplo:
 ; ======================================================================
 
 
-L_4976:
-	call L_4F2B		;4976
-	ld a,h			;4979
+
+; ----------------------------------------------------------------------
+; Devuelve una ficha al azar: pide un numero a 0x4F2B, se queda con H como INDICE de 0 a 33 y lo pasa por la tabla de 0x4FBF para sacar el CODIGO, con el palo en el nibble alto y el numero en el bajo. Sale con C = el indice y B = el codigo. Los dos hacen falta: el indice para contar copias en 0xE186 y el codigo para saber si es honor o que numero lleva.
+; ----------------------------------------------------------------------
+saca_una_ficha_al_azar:
+	call saca_un_numero_al_azar		;4976
+	ld a,h			;4979   ; el indice, de 0 a 33
 	ld c,a			;497a
-	ld de,04fbfh		;497b
+	ld de,04fbfh		;497b   ; la tabla de los 34 tipos de ficha
 	call suma_a_a_de		;497e
-	ld a,(de)			;4981
+	ld a,(de)			;4981   ; y el codigo que le corresponde
 	ld b,a			;4982
 	ret			;4983
-L_4984:
+
+; ----------------------------------------------------------------------
+; Deja HL y DE apuntando al contador de copias del tipo que hay en C, dentro de la tabla de 0xE186. Ahi se lleva la cuenta de cuantas de cada tipo se han repartido ya, y por eso el sembrado puede comprobar que no se pasa de cuatro.
+; ----------------------------------------------------------------------
+apunta_al_contador_del_tipo:
 	ld a,c			;4984
 	ld c,b			;4985
-	ld hl,0e186h		;4986
+	ld hl,0e186h		;4986   ; la tabla de copias repartidas por tipo
 	call suma_a_a_hl		;4989
 	ld d,h			;498c
 	ld e,l			;498d
 	ret			;498e
-L_498F:
+
+; ----------------------------------------------------------------------
+; Saca la ficha siguiente del muro y adelanta el puntero. Hay DOS punteros, 0xE06A y 0xE06C, y el bit 0 de 0xE206 dice cual toca: son los dos extremos por los que se roba. Adelanta el puntero primero y devuelve la ficha de la posicion anterior.
+; ----------------------------------------------------------------------
+saca_del_muro:
 	ld a,(0e206h)		;498f
-	rra			;4992
+	rra			;4992   ; bit 0 de 0xE206: por que extremo se roba
 	ld hl,0e06ah		;4993
 	jr nc,L_499B		;4996
 	ld hl,0e06ch		;4998
@@ -1712,11 +1788,11 @@ L_499B:
 	ld e,(hl)			;499b
 	inc hl			;499c
 	ld d,(hl)			;499d
-	inc de			;499e
+	inc de			;499e   ; adelanta el puntero antes de leer nada
 	ld (hl),d			;499f
 	dec hl			;49a0
 	ld (hl),e			;49a1
-	dec de			;49a2
+	dec de			;49a2   ; y lee de donde estaba
 	ex de,hl			;49a3
 	ld a,(hl)			;49a4
 	ret			;49a5
@@ -1989,51 +2065,63 @@ DATA_guion_del_demo:
 ; ======================================================================
 
 
-L_4B50:
-	ld a,011h		;4b50
+
+; ----------------------------------------------------------------------
+; Prepara la caida del rotulo del principio: diecisiete pasos en 0xE00A, la altura a cero en 0xE00E, los colores del bloque de 0x4BB0 descomprimidos en 0x2200 y los patrones de al lado rellenos a 0xF0. Cada paso lo da 0x4B75.
+; ----------------------------------------------------------------------
+monta_el_rotulo_que_baja:
+	ld a,011h		;4b50   ; diecisiete pasos de caida
 	ld (0e00ah),a		;4b52
-	ld hl,00000h		;4b55
+	ld hl,00000h		;4b55   ; y empieza arriba del todo
 	ld (0e00eh),hl		;4b58
-	ld hl,04bb0h		;4b5b
+	ld hl,04bb0h		;4b5b   ; los colores, en formato B sin cabecera de destino
 	ld de,06200h		;4b5e
 	call L_4693		;4b61
-	ld de,00200h		;4b64
+	ld de,00200h		;4b64   ; y los patrones del mismo tercio, con el byte fijo 0xF0
 	ld bc,000d0h		;4b67
 	ld a,0f0h		;4b6a
 	call rellena_la_vram		;4b6c
 	call L_4658		;4b6f
 	jp L_4669		;4b72
-L_4B75:
+
+; ----------------------------------------------------------------------
+; Baja el rotulo una fila: sube 0x20 la altura de 0xE00E, la resta de 0x3AAA para saber donde toca pintar -o sea que cuanto mas ha bajado, mas arriba empieza- y suelta tres tiras de tiles consecutivos con 0x4BA1. Detras borra lo que dejo la fila anterior. Devuelve el paso que queda en 0xE00A, y el estado 1 lo mira para saber cuando parar.
+; ----------------------------------------------------------------------
+baja_el_rotulo_un_paso:
 	ld hl,(0e00eh)		;4b75
-	ld de,00020h		;4b78
+	ld de,00020h		;4b78   ; una fila entera de la pantalla
 	add hl,de			;4b7b
 	ld (0e00eh),hl		;4b7c
 	ex de,hl			;4b7f
 	or a			;4b80
-	ld hl,03aaah		;4b81
+	ld hl,03aaah		;4b81   ; desde abajo hacia arriba
 	sbc hl,de		;4b84
 	ex de,hl			;4b86
-	ld a,040h		;4b87
-	ld b,003h		;4b89
-	call L_4BA1		;4b8b
-	ld bc,00b0ch		;4b8e
-	call L_4BA1		;4b91
+	ld a,040h		;4b87   ; los tiles del rotulo empiezan en el 0x40
+	ld b,003h		;4b89   ; tres celdas la primera tira
+	call pinta_una_tira_de_tiles		;4b8b
+	ld bc,00b0ch		;4b8e   ; doce celdas la segunda
+	call pinta_una_tira_de_tiles		;4b91
 	ld b,c			;4b94
-	call L_4BA1		;4b95
+	call pinta_una_tira_de_tiles		;4b95
 	xor a			;4b98
-	call rellena_la_vram		;4b99
+	call rellena_la_vram		;4b99   ; y detras, a borrar lo de antes
 	ld hl,0e00ah		;4b9c
-	dec (hl)			;4b9f
+	dec (hl)			;4b9f   ; un paso menos
 	ret			;4ba0
-L_4BA1:
+
+; ----------------------------------------------------------------------
+; Pinta B celdas seguidas con tiles que van subiendo de uno en uno desde A, y deja DE una fila mas abajo. Es el ladrillo con el que 0x4B75 construye el rotulo.
+; ----------------------------------------------------------------------
+pinta_una_tira_de_tiles:
 	push de			;4ba1
 L_4BA2:
 	call escribe_en_vram		;4ba2
 	inc de			;4ba5
-	inc a			;4ba6
+	inc a			;4ba6   ; el tile siguiente
 	djnz L_4BA2		;4ba7
 	pop de			;4ba9
-	ld hl,00020h		;4baa
+	ld hl,00020h		;4baa   ; y al terminar, una fila mas abajo
 	add hl,de			;4bad
 	ex de,hl			;4bae
 	ret			;4baf
@@ -2065,76 +2153,88 @@ DATA_colores_del_menu_200:
 ; ======================================================================
 
 
-L_4C43:
-	ld hl,00300h		;4c43
-	ld (0e045h),hl		;4c46
-	ld (0e048h),hl		;4c49
-	call L_46F9		;4c4c
+
+; ----------------------------------------------------------------------
+; EL MARCADOR DE SALIDA: 30.000 puntos para cada uno. Escribe 0x0300 en 0xE045 y en 0xE048, que son los bytes medio y alto de los dos contadores BCD; el bajo ya estaba a cero. Cuadra con lo medido en los volcados del paso 2, que daban 030000 y 030000 nada mas empezar. Lo llama el estado 9.
+; ----------------------------------------------------------------------
+pone_los_marcadores_a_30000:
+	ld hl,00300h		;4c43   ; 0x0300 en BCD son 30.000 con el byte bajo a cero
+	ld (0e045h),hl		;4c46   ; el marcador de 0xE044
+	ld (0e048h),hl		;4c49   ; y el de 0xE047
+	call limpia_y_pinta_los_ceros		;4c4c   ; limpia y pinta los ceros
 	ld a,0f1h		;4c4f
 	call L_4676		;4c51
 	ld a,00ch		;4c54
 	jp L_4A22		;4c56
-L_4C59:
+
+; ----------------------------------------------------------------------
+; Deja la mesa lista para jugar: borra 398 bytes de variables desde 0xE127, pinta la barra y la mano, y decide si hay que enseñar alguno de los dos rotulos cortos. El primero sale con 0xE04B en cinco o mas, el segundo cuando 0xE04C y 0xE04D comparten algun bit; cada uno deja su marca en los bits 0 y 1 de 0xE127, y segun cual sea suena 3 o 12.
+; ----------------------------------------------------------------------
+monta_la_mano:
 	ld hl,0e127h		;4c59
 	ld de,0e128h		;4c5c
-	ld bc,0018eh		;4c5f
+	ld bc,0018eh		;4c5f   ; 398 bytes de variables de la mano
 	ld (hl),000h		;4c62
 	ldir		;4c64
 	call L_6FC1		;4c66
-	call L_4CB8		;4c69
+	call pinta_la_barra_de_arriba		;4c69
 	call L_5A67		;4c6c
 	xor a			;4c6f
 	ld (0e127h),a		;4c70
 	ld a,(0e04bh)		;4c73
-	cp 005h		;4c76
+	cp 005h		;4c76   ; de cinco para arriba sale el primer rotulo
 	jr c,L_4C85		;4c78
 	ld hl,04ce4h		;4c7a
 	call L_409D		;4c7d
 	ld hl,0e127h		;4c80
-	ld (hl),001h		;4c83
+	ld (hl),001h		;4c83   ; y se apunta que ha salido
 L_4C85:
 	ld a,(0e04ch)		;4c85
 	ld c,a			;4c88
 	ld a,(0e04dh)		;4c89
-	and c			;4c8c
+	and c			;4c8c   ; los dos bytes tienen que compartir algun bit
 	jr z,L_4C9A		;4c8d
 	ld hl,04cebh		;4c8f
 	call L_409D		;4c92
 	ld hl,0e127h		;4c95
-	set 1,(hl)		;4c98
+	set 1,(hl)		;4c98   ; la marca del segundo rotulo
 L_4C9A:
 	ld a,(0e127h)		;4c9a
-	and 003h		;4c9d
+	and 003h		;4c9d   ; ninguno de los dos: no suena nada
 	jr z,L_4CAF		;4c9f
 	rra			;4ca1
-	ld a,003h		;4ca2
+	ld a,003h		;4ca2   ; sonido 3 para uno
 	jr nc,L_4CA8		;4ca4
-	ld a,00ch		;4ca6
+	ld a,00ch		;4ca6   ; y sonido 12 para el otro
 L_4CA8:
 	call L_9C4A		;4ca8
 	xor a			;4cab
-	ld (0e127h),a		;4cac
+	ld (0e127h),a		;4cac   ; la marca se gasta al sonar
 L_4CAF:
 	ld hl,04cf2h		;4caf
 	call pinta_lista_formato_b		;4cb2
 	jp L_6FDF		;4cb5
-L_4CB8:
-	ld a,001h		;4cb8
-	ld de,03920h		;4cba
+
+; ----------------------------------------------------------------------
+; Repinta la barra de arriba entera: la limpia con el tile 1, suelta los dos marcadores con su signo, el rotulo de tres trozos y el contador de 0xE04A, y remata con el rotulo de la DIFICULTAD, que elige entre tres listas mirando los bits 0 y 1 de 0xE040. Con la tecla 1 sale 0x4D36, con la 3 sale 0x4D3E y con la 2 la tercera, 0x4D47.
+; ----------------------------------------------------------------------
+pinta_la_barra_de_arriba:
+	ld a,001h		;4cb8   ; el tile 1 es el blanco
+	ld de,03920h		;4cba   ; 192 celdas: las seis filas de la barra
 	ld bc,000c0h		;4cbd
 	call rellena_la_vram		;4cc0
-	call L_44E4		;4cc3
+	call L_44E4		;4cc3   ; los dos marcadores con su signo
 	ld hl,04d24h		;4cc6
 	call L_409D		;4cc9
-	call pinta_el_contador_de_e04a		;4ccc
-	ld a,(0e040h)		;4ccf
-	rra			;4cd2
+	call pinta_el_contador_de_e04a		;4ccc   ; y el contador de 0xE04A
+	ld a,(0e040h)		;4ccf   ; LA DIFICULTAD, tal como la dejo la pantalla del estado 8
+	rra			;4cd2   ; bit 0: la tecla 1
 	ld hl,04d36h		;4cd3
 	jr c,L_4CE1		;4cd6
-	rra			;4cd8
+	rra			;4cd8   ; bit 1: la tecla 3
 	ld hl,04d3eh		;4cd9
 	jr c,L_4CE1		;4cdc
-	ld hl,04d47h		;4cde
+	ld hl,04d47h		;4cde   ; y si no es ninguno de los dos, la tecla 2
 L_4CE1:
 	jp L_409D		;4ce1
 
@@ -2196,7 +2296,7 @@ DATA_marca_c:
 
 
 L_4D58:
-	call L_4D91		;4d58
+	call despacha_el_reparto		;4d58
 	call L_6F2E		;4d5b
 	call L_6F3E		;4d5e
 	ld a,(0e1a8h)		;4d61
@@ -2207,81 +2307,97 @@ L_4D58:
 	ld bc,0000eh		;4d6c
 	ldir		;4d6f
 	ret			;4d71
-L_4D72:
-	ld hl,0e186h		;4d72
+
+; ----------------------------------------------------------------------
+; Deja la mesa a cero para una mano nueva: borra los 34 contadores de copias por tipo, apunta 0xE054 al principio de la mano y guarda en 0xE1B7 de quien es el turno, con el contrario en 0xE33F.
+; ----------------------------------------------------------------------
+prepara_el_reparto:
+	ld hl,0e186h		;4d72   ; los 34 contadores, uno por tipo de ficha
 	ld de,0e187h		;4d75
 	ld bc,00021h		;4d78
-	ld (hl),000h		;4d7b
+	ld (hl),000h		;4d7b   ; a cero: no hay ninguna repartida
 	ldir		;4d7d
-	ld hl,0e21ch		;4d7f
+	ld hl,0e21ch		;4d7f   ; donde empieza la mano
 	ld (0e054h),hl		;4d82
 	ld a,(0e04dh)		;4d85
-	ld (0e1b7h),a		;4d88
-	xor 001h		;4d8b
+	ld (0e1b7h),a		;4d88   ; de quien es el turno
+	xor 001h		;4d8b   ; y el contrario, que es el otro jugador
 	ld (0e33fh),a		;4d8d
 	ret			;4d90
-L_4D91:
+
+; ----------------------------------------------------------------------
+; Reparte por fases, una por bit de 0xE1A9: los `rra` encadenados van bajando bits y el primero que este a cero manda. Sin ningun bit puesto se empieza por 0x4DA6, que es el reparto inicial.
+; ----------------------------------------------------------------------
+despacha_el_reparto:
 	ld a,(0e1a9h)		;4d91
-	rra			;4d94
-	jr nc,L_4DA6		;4d95
-	rra			;4d97
-	jp nc,L_4DF6		;4d98
-	rra			;4d9b
-	jp nc,L_4E63		;4d9c
-	rra			;4d9f
-	jp nc,L_4E7C		;4da0
+	rra			;4d94   ; bit 0: aun no ha empezado el reparto
+	jr nc,reparte_la_mano		;4d95
+	rra			;4d97   ; bit 1
+	jp nc,reparte_una_tanda		;4d98
+	rra			;4d9b   ; bit 2
+	jp nc,borra_la_mano_de_trabajo		;4d9c
+	rra			;4d9f   ; bit 3
+	jp nc,ensena_la_mano_ficha_a_ficha		;4da0
 	jp c,L_4EAE		;4da3
-L_4DA6:
+
+; ----------------------------------------------------------------------
+; EL REPARTO INICIAL. Copia catorce fichas a 0xE32B, deja los dos contadores de mano en trece, saca las trece de 0xE12C una a una con 0x4F64 y remata con la catorce en 0xE139. Y en cuanto termina llama a 0x48E1, que puede sembrarle un trio y una o dos escaleras encima de lo repartido.
+; ----------------------------------------------------------------------
+reparte_la_mano:
 	call L_78CE		;4da6
 	ld hl,0e21ch		;4da9
 	ld de,0e32bh		;4dac
-	ld bc,0000eh		;4daf
+	ld bc,0000eh		;4daf   ; catorce fichas
 	ldir		;4db2
-	ld a,00dh		;4db4
+	ld a,00dh		;4db4   ; trece en la mano, la catorce va aparte
 	ld (0e209h),a		;4db6
 	ld (0e20ah),a		;4db9
 	ld a,001h		;4dbc
-	ld (0e206h),a		;4dbe
+	ld (0e206h),a		;4dbe   ; por que extremo se empieza a robar
 	call L_66E7		;4dc1
 	xor a			;4dc4
 	ld (0e1cdh),a		;4dc5
 	ld (0e302h),a		;4dc8
 	ld (0e205h),a		;4dcb
-	ld b,00dh		;4dce
+	ld b,00dh		;4dce   ; trece fichas, una a una
 L_4DD0:
-	call L_4F64		;4dd0
+	call reparte_una_ficha		;4dd0   ; la ficha siguiente
 	ld a,b			;4dd3
 	dec a			;4dd4
-	ld de,0e12ch		;4dd5
+	ld de,0e12ch		;4dd5   ; y a su hueco de la mano
 	call suma_a_a_de		;4dd8
 	ld a,(hl)			;4ddb
 	ld (de),a			;4ddc
 	djnz L_4DD0		;4ddd
 	ld a,(0e04dh)		;4ddf
 	rra			;4de2
-	ld a,039h		;4de3
+	ld a,039h		;4de3   ; 0x39, que no es un codigo de ficha valido: el hueco vacio
 	jr c,L_4DEA		;4de5
-	call L_4F64		;4de7
+	call reparte_una_ficha		;4de7   ; y si no, una ficha de verdad
 L_4DEA:
 	ld (0e139h),a		;4dea
-	call L_48E1		;4ded
+	call siembra_la_mano		;4ded   ; AQUI SE SIEMBRA la mano recien repartida
 	ld hl,0e1a9h		;4df0
-	set 0,(hl)		;4df3
+	set 0,(hl)		;4df3   ; bit 0 de 0xE1A9: el reparto ya esta hecho
 	ret			;4df5
-L_4DF6:
+
+; ----------------------------------------------------------------------
+; FASE 1 DEL REPARTO: las tandas. Cada 32 fotogramas suena el golpe de la ficha y le toca a uno de los dos, alternandose con el bit 0 de 0xE1B7. Cada tanda copia CUATRO fichas -o UNA, si ya van doce- y cuando el contador de cualquiera de los dos llega a trece se pasa a la fase siguiente.
+; ----------------------------------------------------------------------
+reparte_una_tanda:
 	ld a,(0e003h)		;4df6
-	and 01fh		;4df9
+	and 01fh		;4df9   ; una tanda cada 32 fotogramas
 	ret nz			;4dfb
 	ld a,007h		;4dfc
-	call L_9C4A		;4dfe
+	call L_9C4A		;4dfe   ; sonido 7: el golpe de la ficha en la mesa
 	ld hl,0e1b7h		;4e01
-	inc (hl)			;4e04
+	inc (hl)			;4e04   ; le toca al otro
 	ld a,(hl)			;4e05
-	rra			;4e06
+	rra			;4e06   ; el bit 0 dice a cual de los dos
 	jr c,L_4E2D		;4e07
 	ld a,(0e1b5h)		;4e09
 	ld hl,0e04dh		;4e0c
-	call L_4E59		;4e0f
+	call cuantas_tocan_ahora		;4e0f   ; cuantas van y cuantas tocan ahora
 	ld (0e1b5h),a		;4e12
 	ld hl,04fb1h		;4e15
 	ld de,0e14ch		;4e18
@@ -2292,15 +2408,15 @@ L_4DF6:
 	rra			;4e23
 	ret c			;4e24
 	ld a,(0e1b5h)		;4e25
-	cp 00dh		;4e28
+	cp 00dh		;4e28   ; trece: este ya tiene su mano entera
 	jr z,L_4E4F		;4e2a
 	ret			;4e2c
 L_4E2D:
-	ld a,(0e1b6h)		;4e2d
+	ld a,(0e1b6h)		;4e2d   ; el otro jugador, con su propio contador
 	ld hl,0e33fh		;4e30
-	call L_4E59		;4e33
+	call cuantas_tocan_ahora		;4e33
 	ld (0e1b6h),a		;4e36
-	ld hl,0e12ch		;4e39
+	ld hl,0e12ch		;4e39   ; y su propia mano
 	ld de,0e13ah		;4e3c
 	ld c,a			;4e3f
 	ld b,000h		;4e40
@@ -2309,63 +2425,75 @@ L_4E2D:
 	rra			;4e47
 	ret nc			;4e48
 	ld a,(0e1b6h)		;4e49
-	cp 00dh		;4e4c
+	cp 00dh		;4e4c   ; trece tambien
 	ret nz			;4e4e
 L_4E4F:
 	xor a			;4e4f
-	ld (0e1b7h),a		;4e50
+	ld (0e1b7h),a		;4e50   ; el turno vuelve al primero
 	ld hl,0e1a9h		;4e53
-	set 1,(hl)		;4e56
+	set 1,(hl)		;4e56   ; bit 1 de 0xE1A9: las tandas se han acabado
 	ret			;4e58
-L_4E59:
+
+; ----------------------------------------------------------------------
+; CUANTAS FICHAS LLEVA LA TANDA SIGUIENTE, y aqui esta la regla: si ya van DOCE repartidas, la tanda es de UNA; si no, de CUATRO. Suma esa cantidad al contador que entra en A y lo devuelve. Cuatro, cuatro, cuatro y una: trece.
+; ----------------------------------------------------------------------
+cuantas_tocan_ahora:
 	ld c,(hl)			;4e59
 	inc c			;4e5a
-	cp 00ch		;4e5b
+	cp 00ch		;4e5b   ; doce repartidas: la ultima va de una en una
 	jr z,L_4E61		;4e5d
-	ld c,004h		;4e5f
+	ld c,004h		;4e5f   ; y hasta entonces, de cuatro en cuatro
 L_4E61:
-	add a,c			;4e61
+	add a,c			;4e61   ; el contador con la tanda ya sumada
 	ret			;4e62
-L_4E63:
+
+; ----------------------------------------------------------------------
+; FASE 2: cada 16 fotogramas borra los catorce huecos de 0xE13A y ordena lo que haga falta con 0x4F96. Es el hueco de en medio entre repartir y enseñar.
+; ----------------------------------------------------------------------
+borra_la_mano_de_trabajo:
 	ld a,(0e003h)		;4e63
-	and 00fh		;4e66
+	and 00fh		;4e66   ; cada 16 fotogramas
 	ret nz			;4e68
 	xor a			;4e69
 	ld hl,0e13ah		;4e6a
-	ld b,00eh		;4e6d
+	ld b,00eh		;4e6d   ; catorce huecos
 L_4E6F:
 	ld (hl),a			;4e6f
 	inc hl			;4e70
 	djnz L_4E6F		;4e71
 	call L_4F96		;4e73
 	ld hl,0e1a9h		;4e76
-	set 2,(hl)		;4e79
+	set 2,(hl)		;4e79   ; bit 2 de 0xE1A9: hecho
 	ret			;4e7b
-L_4E7C:
+
+; ----------------------------------------------------------------------
+; FASE 3: va pasando las fichas de 0xE12C a 0xE13A de UNA EN UNA, cada cuatro fotogramas y con su sonido, hasta las catorce. Es lo que se ve como la mano colocandose. El hueco catorce solo se rellena de verdad si toca; si no, se marca con 0x39, que no es un codigo de ficha valido.
+; ----------------------------------------------------------------------
+ensena_la_mano_ficha_a_ficha:
 	ld a,(0e003h)		;4e7c
-	and 003h		;4e7f
+	and 003h		;4e7f   ; cada cuatro fotogramas, una ficha
 	ret nz			;4e81
 	ld a,001h		;4e82
-	call L_9C4A		;4e84
+	call L_9C4A		;4e84   ; sonido 1: la ficha colocandose
 	ld a,(0e04dh)		;4e87
 	rra			;4e8a
 	jr nc,L_4E92		;4e8b
-	ld a,039h		;4e8d
+	ld a,039h		;4e8d   ; 0x39, la marca de hueco vacio
 	ld (0e139h),a		;4e8f
 L_4E92:
 	ld a,(0e1b7h)		;4e92
-	cp 00eh		;4e95
+	cp 00eh		;4e95   ; a las catorce se acaba
 	jr z,L_4EAE		;4e97
 	push af			;4e99
 	ld hl,0e12ch		;4e9a
-	call suma_a_a_hl		;4e9d
+	call suma_a_a_hl		;4e9d   ; la ficha que toca de la mano repartida
 	pop af			;4ea0
 	ld de,0e13ah		;4ea1
-	call suma_a_a_de		;4ea4
+	call suma_a_a_de		;4ea4   ; y su hueco en la mano que se ve
 	ld a,(hl)			;4ea7
 	ld (de),a			;4ea8
 	ld hl,0e1b7h		;4ea9
-	inc (hl)			;4eac
+	inc (hl)			;4eac   ; una ficha mas colocada
 	ret			;4ead
 L_4EAE:
 	ld hl,0e2b6h		;4eae
@@ -2373,14 +2501,14 @@ L_4EAE:
 	ld bc,000cdh		;4eb4
 	ld (hl),000h		;4eb7
 	ldir		;4eb9
-	call L_4F64		;4ebb
+	call reparte_una_ficha		;4ebb
 	ld hl,0e002h		;4ebe
 	bit 6,(hl)		;4ec1
 	jr nz,L_4EC7		;4ec3
 	ld a,032h		;4ec5
 L_4EC7:
 	ld (0e1d3h),a		;4ec7
-	call L_4F64		;4eca
+	call reparte_una_ficha		;4eca
 	ld (0e1d4h),a		;4ecd
 	call L_7015		;4ed0
 	ld hl,0e2b6h		;4ed3
@@ -2389,7 +2517,7 @@ L_4EC7:
 	ld bc,00030h		;4edb
 	ldir		;4ede
 L_4EE0:
-	call L_4F2B		;4ee0
+	call saca_un_numero_al_azar		;4ee0
 	ld (0e33dh),a		;4ee3
 	cp 014h		;4ee6
 	jr c,L_4EF1		;4ee8
@@ -2429,67 +2557,75 @@ L_4F22:
 	inc hl			;4f27
 	ld (hl),000h		;4f28
 	ret			;4f2a
-L_4F2B:
+
+; ----------------------------------------------------------------------
+; EL GENERADOR DE NUMEROS AL AZAR, y devuelve directamente un tipo de ficha: sale con H entre 0 y 33. Por dentro es una division: mete la semilla de 0xE064 por ocho vueltas de `adc hl,hl` restando 57 cuando cabe, de modo que H acaba valiendo la semilla modulo 57 y L el cociente, que pasa a ser la semilla nueva. Como 57 es mas que 34, los restos de 34 a 56 no valen: en vez de doblarlos -que cargaria el dado hacia los primeros tipos- los TIRA y vuelve a sortear. Y si el byte bajo de la semilla se queda a cero, la resiembra con el registro R del refresco, para que no se clave.
+; ----------------------------------------------------------------------
+saca_un_numero_al_azar:
 	push de			;4f2b
 L_4F2C:
 	ld c,b			;4f2c
-	ld e,039h		;4f2d
-	ld hl,(0e064h)		;4f2f
+	ld e,039h		;4f2d   ; 57, el modulo de la division
+	ld hl,(0e064h)		;4f2f   ; la semilla
 	ld a,l			;4f32
-	or a			;4f33
+	or a			;4f33   ; semilla a cero: hay que resembrarla o se queda clavada
 	jr nz,L_4F39		;4f34
-	ld a,r		;4f36
+	ld a,r		;4f36   ; el registro R del refresco de memoria, que nunca para
 	ld l,a			;4f38
 L_4F39:
 	inc h			;4f39
 	inc l			;4f3a
-	ld b,008h		;4f3b
+	ld b,008h		;4f3b   ; ocho vueltas, una por bit
 	xor a			;4f3d
 L_4F3E:
-	adc hl,hl		;4f3e
+	adc hl,hl		;4f3e   ; va metiendo bits por abajo
 	ld a,h			;4f40
 	jr c,L_4F46		;4f41
 	cp e			;4f43
 	jr c,L_4F49		;4f44
 L_4F46:
-	sub e			;4f46
+	sub e			;4f46   ; cabe el 57: se resta y queda el resto
 	ld h,a			;4f47
 	xor a			;4f48
 L_4F49:
 	ccf			;4f49
 	djnz L_4F3E		;4f4a
 	rl l		;4f4c
-	ld (0e064h),hl		;4f4e
+	ld (0e064h),hl		;4f4e   ; la semilla nueva, para la proxima
 	ld b,c			;4f51
 	ld a,h			;4f52
-	cp e			;4f53
+	cp e			;4f53   ; si el resto se pasa de 57 algo va mal: se resiembra
 	jr c,L_4F5E		;4f54
 	ld a,(0e064h)		;4f56
 	ld (0e065h),a		;4f59
 	jr L_4F2C		;4f5c
 L_4F5E:
-	cp 022h		;4f5e
+	cp 022h		;4f5e   ; 34: de ahi para arriba no hay tipo de ficha, se tira y otra vez
 	jr nc,L_4F2C		;4f60
 	pop de			;4f62
 	ret			;4f63
-L_4F64:
+
+; ----------------------------------------------------------------------
+; De donde sale la ficha siguiente. Con mano ya repartida (bit 0 de 0xE1A8) o con partida en marcha, se SORTEA; si no, se roba de la tira fija por 0x498F, que es lo que hace el demo. Al sortear comprueba la tabla de copias de 0xE186: de cada tipo hay cuatro fichas y ni una mas, asi que si el sorteo saca un tipo agotado se resiembra la semilla y se vuelve a tirar.
+; ----------------------------------------------------------------------
+reparte_una_ficha:
 	ld a,(0e1a8h)		;4f64
-	rra			;4f67
+	rra			;4f67   ; bit 0 de 0xE1A8: ya hay mano repartida
 	jr c,L_4F74		;4f68
 	ld hl,0e002h		;4f6a
-	bit 6,(hl)		;4f6d
+	bit 6,(hl)		;4f6d   ; y bit 6 de 0xE002: hay partida
 	jr nz,L_4F74		;4f6f
-	jp L_498F		;4f71
+	jp saca_del_muro		;4f71   ; ni una cosa ni la otra: se roba de la tira fija
 L_4F74:
-	call L_4F2B		;4f74
-	ld hl,0e186h		;4f77
+	call saca_un_numero_al_azar		;4f74
+	ld hl,0e186h		;4f77   ; la tabla de copias repartidas por tipo
 	call suma_a_a_hl		;4f7a
 	ld a,(hl)			;4f7d
-	cp 004h		;4f7e
+	cp 004h		;4f7e   ; cuatro copias es el maximo: de ese tipo no queda ninguna
 	jr c,L_4F8A		;4f80
-	ld a,(0e064h)		;4f82
+	ld a,(0e064h)		;4f82   ; se resiembra la semilla y se sortea otra vez
 	ld (0e065h),a		;4f85
-	jr L_4F64		;4f88
+	jr reparte_una_ficha		;4f88
 L_4F8A:
 	inc (hl)			;4f8a
 	ld a,(0e065h)		;4f8b
@@ -2598,7 +2734,7 @@ L_501F:
 	ld a,(0e1d1h)		;504b
 	rra			;504e
 	jr c,L_505B		;504f
-	call L_4833		;5051
+	call busca_en_las_dos_listas		;5051
 	ld hl,0e1cdh		;5054
 	bit 6,(hl)		;5057
 	jr nz,L_50A7		;5059
@@ -2646,7 +2782,7 @@ L_50A7:
 	rra			;50af
 	jr c,L_50B7		;50b0
 	ld a,002h		;50b2
-	call L_476F		;50b4
+	call pinta_uno_de_los_tres_dibujos		;50b4
 L_50B7:
 	ld a,(0e1aah)		;50b7
 	rra			;50ba
@@ -2834,7 +2970,7 @@ DATA_patrones_de_sprite:
 
 L_527F:
 	ld a,001h		;527f
-	call L_476F		;5281
+	call pinta_uno_de_los_tres_dibujos		;5281
 	call L_663C		;5284
 	call L_51BC		;5287
 	ld a,(0e1aah)		;528a
@@ -2865,7 +3001,7 @@ L_52B3:
 	call L_49C6		;52c0
 	jr nc,L_52CA		;52c3
 	ld a,002h		;52c5
-	jp L_476F		;52c7
+	jp pinta_uno_de_los_tres_dibujos		;52c7
 L_52CA:
 	ld hl,0e1aah		;52ca
 	set 1,(hl)		;52cd
@@ -2956,7 +3092,7 @@ L_535E:
 	jr c,L_539A		;5376
 L_5378:
 	ld a,002h		;5378
-	call L_476F		;537a
+	call pinta_uno_de_los_tres_dibujos		;537a
 	ld b,004h		;537d
 	ld de,03b10h		;537f
 L_5382:
@@ -2982,7 +3118,7 @@ L_539A:
 	call L_6E5D		;53a8
 	cp (hl)			;53ab
 	jr z,L_5378		;53ac
-	call L_4833		;53ae
+	call busca_en_las_dos_listas		;53ae
 	ld a,(0e1cdh)		;53b1
 	and 040h		;53b4
 	jr nz,L_5378		;53b6
@@ -3180,7 +3316,7 @@ L_553C:
 	rra			;5552
 	jr c,L_5567		;5553
 L_5555:
-	call L_48CE		;5555
+	call saca_un_numero_menor_que_h		;5555
 	ld hl,0e14ch		;5558
 	call suma_a_a_hl		;555b
 	ld (hl),039h		;555e
@@ -3236,7 +3372,7 @@ L_55B9:
 	jp L_5654		;55c9
 L_55CC:
 	xor a			;55cc
-	call L_476F		;55cd
+	call pinta_uno_de_los_tres_dibujos		;55cd
 	call L_663C		;55d0
 	call L_51BC		;55d3
 	ld a,(0e1aah)		;55d6
@@ -3260,7 +3396,7 @@ L_55F6:
 	call L_49C6		;55f9
 	jr nc,L_5603		;55fc
 	ld a,002h		;55fe
-	jp L_476F		;5600
+	jp pinta_uno_de_los_tres_dibujos		;5600
 L_5603:
 	ld hl,00000h		;5603
 	ld (0e052h),hl		;5606
@@ -3268,7 +3404,7 @@ L_5603:
 	call L_9C4A		;560b
 	ld hl,0e1d1h		;560e
 	set 0,(hl)		;5611
-	call L_4F64		;5613
+	call reparte_una_ficha		;5613
 	push af			;5616
 	ld a,(0e1c3h)		;5617
 	ld hl,0e13ah		;561a
@@ -3550,7 +3686,7 @@ L_583C:
 	ld hl,0e002h		;583c
 	bit 6,(hl)		;583f
 	ret z			;5841
-	call L_4F64		;5842
+	call reparte_una_ficha		;5842
 	ld (0e22bh),a		;5845
 	ld a,(0e040h)		;5848
 	rra			;584b
@@ -3812,13 +3948,13 @@ L_5A20:
 	pop bc			;5a28
 	djnz L_5A17		;5a29
 L_5A2B:
-	call L_4F64		;5a2b
+	call reparte_una_ficha		;5a2b
 	ld (0e22bh),a		;5a2e
 	ret			;5a31
 L_5A32:
 	pop bc			;5a32
 	ld (0e22bh),a		;5a33
-	call L_4F64		;5a36
+	call reparte_una_ficha		;5a36
 	ld (de),a			;5a39
 	ld a,(0e208h)		;5a3a
 	inc a			;5a3d
@@ -3828,7 +3964,7 @@ L_5A32:
 	ret			;5a45
 L_5A46:
 	call L_708B		;5a46
-	call L_4CB8		;5a49
+	call pinta_la_barra_de_arriba		;5a49
 	call L_7097		;5a4c
 	call L_5A67		;5a4f
 	ld a,(0e302h)		;5a52
@@ -5590,7 +5726,7 @@ L_66D5:
 	ret			;66d9
 L_66DA:
 	ld a,002h		;66da
-	call L_476F		;66dc
+	call pinta_uno_de_los_tres_dibujos		;66dc
 	jr L_66D5		;66df
 L_66E1:
 	ld a,(0e20ah)		;66e1
@@ -5881,7 +6017,7 @@ L_68EF:
 	rra			;68f4
 	jr c,L_68FC		;68f5
 	ld a,002h		;68f7
-	call L_476F		;68f9
+	call pinta_uno_de_los_tres_dibujos		;68f9
 L_68FC:
 	jp L_66D5		;68fc
 L_68FF:
@@ -6243,7 +6379,7 @@ L_6BC6:
 	rra			;6bcb
 	jr c,L_6BD3		;6bcc
 	ld a,002h		;6bce
-	call L_476F		;6bd0
+	call pinta_uno_de_los_tres_dibujos		;6bd0
 L_6BD3:
 	xor a			;6bd3
 	ld (0e1abh),a		;6bd4
@@ -6587,7 +6723,7 @@ L_6E31:
 	call L_9C4A		;6e40
 	ld a,001h		;6e43
 	ld (0e1cfh),a		;6e45
-	call L_47A8		;6e48
+	call para_un_momento		;6e48
 	jr L_6E5A		;6e4b
 L_6E4D:
 	ld c,001h		;6e4d
@@ -6595,7 +6731,7 @@ L_6E4D:
 	rra			;6e52
 	jr c,L_6E5A		;6e53
 	ld a,002h		;6e55
-	call L_476F		;6e57
+	call pinta_uno_de_los_tres_dibujos		;6e57
 L_6E5A:
 	jp L_66D5		;6e5a
 L_6E5D:
@@ -6752,7 +6888,7 @@ L_6F72:
 	ld a,(hl)			;6f73
 L_6F74:
 	di			;6f74
-	call L_472B		;6f75
+	call saca_una_posicion		;6f75
 L_6F78:
 	di			;6f78
 	ld (0e127h),a		;6f79
@@ -6821,7 +6957,7 @@ L_6FDF:
 	ld hl,09a05h		;6feb
 	ld de,00140h		;6fee
 	ld (0e05bh),hl		;6ff1
-	call L_46DC		;6ff4
+	call vuelca_la_mano_de_este_lado		;6ff4
 	ld hl,092e3h		;6ff7
 	ld de,03020h		;6ffa
 	ld bc,00060h		;6ffd
@@ -6859,7 +6995,7 @@ L_7024:
 	jr L_706B		;7051
 L_7053:
 	push de			;7053
-	call L_472B		;7054
+	call saca_una_posicion		;7054
 	ex de,hl			;7057
 	ld l,a			;7058
 	ld h,000h		;7059
@@ -6874,7 +7010,7 @@ L_7053:
 	jr L_7081		;7069
 L_706B:
 	push de			;706b
-	call L_472B		;706c
+	call saca_una_posicion		;706c
 	ex de,hl			;706f
 	ld l,a			;7070
 	ld h,000h		;7071
@@ -7489,7 +7625,7 @@ L_76A6:
 	rra			;76c9
 	jr nc,L_7713		;76ca
 	call L_47FB		;76cc
-	call L_4833		;76cf
+	call busca_en_las_dos_listas		;76cf
 	ld a,(0e1cdh)		;76d2
 	and 060h		;76d5
 	jr z,L_7713		;76d7
@@ -8066,7 +8202,7 @@ L_7ADA:
 	ld e,l			;7ae3
 	ret			;7ae4
 L_7AE5:
-	call L_4F2B		;7ae5
+	call saca_un_numero_al_azar		;7ae5
 	ld a,h			;7ae8
 	ret			;7ae9
 
