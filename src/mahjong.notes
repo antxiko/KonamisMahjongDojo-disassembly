@@ -152,9 +152,9 @@ D 0x4968 0x4976 mano_de_ejemplo  Catorce codigos de ficha validos, uno por hueco
 F 0x4968 14
 D 0x49A6 0x49C6 dos_repartos_fijos  Dos tiras de quince codigos de ficha: 0x4171 guarda la primera en 0xE06A y 0x4177 la segunda en 0xE06C, las dos al entrar en el estado 7.
 F 0x49A6 16
-D 0x4AE0 0x4AE8 tabla_de_teclas  Ocho bytes, 0x40 0x60 0x00 0x50 y cuatro ceros, que 0x4ACC indexa con la fila de teclado ya reducida. El cero significa "esa tecla no hace nada".
+D 0x4AE0 0x4AE8 tabla_de_dificultad  Ocho bytes, 0x40 0x60 0x00 0x50 y cuatro ceros, que 0x4ACC indexa con la tecla de la fila 0 del teclado ya reducida a 0-7 (`and 0x1E` deja las teclas 1 a 4, `rra` las divide por dos y `dec a` las baja a indice). ESTA TABLA ES LA QUE ARRANCA LA PARTIDA: el valor que sale va a 0xE002, y su bit 6 es lo que distingue partida de demo en 0x40CA y en 0x4A27. Indice 0 (tecla 1) = 0x40, indice 1 (tecla 2) = 0x60, indice 3 (tecla 3) = 0x50; los bits 5 y 4 son la DIFICULTAD (ninguno, bit 5, bit 4), las tres que el titulo rotula AMACHUA, SEMIPROFESSIONAL y PROFESSIONAL. La tecla 4 cae en el indice 7, que vale cero: no hace nada.
 F 0x4AE0 8
-D 0x4AE8 0x4B50 tabla_del_estado_7  Ciento cuatro bytes que 0x416B guarda en 0xE066 al entrar en el estado 7. Los valores son 0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x18, 0x20, 0x30 y 0x38.
+D 0x4AE8 0x4B50 guion_del_demo  EL DEMO NO PIENSA: LEE ESTE GUION. Ciento cuatro bytes que 0x416B guarda en 0xE066 al entrar en el estado 7 y que 0x4A68 va sirviendo en lugar del teclado mientras el bit 6 de 0xE002 este a cero. Por eso el demo es determinista al centesimo desde el encendido (medido: dos pasadas independientes, ver docs/la_partida.md). Los valores son las MISMAS mascaras que arma 0x4A27 leyendo la matriz: bit 0 arriba, bit 1 abajo, bit 2 izquierda, bit 3 derecha, bit 4 espacio, bit 5 select. El formato es de longitud variable y lo decide el nibble bajo: si es cero (0x00, 0x10, 0x20, 0x30) la entrada ocupa UN byte y se sirve una vez cada 64 fotogramas; si no (0x01, 0x02, 0x04, 0x08, 0x18, 0x38) ocupa DOS y el segundo es cuantas veces seguidas se repite. Los ocho ceros del final son el guion agotado: tecla ninguna para siempre.
 D 0x4735 0x476F cuatro_filas_de_posiciones  Cuatro filas de 16 bytes con diez valores utiles cada una, que bajan de seis en seis: 0xFA..0xC4, 0x88..0x58, 0xBE..0x8E y 0x52..0x28. La lee 0x472C indexando con A. Son las cuatro orientaciones de la mesa.
 F 0x4735 16
 D 0x5350 0x535E multiplos_de_dieciseis  Los catorce multiplos de 0x10, de 0x10 a 0xE0, uno por hueco de la mano. Lo leen siete sitios: 0x5327, 0x53EB, 0x57CB, 0x6A7B, 0x6A89, 0x6B48 y 0x6B6E.
@@ -239,7 +239,7 @@ B 0x4196 CIERRA EL BUCLE DEL JUEGO: pone el estado a 0 y el submodo a 0. Medido 
 C 0x4197 estado = 0, se empieza de nuevo
 C 0x41A2 y el submodo tambien
 
-C 0x418C EL ESTADO 8 NUNCA LLEGA A DESPACHARSE: se escribe 8 aqui, pero el `jp L_41F4` de 0x4193 desemboca en `avanza_de_estado`, que hace `inc`, asi que el estado que corre es el 9. El 8 dura unas instrucciones. Se escribe porque sirve doble: el `rra` de 0x418F lo convierte en 4 para 0xE040.
+C 0x418C EL ESTADO 8 NO SE DESPACHA POR AQUI: se escribe 8, pero el `jp L_41F4` de 0x4193 desemboca en `avanza_de_estado`, que hace `inc`, asi que el estado que corre es el 9. Se escribe porque sirve doble: el `rra` de 0x418F lo convierte en 4 para 0xE040. CORRECCION del paso 2, que lo dio por muerto: el estado 8 SI se despacha -y va a 0x440B, la pantalla de dificultad- cuando quien escribe el 8 es 0x4ABC, o sea cuando alguien pulsa una tecla para jugar de verdad. En el demo no se llega nunca, y de ahi salio la lectura equivocada.
 
 # ---------------------------------------------------------------------------
 # EL MARCADOR. Dos contadores BCD de TRES bytes, byte bajo primero, medidos
@@ -263,3 +263,539 @@ C 0x8340 marcador del jugador de 0xE047: suma
 C 0x8357 marcador del jugador de 0xE044: suma
 C 0x8369 marcador del jugador de 0xE044: resta
 C 0x8382 marcador del jugador de 0xE044: suma
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 1: EL ARMAZON. Arranque, interrupcion, despachador, acceso a
+# la VRAM y el esqueleto de los quince estados. 0x4010-0x4216.
+#
+# LO GORDO DE ESTA TANDA: el juego entero corre DENTRO de la interrupcion.
+# 0x404F es un salto a si mismo y no sale de ahi nunca; todo lo demas cuelga
+# del gancho H.KEYI que INIT instala en 0xFD9A.
+# ---------------------------------------------------------------------------
+
+L 0x4010 init
+B 0x4010 EL ARRANQUE. La BIOS llega aqui por el vector INIT de la cabecera AB. Enciende la pagina 2 del cartucho (la BIOS solo le ha mapeado la 1), monta la pila y la RAM, instala la interrupcion y se queda dando vueltas en 0x404F: A PARTIR DE AHI EL JUEGO ENTERO CORRE DENTRO DE LA INTERRUPCION.
+C 0x4010 nada de interrupciones mientras se monta la maquina
+C 0x4013 semaforo de la interrupcion a 1: aun no se puede reentrar
+C 0x4018 RSLREG da las cuatro ranuras empaquetadas en un byte
+C 0x401b se queda con los dos bits de la pagina 1, que es donde esta el cartucho
+C 0x401f H=0x80: la pagina que se quiere encender es la 2, 0x8000-0xBFFF
+C 0x4021 ENASLT enciende la mitad de arriba del cartucho, hasta ahora invisible
+C 0x4024 0xC3 = jp: se escribe a mano el salto del gancho
+C 0x4026 H.KEYI, el gancho de interrupcion de la BIOS
+C 0x4029 y el destino del salto: la rutina de 0x4071
+C 0x402f la pila justo debajo de la RAM del juego
+C 0x4032 borra de un tiron 0xE000-0xE3FF, las variables enteras
+C 0x403f semaforo a 1 otra vez: la inicializacion no quiere que la corten
+C 0x4044 monta el PSG, el VDP y limpia la VRAM
+C 0x4048 semaforo a 0: ya se puede interrumpir, y el juego echa a andar
+C 0x404b RDVDP borra la peticion pendiente del VDP antes del primer ei
+C 0x404f AQUI SE QUEDA PARA SIEMPRE: el juego vive en la interrupcion
+
+L 0x4071 interrupcion
+B 0x4071 LA INTERRUPCION, y con ella el bucle principal del juego. La instala INIT en H.KEYI. Hace tres cosas en orden: reconoce el VDP, mueve el sonido, y -si no se esta pisando a si misma- lee los mandos y da un latido a la maquina de estados. El semaforo 0xE005 es lo que impide que un fotograma lento se solape con el siguiente.
+C 0x4072 RDVDP: leer el registro de estado es lo que reconoce la interrupcion
+C 0x4075 el sonido va SIEMPRE, aunque el fotograma anterior no haya terminado
+C 0x4078 el semaforo de reentrada
+C 0x407b si ya hay un fotograma dentro, no se entra
+C 0x407f lo levanta, y ahora ya se puede interrumpir otra vez
+C 0x4081 lee los mandos: teclado de verdad si hay partida, guion si es demo
+C 0x4084 y el latido de la maquina de estados
+C 0x4089 semaforo abajo, el fotograma ha terminado
+
+L 0x408F despacha_por_tabla
+B 0x408F EL DESPACHADOR, y el truco de la casa: no lleva la tabla en un registro, la coge del pop hl, o sea que la tabla va PEGADA DETRAS del call que lo invoca y nunca se vuelve a el. A cambio, el manejador que salga hereda como direccion de retorno lo que hubiera debajo. Entra con A = indice. Hay cinco tablas: 0x40ED (estados), 0x4164, 0x41AB, 0x421D y 0x4389 (submodos).
+C 0x408f cada entrada son dos bytes
+C 0x4090 la direccion de retorno ES la tabla
+C 0x4091 suma el indice ya doblado
+C 0x4094 saca la palabra
+C 0x4098 y salta: no vuelve por aqui
+
+L 0x4099 pinta_o_borra_lista
+B 0x4099 Las DOS puertas del interprete de formato A, y la gracia del cartucho: la MISMA lista pinta o borra segun por donde se entre. Por 0x4099 C vale 0 y el and c de 0x40AB deja todos los bytes a cero; por 0x409D C vale 0xFF y pasan tal cual. Entra con HL apuntando a la lista.
+C 0x4099 C=0: todo byte se convertira en 0 - esta puerta BORRA
+C 0x409d C=0xFF: los bytes pasan intactos - esta puerta PINTA
+C 0x409f los dos bytes de destino en VRAM, byte bajo primero
+C 0x40a3 siguiente byte de la lista
+C 0x40a6 0xFF cuenta como fin: el inc b lo lleva a cero
+C 0x40a8 0xFE cuenta como "vuelve a leer un destino nuevo"
+C 0x40ab la mascara: aqui se decide si esto pinta o borra
+C 0x40ac y al VDP
+
+L 0x40CA latido
+B 0x40CA EL LATIDO, una vez por fotograma. Lleva los dos relojes, y luego despacha el estado. El push hl de 0x40E9 es un retorno postizo: el manejador del estado, al hacer ret, no vuelve aqui sino a donde diga HL. Y HL depende del bit 6 de 0xE002, o sea de si hay alguien jugando: en partida va a 0x41A4, que es un ret pelado y no hace nada; en demo va a 0x4ABC, que es quien vigila si alguien pulsa una tecla para empezar de verdad.
+C 0x40ca el contador de fotogramas de 8 bits
+C 0x40ce y el de 16 bits, que no se reinicia nunca
+C 0x40d5 el byte de la partida: bit 6 = hay una persona jugando
+C 0x40da con partida, el retorno postizo es un ret pelado: nada que hacer
+C 0x40df sin partida es el DEMO, y toca vigilar el teclado para arrancar
+C 0x40e2 el estado del juego
+C 0x40e5 el estado 8 es el unico que NO quiere el retorno postizo
+C 0x40e9 se cuela debajo del retorno del call de abajo
+C 0x40ea y a la tabla de quince que viene pegada detras
+
+C 0x410b ESTADO 0: espera 24 fotogramas pintando la mesa; ver 0x44B2
+C 0x410e aun no ha terminado la cuenta
+C 0x410f pinta el tapete y las fichas del fondo
+C 0x4112 y recarga los ocho registros del VDP
+C 0x4115 al estado 1
+C 0x4118 ESTADO 1: parpadeo del rotulo, un fotograma de cada dos
+C 0x411b el bit 0 del contador de fotogramas: solo los impares
+C 0x4124 pinta el rotulo
+C 0x4127 y se queda 80 fotogramas en el estado siguiente
+C 0x412c ESTADO 2: cuenta atras con el rotulo puesto
+C 0x4131 al agotarse, BORRA el mismo rotulo que pinto el estado 1
+C 0x4138 reinicia el contador de lineas de 0x45B4
+C 0x413b ESTADO 3: al 4 sin mas, y sin espera ninguna
+C 0x413e ESTADO 4: va soltando las lineas del texto, una por fotograma
+C 0x4141 mientras queden lineas, sigue en este estado
+C 0x4143 A=0: al estado siguiente sin espera
+C 0x4146 ESTADO 5: pura cuenta atras
+C 0x414e ESTADO 6: sin nada que hacer, a 0x41F4 y al 7
+C 0x4151 ESTADO 9: otros 24 fotogramas de cuenta pintando la mesa
+C 0x4155 pinta la mesa de la mano que va a empezar
+C 0x4158 0x10 y luego inc a: 17 fotogramas de espera
+C 0x415e ESTADO 7: se parte en dos submodos por (0xE001)
+
+B 0x4168 SUBMODO 0 DEL ESTADO 7: AQUI ARRANCA EL DEMO. Borra el marcador, engancha el guion de teclas grabado y apaga el bit 6 de 0xE002 para que 0x4A27 lea del guion y no del teclado.
+C 0x4168 pone a cero el marcador y las 622 variables que le siguen
+C 0x416b engancha el guion del demo (0x4AE8) como fuente de pulsaciones
+C 0x4171 y las dos rutinas que lo atienden
+C 0x417d contador y repeticiones del guion, a cero
+C 0x4187 bit 6 abajo: NO hay persona jugando, esto es el demo
+C 0x4190 el 8 rotado a la derecha da 4, que es lo que quiere 0xE040
+
+L 0x41AF submodo_0_del_estado_10
+C 0x41af SUBMODO 0 DEL ESTADO 10: cuenta atras y al submodo siguiente
+C 0x41b6 SUBMODO 1 DEL ESTADO 10: reparte la mano
+C 0x41ba el reparto
+C 0x41c6 LA SEMILLA DEL AZAR: el registro R del refresco de la memoria
+C 0x41c8 si R sale cero se usa el contador de fotogramas en su lugar
+C 0x41d0 el segundo byte de la semilla, siempre el contador de fotogramas
+C 0x41da bit 0 de 0xE1A8: hay mano repartida
+C 0x41ec el sexto envite cierra la partida
+
+L 0x41F4 espera_32_y_avanza_de_estado
+B 0x41F4 La salida corriente de un estado: borra 0xE1B8, pide 32 fotogramas de espera y pasa al estado siguiente. 0x41FC es la entrada de los que traen su propia espera en A, y 0x41FF la de los que no quieren ninguna.
+C 0x41f4 el desplazamiento del tapete, a cero
+C 0x41fa 32 fotogramas de espera
+C 0x41fc entra aqui quien trae su propia espera en A
+
+L 0x4207 espera_32_y_avanza_de_submodo
+B 0x4207 La gemela de 0x41F4 pero para submodos: misma espera de 32 fotogramas y mismo borrado de 0xE1B8, solo que al final hace crecer (0xE001) en vez de (0xE000).
+C 0x420f entra aqui quien trae su propia espera en A
+
+L 0x4063 suma_a_a_hl
+B 0x4063 Suma A a HL con el arrastre bien puesto. Es la rutina mas llamada del cartucho: la usan el despachador, todas las tablas indexadas y el lector de la fuente.
+C 0x4065 sin arrastre no hay que tocar H
+
+L 0x4068 suma_a_a_de
+B 0x4068 La hermana de 0x4063 para DE. La usan las rutinas que van bajando por la VRAM de fila en fila, sumando 0x20.
+
+L 0x4051 escribe_en_vram
+B 0x4051 Escribe A en la direccion de VRAM que trae DE. Envuelve al puerto: 0x470F prepara el VDP y deja el puerto de datos en C', y el out (c),a de aqui lo suelta. El ei del final es porque 0x470F entra con di.
+C 0x4051 arma la direccion en el VDP y deja el puerto en C'
+C 0x4055 el byte, al puerto de datos
+
+L 0x405A lee_de_vram
+B 0x405A La hermana de 0x4051: devuelve en A el byte de la VRAM que apunta DE.
+
+L 0x470F prepara_escritura_vram
+B 0x470F Prepara el VDP para escribir en la direccion que trae DE y deja el puerto de datos en C'. Guarda A en A' porque SETWRT lo machaca. Sale con las interrupciones QUITADAS a proposito: quien llama las devuelve.
+C 0x4711 SETWRT arma la direccion de escritura
+C 0x4714 nadie puede colarse entre la direccion y el dato
+C 0x4717 0x0006 = el puerto de datos del VDP, que la BIOS deja ahi
+
+L 0x471E prepara_lectura_vram
+B 0x471E La hermana de 0x470F para leer: SETRD en vez de SETWRT, y coge el puerto de 0x0007.
+
+L 0x49E5 arranca_el_hardware
+B 0x49E5 Enciende la maquina: apaga la lampara de CAPS, calla el PSG, para el sonido del juego y borra los 16 KB de VRAM de un tiron. Cae por abajo en 0x49FE, que carga los registros del VDP.
+C 0x49e5 CHGCAP apaga la lampara de bloqueo de mayusculas
+C 0x49e8 registro 7 del PSG: todos los canales callados
+C 0x49ef 0x9F para el sonido que estuviera sonando
+C 0x49f4 borra la VRAM entera, 0x0000 a 0x3FFF, con ceros
+
+L 0x49FE carga_los_registros_del_vdp
+B 0x49FE Copia los ocho registros del VDP a la RAM (0xE038) y luego los escribe uno a uno. Se pasan por RAM para poder retocar uno solo sin volver a la tabla; 0x4A09 es la entrada de los que ya lo han retocado.
+C 0x4a09 entra aqui quien solo quiere reescribirlos
+
+L 0x4A27 lee_los_mandos
+B 0x4A27 De donde salen las teclas cada fotograma, y el bit 6 de 0xE002 decide de cual de los dos sitios: si hay partida, de la matriz del teclado de verdad; si no, del guion grabado del demo. Las dos ramas terminan en 0x4A52 con la misma mascara en A: bit 0 arriba, bit 1 abajo, bit 2 izquierda, bit 3 derecha, bit 4 espacio, bit 5 select.
+C 0x4a2a bit 6: hay una persona jugando
+C 0x4a2c sin partida, las teclas salen del guion del demo
+C 0x4a30 fila 7 de la matriz, de donde sale SELECT
+C 0x4a33 la matriz da los ceros como pulsados: se le da la vuelta
+C 0x4a35 SELECT queda en el bit 5
+C 0x4a3a fila 8: las cuatro flechas y el espacio
+C 0x4a41 izquierda al bit 2
+C 0x4a49 derecha al bit 3 y espacio al bit 4
+C 0x4a4f arriba al bit 0 y abajo al bit 1
+
+L 0x4A52 guarda_las_teclas
+B 0x4A52 Guarda la mascara de teclas de este fotograma en 0xE009 y empuja la anterior a 0xE008. Con las dos se saca el FLANCO del espacio: 0xE23A vale 1 solo el fotograma en que se acaba de pulsar, no mientras se mantiene.
+C 0x4a55 la de antes pasa a 0xE008
+C 0x4a59 el bit 4, el espacio
+C 0x4a5e si ya estaba pulsado el fotograma anterior, no cuenta
+C 0x4a64 1 = el espacio se acaba de pulsar AHORA
+
+L 0x4A68 sirve_el_guion_del_demo
+B 0x4A68 Sirve la pulsacion siguiente del guion grabado en 0x4AE8, y por eso el demo sale igual cada vez. Formato de longitud variable: el nibble bajo de la entrada dice si ocupa uno o dos bytes. Con nibble bajo cero la entrada dura 64 fotogramas y ocupa un byte; con nibble bajo no cero ocupa dos y el segundo es cuantas veces seguidas se repite. 0xE066 es el puntero, 0xE068 el contador de los 64 y 0xE069 lo que queda de repeticion.
+C 0x4a6b bit 1 de 0xE1A8: sin el, el demo no toca ninguna tecla
+C 0x4a6f donde va el guion
+C 0x4a76 el nibble bajo decide el formato de la entrada
+C 0x4a78 nibble bajo cero: entrada de un solo byte
+C 0x4a7a si no queda repeticion en curso, se carga la cuenta
+C 0x4a81 el segundo byte es cuantas veces
+C 0x4a87 las teclas de los bits 2 y 3 no esperan a los 64 fotogramas
+C 0x4a8e sube el contador de 64
+C 0x4a90 y hasta que no da la vuelta, no hay tecla
+C 0x4a97 gasta una repeticion
+C 0x4a9d agotada la cuenta, la entrada de dos bytes queda atras
+C 0x4aa5 la tecla que se sirve este fotograma
+C 0x4ab2 la entrada de un byte se pasa de largo con un inc
+C 0x4ab9 fuera del guion no se toca ninguna tecla
+
+L 0x4ABC arranca_la_partida
+B 0x4ABC LA PUERTA DE ENTRADA AL JUEGO DE VERDAD. Solo se llama mientras corre el demo (0x40CA elige entre esta y un ret pelado segun el bit 6 de 0xE002). Mira la fila 0 del teclado: las teclas 1, 2 y 3 arrancan partida, cada una con su dificultad, y saltan al estado 8. La tecla 4 cae en una entrada vacia de la tabla y no hace nada.
+C 0x4abc fila 0 de la matriz: las teclas 0 a 7
+C 0x4ac1 solo interesan las teclas 1, 2, 3 y 4
+C 0x4ac3 las baja a indice 0-7
+C 0x4ac5 si hay varias pulsadas a la vez el indice se dispara: fuera
+C 0x4acb la tabla que traduce tecla a dificultad
+C 0x4ad0 la entrada vacia: esa tecla no arranca nada
+C 0x4ad1 EL BYTE DE LA PARTIDA: bit 6 encendido, mas la dificultad en 5 y 4
+C 0x4ad4 estado 8 y submodo 0 de una tacada, que son bytes contiguos
+C 0x4ada y calla el sonido del demo
+
+L 0x44B2 pinta_una_franja_del_tapete
+B 0x44B2 Baja los dos relojes (0xE003 y 0xE004) y, mientras el de 0xE004 no se agote, va pintando 24 celdas de una columna del tapete. El xor 0x1F de 0x44C0 le da la vuelta al indice en los fotogramas pares, asi que la franja avanza en un sentido y luego en el otro. Sale con el signo puesto para que el estado sepa si ya ha terminado (ret p en los estados 0, 6 y 10).
+C 0x44b2 24 celdas, una columna entera de la pantalla
+C 0x44b7 baja el reloj de fotogramas
+C 0x44b9 y el de la espera del estado
+C 0x44ba negativo: la espera se ha agotado, el estado puede seguir
+C 0x44c0 en los fotogramas pares el recorrido va al reves
+C 0x44c3 0x38xx, la tabla de nombres de la pantalla
+C 0x44c5 mas el desplazamiento del tapete
+C 0x44d5 0x20 = una fila entera abajo
+
+L 0x45B4 suelta_una_linea_de_texto
+B 0x45B4 Suelta una linea del texto de presentacion por fotograma, hasta 18 (0x12), llevando la cuenta en 0xE00A. Vuelve con acarreo mientras queden lineas, y sin el cuando se acaban: por eso el estado 3 hace ret c para quedarse.
+C 0x45b7 la linea que toca
+C 0x45b9 dieciocho lineas y se acabo
+C 0x45bd 0x3887, la primera celda del texto
+C 0x45c4 tres celdas de ancho por linea
+C 0x45c9 tres celdas
+C 0x45d1 0x20: baja una fila
+C 0x45d8 acarreo puesto: aun quedan lineas
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 2: LA PARTIDA. El estado 8 (elegir dificultad), el 11 con sus
+# nueve submodos -que es la mano-, el 12, el 13 y el 14, y el marcador con su
+# signo. 0x422F-0x4468, 0x5DF9 y 0x8307-0x838A.
+#
+# LOS QUINCE ESTADOS, leidos de la tabla de 0x40ED entrada a entrada:
+#    0  0x410B  pinta la mesa, 24 fotogramas
+#    1  0x4118  parpadea el rotulo
+#    2  0x412C  cuenta atras y borra el rotulo
+#    3  0x413B  paso de largo, al 4
+#    4  0x413E  suelta las lineas del texto de presentacion
+#    5  0x4146  cuenta atras
+#    6  0x414E  paso de largo, al 7
+#    7  0x415E  DOS submodos: el 0 arranca el demo
+#    8  0x440B  LA PANTALLA DE DIFICULTAD. Solo se llega pulsando una tecla
+#    9  0x4151  pinta la mesa de la mano
+#   10  0x41A5  DOS submodos: reparte
+#   11  0x4217  NUEVE submodos: LA MANO
+#   12  0x4383  CUATRO submodos: el recuento
+#   13  0x43DB  el rotulo del final
+#   14  0x43EB  cuenta atras y vuelta al estado 0
+# ---------------------------------------------------------------------------
+
+L 0x422F submodo_0_del_estado_11
+C 0x422f SUBMODO 0 DEL ESTADO 11: espera y calla el sonido de la mano anterior
+C 0x4234 0x9F: silencio
+C 0x4239 y al submodo 1
+
+L 0x423B submodo_1_del_estado_11
+C 0x423b SUBMODO 1 DEL ESTADO 11: reparte y espera a que termine el reparto
+C 0x4241 bit 0 de 0xE1A8: mientras haya reparto en curso, aqui se sigue
+C 0x4244 bit 1: el reparto ha terminado, el guion del demo ya puede tocar
+C 0x4246 y al submodo 2, que es la mano de verdad
+
+L 0x4248 submodo_2_del_estado_11
+B 0x4248 SUBMODO 2 DEL ESTADO 11: LA MANO JUGANDOSE, y el submodo mas largo con diferencia (103,7 s de los 130,3 del estado 11 en el demo, medido). Cada fotograma mueve un turno y decide si la mano sigue o se acaba. Las tres salidas son: 0x42A8 si la mano termina normal, 0x429E si termina con jugada cantada (salta al submodo 5 en vez de al 3) y el `ret` de 0x4258 mientras aun quede algo pendiente.
+C 0x4248 mueve el turno
+C 0x424e bit 2 de 0xE302: el turno es de la maquina
+C 0x4256 mientras el reparto no haya terminado, no se juega
+C 0x4260 la dificultad, tal como la dejo la pantalla del estado 8
+C 0x4267 bit 0 de 0xE1D1: hay que saltarse la comprobacion
+C 0x4276 bit 0 de 0xE1CD
+C 0x427c los bits 5 y 6 de 0xE1CD son los que llevan a cantar jugada
+C 0x428b los dos bits altos de 0xE1AC deciden el importe
+C 0x4290 0x0120 en BCD: 120 pasos de 100 puntos, o sea 12.000
+C 0x4295 y si no, 0x0080: 80 pasos de 100, o sea 8.000
+C 0x4298 lo mismo en los dos sitios, que 0x5DF9 los va gastando en paralelo
+C 0x429e con jugada cantada se salta al submodo 5, no al 3
+C 0x42a3 y con 192 fotogramas de espera
+C 0x42a8 salida normal: al submodo 3
+
+L 0x42AE submodo_3_del_estado_11
+B 0x42AE SUBMODO 3 DEL ESTADO 11: destapa la mano y prepara el recuento. Vuelve a pintar la mesa mientras baja el reloj, y cuando se agota monta las direcciones de la lista de nombres de jugada (0xE317 y 0xE319) y se va al submodo 4 o al 5 segun haya algo que pagar.
+C 0x42ae sigue pintando la mesa hasta que el reloj se agote
+C 0x42b5 bit 1 de 0xE302
+C 0x42bc sonido 0x93
+C 0x42c1 0x382F, donde empieza a escribirse el nombre de la jugada
+C 0x42c7 y de donde se lee, 0xE305
+C 0x42cd cinco lineas de recuento
+C 0x42d3 borra las tres celdas de 0xE1D9
+C 0x42db 0xE205: si no hay nada apuntado, se va por 0x42F3
+C 0x42e5 bit 1 de 0xE1C8
+C 0x42e9 0x30 = 48 pasos de 100, o sea 4.800 puntos
+C 0x42f3 bit 4 de 0xE1C8: la mano se va sin pagar
+C 0x42fa 16 fotogramas si el turno era de la maquina
+C 0x42fe y 176 si era del jugador, que hay mas que leer
+
+L 0x4303 submodo_4_del_estado_11
+C 0x4303 SUBMODO 4 DEL ESTADO 11: pura cuenta atras antes del recuento
+
+L 0x430B submodo_5_del_estado_11
+B 0x430B SUBMODO 5 DEL ESTADO 11: canta la jugada. 0x5AEE es quien decide de que jugada se trata y la escribe; mientras el bit 2 de 0xE1A8 siga puesto, aqui no se avanza. Al terminar pinta los tres digitos de 0xE1B2 en 0x38A8.
+C 0x430e bit 2 de 0xE1A8: la jugada aun se esta cantando
+C 0x4314 los tres digitos del importe
+C 0x4317 0x38A8, donde van
+C 0x431a tres celdas
+C 0x431f sin espera, al submodo 6
+
+L 0x4323 submodo_6_del_estado_11
+C 0x4323 SUBMODO 6 DEL ESTADO 11: espera, y levanta el bit 3 de 0xE1A8
+C 0x432b bit 3: la senal para que el submodo 7 pague
+
+L 0x4330 submodo_7_del_estado_11
+B 0x4330 SUBMODO 7 DEL ESTADO 11: EL PAGO. 0x5DF9 va moviendo los puntos de cien en cien, con su sonido, hasta que no queda nada pendiente; el bit 3 de 0xE1A8 es lo que dice que aun queda. Al terminar carga 0xE050, que es cuanto se espera en el submodo 8 antes de seguir solo: uno en el demo, y diez o dos en partida.
+C 0x4330 mueve cien puntos y pinta el marcador
+C 0x4336 bit 3 de 0xE1A8: aun queda por pagar
+C 0x433c bit 6 de 0xE002: hay una persona jugando
+C 0x4340 en el demo no se espera nada: un fotograma y a otra cosa
+C 0x4348 bit 2 de 0xE302
+C 0x434a diez fotogramas de espera
+C 0x434f o dos
+C 0x4352 el reloj del submodo 8
+
+L 0x4358 submodo_8_del_estado_11
+B 0x4358 SUBMODO 8 DEL ESTADO 11, EL ULTIMO: "pulsa para seguir". Sale de aqui de dos maneras -por espacio o select (la mascara 0x30 de 0xE009), o porque se agote el reloj de 16 bits de 0xE050- y entonces DECIDE SI LA PARTIDA SIGUE: con el bit 4 de 0xE1A8 puesto pasa al estado 12, el recuento final; sin el, vuelve al estado 9 y se reparte otra mano.
+C 0x4358 las teclas de este fotograma
+C 0x435b bits 4 y 5: espacio o select valen igual
+C 0x435f y si no, hay que esperar a que pase el contador de fotogramas
+C 0x4364 el reloj de 16 bits que cargo el submodo 7
+C 0x436e limpia lo que hubiera en pantalla
+C 0x4374 bit 4 de 0xE1A8: la partida se ha terminado
+C 0x4376 al estado 12, el recuento final
+C 0x437c y si no, al estado 9: otra mano
+C 0x437e con 48 fotogramas de espera
+
+C 0x4383 ESTADO 12: cuatro submodos por (0xE001)
+C 0x4391 SUBMODO 0 DEL ESTADO 12: paso de largo
+C 0x4394 SUBMODO 1 DEL ESTADO 12: monta la pantalla del recuento final
+C 0x4398 0xE1A8 a 1: solo el bit 0, todo lo demas limpio
+C 0x439d 0x38C5, donde va el texto
+C 0x43a4 borra el sonido
+C 0x43c1 0x38 en 0xE128
+C 0x43c3 64 fotogramas
+C 0x43c6 SUBMODO 2 DEL ESTADO 12: cuenta atras
+C 0x43ce SUBMODO 3 DEL ESTADO 12: el recuento, y hasta que 0xE1A8 no quede a cero no se sale
+C 0x43d4 mientras quede un solo bit puesto, aqui se sigue
+C 0x43d6 128 fotogramas y al estado 13
+
+C 0x43db ESTADO 13: el rotulo del final
+C 0x43dd sonido 0x99
+C 0x43e3 pinta el rotulo
+C 0x43e6 112 fotogramas
+C 0x43eb ESTADO 14: cuenta atras, uno de cada cuatro fotogramas
+C 0x43ee solo cuenta uno de cada cuatro: la espera sale por cuatro
+C 0x43fa APAGA EL BIT 6: la partida se acaba y vuelve a mandar el demo
+C 0x43fd y al estado 0, a empezar de nuevo
+
+L 0x440B estado_8_elige_dificultad
+B 0x440B EL ESTADO 8, LA PANTALLA DE DIFICULTAD. Es el estado al que salta 0x4ABC cuando alguien pulsa 1, 2 o 3 durante el demo, y el unico al que 0x40CA no le pone retorno postizo. El submodo 0 limpia el sonido y la pantalla y carga 80 fotogramas; a partir de ahi 0x4438 hace parpadear la linea de la dificultad elegida -ocho fotogramas puesta, ocho quitada, que es lo que mide el bit 3 del reloj- hasta que se agota, y entonces pasa por 0x4400 camino del estado 9.
+C 0x4411 borra los cuarenta bytes de los canales de sonido
+C 0x441e limpia la pantalla
+C 0x4425 pinta la mesa
+C 0x4428 y el texto de las tres dificultades
+C 0x442d 80 fotogramas de parpadeo
+C 0x4430 sonido 0x9C, el de empezar partida
+C 0x4438 cada fotograma mientras dure el parpadeo
+C 0x443c agotado: por 0x4400 al estado 9
+C 0x443f bit 3 del reloj: ocho fotogramas si y ocho no
+C 0x4441 en los "si", el texto entero repintado
+C 0x4444 y en los "no", se borra la linea de la elegida
+C 0x444b los bits 5 y 4 de 0xE002 bajados a un indice de 0 a 3
+C 0x4451 la dificultad 0 no vale cero: se le mete el acarreo
+C 0x4453 0xE040, la dificultad tal como la lee el estado 11: 1, 4 o 2
+C 0x4457 la tabla de las cuatro filas
+C 0x445e 0x3A40, la primera de las tres lineas de dificultad
+C 0x4464 borra la fila entera, 32 celdas
+
+L 0x4400 cierra_la_pantalla_de_dificultad
+B 0x4400 La salida del estado 8: pone 0xE002 a 0x50, borra el marcador y se va al estado 9. ESE 0x50 SE ESCRIBE SIEMPRE, sin mirar que tecla se habia pulsado, y parece que se lleve por delante la dificultad recien elegida. NO SE LA LLEVA, y esta medido: la dificultad ya no viaja en 0xE002 a estas alturas, sino en 0xE040, que 0x4453 calculo durante el parpadeo y aqui nadie toca. De 0xE002 solo se mira el bit 6 de aqui en adelante, y 0x50 lo lleva puesto.
+B 0x4400 Medido en openMSX arrancando en frio, pulsando una sola tecla en el demo y leyendo la RAM (tools/omsx_prueba_dificultad.tcl, un log por tecla en work/): con la tecla 1, 0xE002 pasa por 0x40 y 0xE040 queda en 0x01; con la 2, por 0x60 y queda en 0x04; con la 3, por 0x50 y queda en 0x02. En los tres casos 0xE002 acaba en 0x50 y 0xE040 se conserva hasta el final de la mano. Las tres dificultades SI llegan al juego.
+C 0x4400 0x50: bit 6 puesto, y los bits 5-4 fijos pase lo que pase
+C 0x4405 borra el marcador y las 622 variables de detras
+
+L 0x5DF9 mueve_cien_puntos
+B 0x5DF9 EL PAGO, cien puntos por fotograma. Lleva DOS pendientes en paralelo, 0xE1B1 y 0xE1E4, cada uno un contador BCD de dos bytes que cuenta PASOS DE CIEN: los 0x0120 y 0x0080 que carga 0x4290 son 12.000 y 8.000 puntos. Cada fotograma quita cien de un marcador y los pone en el otro, y baja el pendiente en uno con 0x5F18. Quien cobra y quien paga sale de 0xE302, 0xE1AC y 0xE1AD. El segundo pendiente ademas suena cada cuatro fotogramas: es el tintineo del recuento.
+C 0x5df9 el primer pendiente
+C 0x5dfd si esta a cero, no hay nada que mover por aqui
+C 0x5e00 cien puntos, en BCD
+C 0x5e06 bit 2 de 0xE302: quien tiene el turno
+C 0x5e1d cobra el jugador de 0xE044
+C 0x5e22 cobra el jugador de 0xE047
+C 0x5e28 y el pendiente baja un paso, o sea cien puntos
+C 0x5e2e el segundo pendiente, con el mismo mecanismo
+C 0x5e38 uno de cada cuatro fotogramas
+C 0x5e3e sonido 2: el tintineo de las fichas de puntos
+C 0x5e70 sin nada pendiente: si no hay persona jugando, por 0x5F00
+
+L 0x5F18 baja_un_paso_bcd
+B 0x5F18 Resta uno en BCD al contador de dos bytes de HL. Es lo que gasta los pendientes de 0x5DF9, de cien en cien puntos.
+C 0x5f1b daa: tambien aqui la cuenta es decimal
+C 0x5f1d sin acarreo no hay que tocar el byte alto
+
+L 0x5F24 cobra_mil_el_de_e047
+B 0x5F24 Mil puntos de golpe para el marcador de 0xE047: diez vueltas de cien. La hermana de abajo hace lo mismo con el otro. Mil es lo que cuesta el palo de riichi.
+
+L 0x5F31 cobra_mil_el_de_e044
+B 0x5F31 La gemela de 0x5F24 para el marcador de 0xE044: diez vueltas de cien puntos.
+
+# ---------------------------------------------------------------------------
+# EL SIGNO DEL MARCADOR. Los dos marcadores son BCD SIN signo, y el signo va
+# aparte, en 0xE100: bits 0 y 1 para el de 0xE047, bits 6 y 7 para el de
+# 0xE044. Por eso las cuatro rutinas de abajo no suman y restan sin mas: miran
+# primero si el marcador esta en numeros rojos, y entonces sumar al marcador
+# significa restar de su valor absoluto. Lo confirma 0x44E7, que al pintar
+# elige el tile 0x01 o el 0x21 segun ese bit: el signo se VE en pantalla.
+#
+# MEDIDO sobre los 55 volcados del paso 2: en todo el ciclo del demo los ocho
+# bits de 0xE100 se quedan a CERO. Los dos marcadores empiezan en 030000 -o
+# sea 30.000 puntos cada uno- y nunca llegan a cruzar el cero.
+#
+# CABO ABIERTO, y esto NO lo explica: que los dos marcadores no sumen siempre
+# 60.000 (029000+030000 a mitad de mano, 023000+037500 tras el recuento,
+# 023000+048000 en el estado 12). El signo no interviene, porque esta a cero
+# en las tres medidas.
+# ---------------------------------------------------------------------------
+
+L 0x8307 suma_al_marcador_de_e047
+B 0x8307 Suma DE al marcador de 0xE047 teniendo en cuenta el signo de 0xE100. Si el marcador esta en negativo, sumar es restar del valor absoluto, y si al restar se llega a cero se le da la vuelta al signo.
+C 0x830b bit 0 del signo
+C 0x830e con el bit 0 puesto, el 1 sobra
+C 0x8310 bit 1: el marcador esta en numeros rojos
+C 0x8311 en rojos, sumar es restar del valor absoluto
+C 0x832d el resultado, byte a byte: hay que saber si ha quedado en cero
+C 0x8334 justo en cero: se sale de los numeros rojos
+C 0x8346 y a repintar los dos marcadores
+
+L 0x831D resta_del_marcador_de_e047
+B 0x831D Resta DE del marcador de 0xE047. Si ya estaba en negativo (algun bit de los dos bajos puesto) lo que hace es SUMAR al valor absoluto, que es lo mismo que restar de un numero rojo.
+C 0x8321 los dos bits del signo de este marcador
+C 0x8323 ya esta en rojos: se le suma al valor absoluto
+
+L 0x8349 suma_al_marcador_de_e044
+B 0x8349 La misma de 0x8307 para el otro marcador, con los bits 7 y 6 de 0xE100 en vez de los bits 0 y 1, y `rla` en vez de `rra` para mirarlos.
+C 0x834d bit 7 del signo
+C 0x8352 bit 6: este marcador esta en numeros rojos
+C 0x8376 justo en cero: se sale de los numeros rojos
+
+L 0x835F resta_del_marcador_de_e044
+B 0x835F La misma de 0x831D para el marcador de 0xE044, con los bits 7 y 6.
+C 0x8363 los dos bits altos, el signo de este marcador
+
+L 0x44E7 pinta_los_dos_marcadores
+B 0x44E7 Pinta los dos marcadores con su signo delante. El signo no es un caracter que se calcule: son dos tiles distintos, el 0x01 y el 0x21, y se elige mirando el bit de 0xE100. El de 0xE047 va en 0x39C2 y el de 0xE044 en 0x3922, tres celdas cada uno.
+C 0x44e7 0x39C2, donde va el marcador de 0xE047
+C 0x44ee el bit 1 del signo
+C 0x44ef tile 0x01: el marcador esta en positivo
+C 0x44f3 tile 0x21: esta en numeros rojos
+C 0x44f8 y detras los tres bytes BCD
+C 0x4501 0x3922, el otro marcador
+C 0x4508 aqui el bit que manda es el 7
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 3: PINTAR. El pintador de numeros BCD con sus ceros
+# suprimidos, el interprete de formato B, el espejo de bits y las rutinas de
+# relleno de la VRAM. 0x4518-0x46DB.
+# ---------------------------------------------------------------------------
+
+L 0x4518 pinta_un_numero_bcd
+B 0x4518 EL PINTADOR DE NUMEROS, y no es un simple volcado: SUPRIME LOS CEROS DE LA IZQUIERDA. Entra con HL en el byte MAS significativo del contador, B = cuantos bytes y DE = donde va en la VRAM. Cada byte da dos cifras, nibble alto primero, y la cifra se convierte en tile sumandole 0x10: el tile 0x10 es el "0" y el 0x19 el "9". El tile 0x01 es el blanco, y es lo que se pinta en lugar de un cero mientras no haya salido ninguna cifra distinta de cero. Para saberlo mira los bytes de ENCIMA, que en un contador de byte bajo primero son los mas significativos. Baja por la memoria con el `dec hl` de 0x456B, o sea que pinta de la cifra mas alta a la mas baja.
+C 0x4518 el byte que toca, dos cifras dentro
+C 0x451a el nibble bajo, la cifra de la derecha
+C 0x451c mas 0x10: asi la cifra 0 es el tile 0x10
+C 0x4520 y ahora el nibble alto
+C 0x4522 cuatro rotaciones para bajarlo
+C 0x452b el primer byte no tiene ninguno encima que mirar
+C 0x4530 mira el byte de encima, el mas significativo
+C 0x4535 si alguno de arriba no era cero, ya no se suprime nada
+C 0x4538 el segundo byte solo tiene uno encima
+C 0x453d y el tercero tiene dos
+C 0x4546 la cifra alta es un cero: candidata a suprimirse
+C 0x454a y si la baja tambien lo es, las dos van en blanco
+C 0x454d tile 0x01, el blanco
+C 0x4551 la baja tambien en blanco
+C 0x4555 el primer byte del todo: mismo criterio, sin nada encima
+C 0x4563 la cifra alta a la VRAM
+C 0x4568 y la baja en la celda de al lado
+C 0x456b se baja al byte siguiente, que es menos significativo
+
+L 0x4570 pinta_el_contador_de_e04a
+B 0x4570 Pinta el byte de 0xE04A -dos cifras BCD- en 0x3985. Igual que su gemela de abajo pero con otra variable y otro sitio; las dos comparten el cuerpo de 0x457E.
+
+L 0x4578 pinta_el_contador_de_e04b
+B 0x4578 Pinta el byte de 0xE04B en 0x39AA. Cae por abajo en el cuerpo comun. La diferencia con 0x4518 es que aqui la cifra alta, cuando es cero, no se pinta en blanco sino como tile 1: es un contador de dos cifras, no un marcador.
+C 0x458c la cifra alta a cero
+C 0x458f tile 1 en vez del 0x10
+
+L 0x44DA borra_la_fila_de_abajo
+B 0x44DA Escribe el tile 0xD0 en 0x3B00 y vuelve con A a cero. Es lo que limpia el aviso de "pulsa para seguir" al salir del submodo 8.
+
+L 0x468F pinta_lista_formato_b
+B 0x468F El interprete de FORMATO B, el que gasta casi todos los dibujos del cartucho. Lee dos bytes de destino en la VRAM y luego ordenes, cada una un byte: los siete bits bajos son la CUENTA y el bit 7 elige que hacer con ella, 0x4607 o 0x460F. Una orden con la cuenta a cero termina: si el bit 7 esta puesto (byte 0x80) vuelve arriba a leer otro destino, y si el byte es 0x00 del todo, se acabo la lista. La entrada de 0x4693 se salta la lectura del destino, para las listas que lo traen ya puesto en DE desde fuera.
+C 0x468f los dos bytes de destino, byte bajo primero
+C 0x4693 entra aqui quien ya trae el destino en DE
+C 0x4694 arma el VDP y deja el puerto de datos en C'
+C 0x4698 los siete bits bajos son la cuenta
+C 0x469b y el byte entero, con su bit 7
+C 0x469d cuenta distinta de cero: hay orden que ejecutar
+C 0x469f cuenta cero y bit 7 puesto: viene otro destino
+C 0x46a2 cuenta cero y byte cero: fin de la lista
+C 0x46a6 compara el byte con su parte baja: dice si el bit 7 esta puesto
+C 0x46a8 con el bit 7 puesto, por 0x460F
+C 0x46ac y sin el, por 0x4607
+
+L 0x46B1 pinta_la_mano_del_espejo
+B 0x46B1 Vuelca 36 columnas de 48 bytes leyendo 0xE2E5 HACIA ATRAS y dandole la vuelta a cada byte con 0x46D0. Bajar por la memoria invierte el orden vertical y el espejo de bits invierte el horizontal: el dibujo sale girado 180 grados. Es la mano del jugador de enfrente, que se ve del reves desde este lado de la mesa.
+C 0x46b4 36 columnas
+C 0x46b7 rellena el trozo de 0xE2E5 antes de volcarlo
+C 0x46be 48 bytes por columna
+C 0x46c0 el byte, ya con los bits del reves
+C 0x46c4 y al VDP
+C 0x46c8 hacia ATRAS por la memoria: eso invierte el dibujo de arriba abajo
+
+L 0x46D0 espeja_los_bits
+B 0x46D0 Le da la vuelta a los ocho bits de A. El truco son las dos rotaciones encadenadas: `rl c` saca el bit de mas peso de C al acarreo y `rra` lo mete a A por el otro extremo, ocho veces. Un byte de patron espejado es ese mismo dibujo visto del reves de izquierda a derecha.
+C 0x46d2 ocho bits
+C 0x46d5 saca el bit de mas peso por el acarreo
+C 0x46d7 y entra en A por el de menos peso
+
+L 0x45F6 rellena_la_vram
+B 0x45F6 Rellena BC bytes de VRAM desde DE con el valor de A. Es el borrador de todo el cartucho: lo usan el arranque (16 KB de golpe), el borrado de filas del menu y la limpieza entre pantallas. El bucle escribe directo al puerto que 0x470F dejo en C', sin volver a armar la direccion cada byte.
+C 0x45f6 arma la direccion y deja el puerto en C'
+C 0x45fc el byte, al puerto de datos
+
+L 0x45E5 resta_a_de_de
+B 0x45E5 Resta A de DE. La contraria de 0x4068, para las rutinas que suben por la VRAM en vez de bajar.
+
+L 0x45EC limpia_la_pantalla_entera
+B 0x45EC Borra el aviso de abajo y luego los 768 bytes de la tabla de nombres a partir de 0x7800. Lo llama el estado 8 al empezar la partida.
+C 0x45ef 0x7800, la tabla de nombres del tercer tercio
+C 0x45f2 768 bytes, la pantalla entera

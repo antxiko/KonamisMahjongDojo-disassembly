@@ -14,7 +14,7 @@ WORK     = work
 ORG      = 0x4000
 TITULO   = KONAMI'S MAHJONG - Konami - MSX1 - cartucho RC-707 de 32 KB en las paginas 1 y 2
 
-all: listado verify sanity test
+all: listado notas verify sanity test
 
 $(ROM):
 	@echo "=================================================================="
@@ -76,10 +76,18 @@ test:
 	@echo "=================================================================="
 	@python3 -m unittest discover -s tests -v
 
+# Los dos fallos que se pierden en silencio al anotar: un comentario anclado a
+# una direccion que no es instruccion, y dos comentarios para la misma.
+notas: $(SRC)/mahjong.asm
+	@echo "=================================================================="
+	@echo " ningun comentario suelto ni repetido"
+	@echo "=================================================================="
+	@python3 tools/valida_notas.py $(SRC)/mahjong.notes $(SRC)/mahjong.asm
+
 densidad:
 	@python3 tools/densidad.py $(SRC)/mahjong.asm
 
 clean:
 	rm -rf $(WORK)/mahjong.trace.json $(WORK)/mahjong.map $(WORK)/png
 
-.PHONY: all comprueba trace listado verify sanity test densidad clean
+.PHONY: all comprueba trace listado notas verify sanity test densidad clean

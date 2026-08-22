@@ -30,57 +30,77 @@ DATA_cabecera:
 ; ======================================================================
 
 
-L_4010:
-	di			;4010
+
+; ----------------------------------------------------------------------
+; EL ARRANQUE. La BIOS llega aqui por el vector INIT de la cabecera AB. Enciende la pagina 2 del cartucho (la BIOS solo le ha mapeado la 1), monta la pila y la RAM, instala la interrupcion y se queda dando vueltas en 0x404F: A PARTIR DE AHI EL JUEGO ENTERO CORRE DENTRO DE LA INTERRUPCION.
+; ----------------------------------------------------------------------
+init:
+	di			;4010   ; nada de interrupciones mientras se monta la maquina
 	im 1		;4011
-	ld a,001h		;4013
+	ld a,001h		;4013   ; semaforo de la interrupcion a 1: aun no se puede reentrar
 	ld (0e005h),a		;4015
-	call 00138h		;4018   ; BIOS RSLREG - Reads the primary slot register
-	and 00ch		;401b
+	call 00138h		;4018   ; BIOS RSLREG - Reads the primary slot register | RSLREG da las cuatro ranuras empaquetadas en un byte
+	and 00ch		;401b   ; se queda con los dos bits de la pagina 1, que es donde esta el cartucho
 	rrca			;401d
 	rrca			;401e
-	ld h,080h		;401f
-	call 00024h		;4021   ; BIOS ENASLT - Switches to specified slot and page definitively
-	ld a,0c3h		;4024
-	ld (0fd9ah),a		;4026
-	ld hl,04071h		;4029
+	ld h,080h		;401f   ; H=0x80: la pagina que se quiere encender es la 2, 0x8000-0xBFFF
+	call 00024h		;4021   ; BIOS ENASLT - Switches to specified slot and page definitively | ENASLT enciende la mitad de arriba del cartucho, hasta ahora invisible
+	ld a,0c3h		;4024   ; 0xC3 = jp: se escribe a mano el salto del gancho
+	ld (0fd9ah),a		;4026   ; H.KEYI, el gancho de interrupcion de la BIOS
+	ld hl,04071h		;4029   ; y el destino del salto: la rutina de 0x4071
 	ld (0fd9bh),hl		;402c
-	ld sp,0e400h		;402f
-	ld hl,0e000h		;4032
+	ld sp,0e400h		;402f   ; la pila justo debajo de la RAM del juego
+	ld hl,0e000h		;4032   ; borra de un tiron 0xE000-0xE3FF, las variables enteras
 	ld de,0e001h		;4035
 	ld bc,003ffh		;4038
 	ld (hl),000h		;403b
 	ldir		;403d
-	ld a,001h		;403f
+	ld a,001h		;403f   ; semaforo a 1 otra vez: la inicializacion no quiere que la corten
 	ld (0e005h),a		;4041
-	call L_49E5		;4044
+	call arranca_el_hardware		;4044   ; monta el PSG, el VDP y limpia la VRAM
 	xor a			;4047
-	ld (0e005h),a		;4048
-	call 0013eh		;404b   ; BIOS RDVDP - Reads VDP status register
+	ld (0e005h),a		;4048   ; semaforo a 0: ya se puede interrumpir, y el juego echa a andar
+	call 0013eh		;404b   ; BIOS RDVDP - Reads VDP status register | RDVDP borra la peticion pendiente del VDP antes del primer ei
 	ei			;404e
 L_404F:
-	jr L_404F		;404f
-L_4051:
-	call L_470F		;4051
+	jr L_404F		;404f   ; AQUI SE QUEDA PARA SIEMPRE: el juego vive en la interrupcion
+
+; ----------------------------------------------------------------------
+; Escribe A en la direccion de VRAM que trae DE. Envuelve al puerto: 0x470F prepara el VDP y deja el puerto de datos en C', y el out (c),a de aqui lo suelta. El ei del final es porque 0x470F entra con di.
+; ----------------------------------------------------------------------
+escribe_en_vram:
+	call prepara_escritura_vram		;4051   ; arma la direccion en el VDP y deja el puerto en C'
 	exx			;4054
-	out (c),a		;4055
+	out (c),a		;4055   ; el byte, al puerto de datos
 	exx			;4057
 	ei			;4058
 	ret			;4059
-L_405A:
-	call L_471E		;405a
+
+; ----------------------------------------------------------------------
+; La hermana de 0x4051: devuelve en A el byte de la VRAM que apunta DE.
+; ----------------------------------------------------------------------
+lee_de_vram:
+	call prepara_lectura_vram		;405a
 	exx			;405d
 	in a,(c)		;405e
 	exx			;4060
 	ei			;4061
 	ret			;4062
-L_4063:
+
+; ----------------------------------------------------------------------
+; Suma A a HL con el arrastre bien puesto. Es la rutina mas llamada del cartucho: la usan el despachador, todas las tablas indexadas y el lector de la fuente.
+; ----------------------------------------------------------------------
+suma_a_a_hl:
 	add a,l			;4063
 	ld l,a			;4064
-	ret nc			;4065
+	ret nc			;4065   ; sin arrastre no hay que tocar H
 	inc h			;4066
 	ret			;4067
-L_4068:
+
+; ----------------------------------------------------------------------
+; La hermana de 0x4063 para DE. La usan las rutinas que van bajando por la VRAM de fila en fila, sumando 0x20.
+; ----------------------------------------------------------------------
+suma_a_a_de:
 	add a,e			;4068
 	ld e,a			;4069
 	ret nc			;406a
@@ -100,52 +120,64 @@ DATA_relleno_hasta_la_interrupcion:
 ; ======================================================================
 
 
-L_4071:
+
+; ----------------------------------------------------------------------
+; LA INTERRUPCION, y con ella el bucle principal del juego. La instala INIT en H.KEYI. Hace tres cosas en orden: reconoce el VDP, mueve el sonido, y -si no se esta pisando a si misma- lee los mandos y da un latido a la maquina de estados. El semaforo 0xE005 es lo que impide que un fotograma lento se solape con el siguiente.
+; ----------------------------------------------------------------------
+interrupcion:
 	di			;4071
-	call 0013eh		;4072   ; BIOS RDVDP - Reads VDP status register
-	call L_9EA3		;4075
-	ld hl,0e005h		;4078
-	bit 0,(hl)		;407b
+	call 0013eh		;4072   ; BIOS RDVDP - Reads VDP status register | RDVDP: leer el registro de estado es lo que reconoce la interrupcion
+	call L_9EA3		;4075   ; el sonido va SIEMPRE, aunque el fotograma anterior no haya terminado
+	ld hl,0e005h		;4078   ; el semaforo de reentrada
+	bit 0,(hl)		;407b   ; si ya hay un fotograma dentro, no se entra
 	jr nz,L_408C		;407d
-	inc (hl)			;407f
+	inc (hl)			;407f   ; lo levanta, y ahora ya se puede interrumpir otra vez
 	ei			;4080
-	call L_4A27		;4081
-	call L_40CA		;4084
+	call lee_los_mandos		;4081   ; lee los mandos: teclado de verdad si hay partida, guion si es demo
+	call latido		;4084   ; y el latido de la maquina de estados
 	di			;4087
 	xor a			;4088
-	ld (0e005h),a		;4089
+	ld (0e005h),a		;4089   ; semaforo abajo, el fotograma ha terminado
 L_408C:
 	ei			;408c
 	reti		;408d
-L_408F:
-	add a,a			;408f
-	pop hl			;4090
-	call L_4063		;4091
-	ld e,(hl)			;4094
+
+; ----------------------------------------------------------------------
+; EL DESPACHADOR, y el truco de la casa: no lleva la tabla en un registro, la coge del pop hl, o sea que la tabla va PEGADA DETRAS del call que lo invoca y nunca se vuelve a el. A cambio, el manejador que salga hereda como direccion de retorno lo que hubiera debajo. Entra con A = indice. Hay cinco tablas: 0x40ED (estados), 0x4164, 0x41AB, 0x421D y 0x4389 (submodos).
+; ----------------------------------------------------------------------
+despacha_por_tabla:
+	add a,a			;408f   ; cada entrada son dos bytes
+	pop hl			;4090   ; la direccion de retorno ES la tabla
+	call suma_a_a_hl		;4091   ; suma el indice ya doblado
+	ld e,(hl)			;4094   ; saca la palabra
 	inc hl			;4095
 	ld d,(hl)			;4096
 	ex de,hl			;4097
-	jp (hl)			;4098
-L_4099:
-	ld c,000h		;4099
+	jp (hl)			;4098   ; y salta: no vuelve por aqui
+
+; ----------------------------------------------------------------------
+; Las DOS puertas del interprete de formato A, y la gracia del cartucho: la MISMA lista pinta o borra segun por donde se entre. Por 0x4099 C vale 0 y el and c de 0x40AB deja todos los bytes a cero; por 0x409D C vale 0xFF y pasan tal cual. Entra con HL apuntando a la lista.
+; ----------------------------------------------------------------------
+pinta_o_borra_lista:
+	ld c,000h		;4099   ; C=0: todo byte se convertira en 0 - esta puerta BORRA
 	jr L_409F		;409b
 L_409D:
-	ld c,0ffh		;409d
+	ld c,0ffh		;409d   ; C=0xFF: los bytes pasan intactos - esta puerta PINTA
 L_409F:
-	ld e,(hl)			;409f
+	ld e,(hl)			;409f   ; los dos bytes de destino en VRAM, byte bajo primero
 	inc hl			;40a0
 	ld d,(hl)			;40a1
 	inc hl			;40a2
 L_40A3:
-	ld a,(hl)			;40a3
+	ld a,(hl)			;40a3   ; siguiente byte de la lista
 	inc hl			;40a4
 	ld b,a			;40a5
-	inc b			;40a6
+	inc b			;40a6   ; 0xFF cuenta como fin: el inc b lo lleva a cero
 	ret z			;40a7
-	inc b			;40a8
+	inc b			;40a8   ; 0xFE cuenta como "vuelve a leer un destino nuevo"
 	jr z,L_409F		;40a9
-	and c			;40ab
-	call L_4051		;40ac
+	and c			;40ab   ; la mascara: aqui se decide si esto pinta o borra
+	call escribe_en_vram		;40ac   ; y al VDP
 	inc de			;40af
 	jr L_40A3		;40b0
 
@@ -164,24 +196,28 @@ DATA_codigo_al_que_no_llega_nadie:
 ; ======================================================================
 
 
-L_40CA:
-	ld hl,0e003h		;40ca
+
+; ----------------------------------------------------------------------
+; EL LATIDO, una vez por fotograma. Lleva los dos relojes, y luego despacha el estado. El push hl de 0x40E9 es un retorno postizo: el manejador del estado, al hacer ret, no vuelve aqui sino a donde diga HL. Y HL depende del bit 6 de 0xE002, o sea de si hay alguien jugando: en partida va a 0x41A4, que es un ret pelado y no hace nada; en demo va a 0x4ABC, que es quien vigila si alguien pulsa una tecla para empezar de verdad.
+; ----------------------------------------------------------------------
+latido:
+	ld hl,0e003h		;40ca   ; el contador de fotogramas de 8 bits
 	inc (hl)			;40cd
-	ld hl,(0e052h)		;40ce
+	ld hl,(0e052h)		;40ce   ; y el de 16 bits, que no se reinicia nunca
 	inc hl			;40d1
 	ld (0e052h),hl		;40d2
-	ld a,(0e002h)		;40d5
+	ld a,(0e002h)		;40d5   ; el byte de la partida: bit 6 = hay una persona jugando
 	and 040h		;40d8
-	ld hl,041a4h		;40da
+	ld hl,041a4h		;40da   ; con partida, el retorno postizo es un ret pelado: nada que hacer
 	jr nz,L_40E2		;40dd
-	ld hl,04abch		;40df
+	ld hl,04abch		;40df   ; sin partida es el DEMO, y toca vigilar el teclado para arrancar
 L_40E2:
-	ld a,(0e000h)		;40e2
-	cp 008h		;40e5
+	ld a,(0e000h)		;40e2   ; el estado del juego
+	cp 008h		;40e5   ; el estado 8 es el unico que NO quiere el retorno postizo
 	jr z,L_40EA		;40e7
-	push hl			;40e9
+	push hl			;40e9   ; se cuela debajo del retorno del call de abajo
 L_40EA:
-	call L_408F		;40ea
+	call despacha_por_tabla		;40ea   ; y a la tabla de quince que viene pegada detras
 
 ; ----------------------------------------------------------------------
 ; DATOS tabla_de_estados: Las quince palabras del despachador de 0x408F,
@@ -211,53 +247,53 @@ DATA_tabla_de_estados:
 
 
 L_410B:
-	call L_44B2		;410b
-	ret p			;410e
-	call L_446F		;410f
-	call L_49FE		;4112
-	jp L_41FF		;4115
+	call pinta_una_franja_del_tapete		;410b   ; ESTADO 0: espera 24 fotogramas pintando la mesa; ver 0x44B2
+	ret p			;410e   ; aun no ha terminado la cuenta
+	call L_446F		;410f   ; pinta el tapete y las fichas del fondo
+	call carga_los_registros_del_vdp		;4112   ; y recarga los ocho registros del VDP
+	jp avanza_de_estado		;4115   ; al estado 1
 L_4118:
-	ld a,(0e003h)		;4118
-	rra			;411b
+	ld a,(0e003h)		;4118   ; ESTADO 1: parpadeo del rotulo, un fotograma de cada dos
+	rra			;411b   ; el bit 0 del contador de fotogramas: solo los impares
 	ret nc			;411c
 	call L_4B75		;411d
 	ret nz			;4120
 	ld hl,085bfh		;4121
-	call L_409D		;4124
-	ld a,050h		;4127
+	call L_409D		;4124   ; pinta el rotulo
+	ld a,050h		;4127   ; y se queda 80 fotogramas en el estado siguiente
 	jp L_41FC		;4129
 L_412C:
-	ld hl,0e004h		;412c
+	ld hl,0e004h		;412c   ; ESTADO 2: cuenta atras con el rotulo puesto
 	dec (hl)			;412f
 	ret nz			;4130
-	ld hl,085bfh		;4131
-	call L_4099		;4134
+	ld hl,085bfh		;4131   ; al agotarse, BORRA el mismo rotulo que pinto el estado 1
+	call pinta_o_borra_lista		;4134
 	xor a			;4137
-	ld (0e00ah),a		;4138
+	ld (0e00ah),a		;4138   ; reinicia el contador de lineas de 0x45B4
 L_413B:
-	jp L_41FF		;413b
+	jp avanza_de_estado		;413b   ; ESTADO 3: al 4 sin mas, y sin espera ninguna
 L_413E:
-	call L_45B4		;413e
-	ret c			;4141
+	call suelta_una_linea_de_texto		;413e   ; ESTADO 4: va soltando las lineas del texto, una por fotograma
+	ret c			;4141   ; mientras queden lineas, sigue en este estado
 	xor a			;4142
-	jp L_41FC		;4143
+	jp L_41FC		;4143   ; A=0: al estado siguiente sin espera
 L_4146:
-	ld hl,0e004h		;4146
+	ld hl,0e004h		;4146   ; ESTADO 5: pura cuenta atras
 	dec (hl)			;4149
 	ret nz			;414a
-	jp L_41FF		;414b
+	jp avanza_de_estado		;414b
 L_414E:
-	jp L_41F4		;414e
+	jp espera_32_y_avanza_de_estado		;414e   ; ESTADO 6: sin nada que hacer, a 0x41F4 y al 7
 L_4151:
-	call L_44B2		;4151
+	call pinta_una_franja_del_tapete		;4151   ; ESTADO 9: otros 24 fotogramas de cuenta pintando la mesa
 	ret p			;4154
-	call L_4C43		;4155
-	ld a,010h		;4158
+	call L_4C43		;4155   ; pinta la mesa de la mano que va a empezar
+	ld a,010h		;4158   ; 0x10 y luego inc a: 17 fotogramas de espera
 	inc a			;415a
 	jp L_41FC		;415b
 L_415E:
-	ld a,(0e001h)		;415e
-	call L_408F		;4161
+	ld a,(0e001h)		;415e   ; ESTADO 7: se parte en dos submodos por (0xE001)
+	call despacha_por_tabla		;4161
 
 ; ----------------------------------------------------------------------
 ; DATOS tabla_de_submodos_7: Las dos palabras del despachador, detras del
@@ -272,36 +308,44 @@ DATA_tabla_de_submodos_7:
 ; ======================================================================
 
 
+
+; ----------------------------------------------------------------------
+; SUBMODO 0 DEL ESTADO 7: AQUI ARRANCA EL DEMO. Borra el marcador, engancha el guion de teclas grabado y apaga el bit 6 de 0xE002 para que 0x4A27 lea del guion y no del teclado.
+; ----------------------------------------------------------------------
 L_4168:
-	call L_44A4		;4168
-	ld hl,04ae8h		;416b
+	call L_44A4		;4168   ; pone a cero el marcador y las 622 variables que le siguen
+	ld hl,04ae8h		;416b   ; engancha el guion del demo (0x4AE8) como fuente de pulsaciones
 	ld (0e066h),hl		;416e
-	ld hl,049a6h		;4171
+	ld hl,049a6h		;4171   ; y las dos rutinas que lo atienden
 	ld (0e06ah),hl		;4174
 	ld hl,049b5h		;4177
 	ld (0e06ch),hl		;417a
-	xor a			;417d
+	xor a			;417d   ; contador y repeticiones del guion, a cero
 	ld (0e068h),a		;417e
 	ld (0e069h),a		;4181
 	ld hl,0e002h		;4184
-	res 6,(hl)		;4187
+	res 6,(hl)		;4187   ; bit 6 abajo: NO hay persona jugando, esto es el demo
 	ld hl,0e000h		;4189
-	ld a,008h		;418c
+	ld a,008h		;418c   ; EL ESTADO 8 NO SE DESPACHA POR AQUI: se escribe 8, pero el `jp L_41F4` de 0x4193 desemboca en `avanza_de_estado`, que hace `inc`, asi que el estado que corre es el 9. Se escribe porque sirve doble: el `rra` de 0x418F lo convierte en 4 para 0xE040. CORRECCION del paso 2, que lo dio por muerto: el estado 8 SI se despacha -y va a 0x440B, la pantalla de dificultad- cuando quien escribe el 8 es 0x4ABC, o sea cuando alguien pulsa una tecla para jugar de verdad. En el demo no se llega nunca, y de ahi salio la lectura equivocada.
 	ld (hl),a			;418e
 	rra			;418f
-	ld (0e040h),a		;4190
-	jp L_41F4		;4193
-L_4196:
+	ld (0e040h),a		;4190   ; el 8 rotado a la derecha da 4, que es lo que quiere 0xE040
+	jp espera_32_y_avanza_de_estado		;4193
+
+; ----------------------------------------------------------------------
+; CIERRA EL BUCLE DEL JUEGO: pone el estado a 0 y el submodo a 0. Medido en el demo: se llega aqui en t=168,48 y otra vez en t=337,44, o sea cada 168,96 s.
+; ----------------------------------------------------------------------
+vuelve_al_estado_0:
 	xor a			;4196
-	ld (0e000h),a		;4197
+	ld (0e000h),a		;4197   ; estado = 0, se empieza de nuevo
 	ld a,020h		;419a
 	ld (0e004h),a		;419c
 	ld hl,0e001h		;419f
-	ld (hl),000h		;41a2
+	ld (hl),000h		;41a2   ; y el submodo tambien
 	ret			;41a4
 L_41A5:
 	ld a,(0e001h)		;41a5
-	call L_408F		;41a8
+	call despacha_por_tabla		;41a8
 
 ; ----------------------------------------------------------------------
 ; DATOS tabla_de_submodos_10: Las dos palabras del despachador, detras del
@@ -316,30 +360,30 @@ DATA_tabla_de_submodos_10:
 ; ======================================================================
 
 
-L_41AF:
-	ld hl,0e004h		;41af
+submodo_0_del_estado_10:
+	ld hl,0e004h		;41af   ; SUBMODO 0 DEL ESTADO 10: cuenta atras y al submodo siguiente
 	dec (hl)			;41b2
 	ret nz			;41b3
-	jr L_4207		;41b4
+	jr espera_32_y_avanza_de_submodo		;41b4
 L_41B6:
-	call L_44B2		;41b6
+	call pinta_una_franja_del_tapete		;41b6   ; SUBMODO 1 DEL ESTADO 10: reparte la mano
 	ret p			;41b9
-	call L_4C59		;41ba
+	call L_4C59		;41ba   ; el reparto
 	ld hl,03959h		;41bd
 	ld (0e1c5h),hl		;41c0
 	ld hl,0e064h		;41c3
-	ld a,r		;41c6
-	or a			;41c8
+	ld a,r		;41c6   ; LA SEMILLA DEL AZAR: el registro R del refresco de la memoria
+	or a			;41c8   ; si R sale cero se usa el contador de fotogramas en su lugar
 	jr nz,L_41CE		;41c9
 	ld a,(0e003h)		;41cb
 L_41CE:
 	ld (hl),a			;41ce
 	inc hl			;41cf
-	ld a,(0e003h)		;41d0
+	ld a,(0e003h)		;41d0   ; el segundo byte de la semilla, siempre el contador de fotogramas
 	ld (hl),a			;41d3
 	call L_4D72		;41d4
 	ld hl,0e1a8h		;41d7
-	set 0,(hl)		;41da
+	set 0,(hl)		;41da   ; bit 0 de 0xE1A8: hay mano repartida
 	ld a,(0e04ch)		;41dc
 	or a			;41df
 	jr z,L_41E8		;41e0
@@ -349,36 +393,52 @@ L_41CE:
 L_41E8:
 	ld a,(0e04bh)		;41e8
 	inc a			;41eb
-	cp 006h		;41ec
+	cp 006h		;41ec   ; el sexto envite cierra la partida
 	jr c,L_41FC		;41ee
 L_41F0:
 	ld a,040h		;41f0
 	jr L_41FC		;41f2
-L_41F4:
-	ld hl,00000h		;41f4
+
+; ----------------------------------------------------------------------
+; La salida corriente de un estado: borra 0xE1B8, pide 32 fotogramas de espera y pasa al estado siguiente. 0x41FC es la entrada de los que traen su propia espera en A, y 0x41FF la de los que no quieren ninguna.
+; ----------------------------------------------------------------------
+espera_32_y_avanza_de_estado:
+	ld hl,00000h		;41f4   ; el desplazamiento del tapete, a cero
 	ld (0e1b8h),hl		;41f7
-	ld a,020h		;41fa
+	ld a,020h		;41fa   ; 32 fotogramas de espera
 L_41FC:
-	ld (0e004h),a		;41fc
-L_41FF:
-	ld hl,0e000h		;41ff
-	inc (hl)			;4202
-	inc hl			;4203
-	ld (hl),000h		;4204
+	ld (0e004h),a		;41fc   ; entra aqui quien trae su propia espera en A
+
+; ----------------------------------------------------------------------
+; Avanza al estado siguiente y resetea el submodo: `inc (0xE000)` y luego `ld (0xE001),0`. La usan los estados 1 a 14, y es el 0x4202/0x4204 que aparece escribiendo en el trazado del demo.
+; ----------------------------------------------------------------------
+avanza_de_estado:
+	ld hl,0e000h		;41ff   ; hl = 0xE000, el estado del juego
+	inc (hl)			;4202   ; estado = estado + 1
+	inc hl			;4203   ; hl = 0xE001, el submodo
+	ld (hl),000h		;4204   ; submodo = 0, que el estado nuevo empieza por el suyo
 	ret			;4206
-L_4207:
+
+; ----------------------------------------------------------------------
+; La gemela de 0x41F4 pero para submodos: misma espera de 32 fotogramas y mismo borrado de 0xE1B8, solo que al final hace crecer (0xE001) en vez de (0xE000).
+; ----------------------------------------------------------------------
+espera_32_y_avanza_de_submodo:
 	ld hl,00000h		;4207
 	ld (0e1b8h),hl		;420a
 	ld a,020h		;420d
 L_420F:
-	ld (0e004h),a		;420f
-L_4212:
+	ld (0e004h),a		;420f   ; entra aqui quien trae su propia espera en A
+
+; ----------------------------------------------------------------------
+; Avanza al submodo siguiente dentro del estado: `inc (0xE001)`. Es el unico sitio que hace crecer el submodo; en el demo la mano entera (estado 11) recorre asi sus nueve.
+; ----------------------------------------------------------------------
+avanza_de_submodo:
 	ld hl,0e001h		;4212
-	inc (hl)			;4215
+	inc (hl)			;4215   ; submodo = submodo + 1
 	ret			;4216
 L_4217:
 	ld a,(0e001h)		;4217
-	call L_408F		;421a
+	call despacha_por_tabla		;421a
 
 ; ----------------------------------------------------------------------
 ; DATOS tabla_de_submodos_11: Las nueve palabras del despachador, detras del
@@ -400,48 +460,52 @@ DATA_tabla_de_submodos_11:
 ; ======================================================================
 
 
-L_422F:
-	ld hl,0e004h		;422f
+submodo_0_del_estado_11:
+	ld hl,0e004h		;422f   ; SUBMODO 0 DEL ESTADO 11: espera y calla el sonido de la mano anterior
 	dec (hl)			;4232
 	ret nz			;4233
-	ld a,09fh		;4234
+	ld a,09fh		;4234   ; 0x9F: silencio
 	call L_9C4A		;4236
-	jr $-39		;4239
-L_423B:
-	call L_4D58		;423b
+	jr $-39		;4239   ; y al submodo 1
+submodo_1_del_estado_11:
+	call L_4D58		;423b   ; SUBMODO 1 DEL ESTADO 11: reparte y espera a que termine el reparto
 	ld hl,0e1a8h		;423e
-	bit 0,(hl)		;4241
+	bit 0,(hl)		;4241   ; bit 0 de 0xE1A8: mientras haya reparto en curso, aqui se sigue
 	ret nz			;4243
-	set 1,(hl)		;4244
-	jr $-52		;4246
-L_4248:
-	call L_4FE1		;4248
+	set 1,(hl)		;4244   ; bit 1: el reparto ha terminado, el guion del demo ya puede tocar
+	jr $-52		;4246   ; y al submodo 2, que es la mano de verdad
+
+; ----------------------------------------------------------------------
+; SUBMODO 2 DEL ESTADO 11: LA MANO JUGANDOSE, y el submodo mas largo con diferencia (103,7 s de los 130,3 del estado 11 en el demo, medido). Cada fotograma mueve un turno y decide si la mano sigue o se acaba. Las tres salidas son: 0x42A8 si la mano termina normal, 0x429E si termina con jugada cantada (salta al submodo 5 en vez de al 3) y el `ret` de 0x4258 mientras aun quede algo pendiente.
+; ----------------------------------------------------------------------
+submodo_2_del_estado_11:
+	call L_4FE1		;4248   ; mueve el turno
 	ld hl,0e302h		;424b
-	bit 2,(hl)		;424e
+	bit 2,(hl)		;424e   ; bit 2 de 0xE302: el turno es de la maquina
 	ex de,hl			;4250
 	jr nz,L_4285		;4251
 	ld hl,0e1a8h		;4253
-	bit 1,(hl)		;4256
+	bit 1,(hl)		;4256   ; mientras el reparto no haya terminado, no se juega
 	ret nz			;4258
 	set 2,(hl)		;4259
 	ld a,(de)			;425b
 	rra			;425c
 	rra			;425d
 	jr c,L_42A8		;425e
-	ld a,(0e040h)		;4260
+	ld a,(0e040h)		;4260   ; la dificultad, tal como la dejo la pantalla del estado 8
 	and 006h		;4263
 	jr z,L_42A8		;4265
-	ld a,(0e1d1h)		;4267
+	ld a,(0e1d1h)		;4267   ; bit 0 de 0xE1D1: hay que saltarse la comprobacion
 	rra			;426a
 	jr c,L_42A8		;426b
 	call L_4833		;426d
 	ld a,(0e1cdh)		;4270
 	rra			;4273
 	jr nc,L_4279		;4274
-	call L_47FB		;4276
+	call L_47FB		;4276   ; bit 0 de 0xE1CD
 L_4279:
 	ld a,(0e1cdh)		;4279
-	and 060h		;427c
+	and 060h		;427c   ; los bits 5 y 6 de 0xE1CD son los que llevan a cantar jugada
 	jr z,L_42A8		;427e
 L_4280:
 	call L_76D9		;4280
@@ -450,133 +514,149 @@ L_4285:
 	call L_76A6		;4285
 L_4288:
 	ld a,(0e1ach)		;4288
-	and 0c0h		;428b
+	and 0c0h		;428b   ; los dos bits altos de 0xE1AC deciden el importe
 	jr z,L_429E		;428d
 	rla			;428f
-	ld hl,00120h		;4290
+	ld hl,00120h		;4290   ; 0x0120 en BCD: 120 pasos de 100 puntos, o sea 12.000
 	jr c,L_4298		;4293
-	ld hl,00080h		;4295
+	ld hl,00080h		;4295   ; y si no, 0x0080: 80 pasos de 100, o sea 8.000
 L_4298:
-	ld (0e1e4h),hl		;4298
+	ld (0e1e4h),hl		;4298   ; lo mismo en los dos sitios, que 0x5DF9 los va gastando en paralelo
 	ld (0e1b1h),hl		;429b
 L_429E:
-	ld a,005h		;429e
+	ld a,005h		;429e   ; con jugada cantada se salta al submodo 5, no al 3
 	ld (0e001h),a		;42a0
-	ld a,0c0h		;42a3
+	ld a,0c0h		;42a3   ; y con 192 fotogramas de espera
 	jp L_420F		;42a5
 L_42A8:
-	call L_7AF8		;42a8
-	jp L_4207		;42ab
-L_42AE:
-	call L_44B2		;42ae
+	call L_7AF8		;42a8   ; salida normal: al submodo 3
+	jp espera_32_y_avanza_de_submodo		;42ab
+
+; ----------------------------------------------------------------------
+; SUBMODO 3 DEL ESTADO 11: destapa la mano y prepara el recuento. Vuelve a pintar la mesa mientras baja el reloj, y cuando se agota monta las direcciones de la lista de nombres de jugada (0xE317 y 0xE319) y se va al submodo 4 o al 5 segun haya algo que pagar.
+; ----------------------------------------------------------------------
+submodo_3_del_estado_11:
+	call pinta_una_franja_del_tapete		;42ae   ; sigue pintando la mesa hasta que el reloj se agote
 	ret p			;42b1
 	call L_5A46		;42b2
-	ld a,(0e302h)		;42b5
+	ld a,(0e302h)		;42b5   ; bit 1 de 0xE302
 	bit 1,a		;42b8
 	jr nz,L_42C1		;42ba
-	ld a,093h		;42bc
+	ld a,093h		;42bc   ; sonido 0x93
 	call L_9C4A		;42be
 L_42C1:
-	ld hl,0382fh		;42c1
+	ld hl,0382fh		;42c1   ; 0x382F, donde empieza a escribirse el nombre de la jugada
 	ld (0e317h),hl		;42c4
-	ld hl,0e305h		;42c7
+	ld hl,0e305h		;42c7   ; y de donde se lee, 0xE305
 	ld (0e319h),hl		;42ca
-	ld a,005h		;42cd
+	ld a,005h		;42cd   ; cinco lineas de recuento
 	ld (0e1d8h),a		;42cf
 	xor a			;42d2
-	ld hl,0e1d9h		;42d3
+	ld hl,0e1d9h		;42d3   ; borra las tres celdas de 0xE1D9
 	ld (hl),a			;42d6
 	inc hl			;42d7
 	ld (hl),a			;42d8
 	inc hl			;42d9
 	ld (hl),a			;42da
-	ld a,(0e205h)		;42db
+	ld a,(0e205h)		;42db   ; 0xE205: si no hay nada apuntado, se va por 0x42F3
 	or a			;42de
 	ld hl,0e1c8h		;42df
 	jr z,L_42F3		;42e2
 	rra			;42e4
-	set 1,(hl)		;42e5
+	set 1,(hl)		;42e5   ; bit 1 de 0xE1C8
 	jr nc,L_42F0		;42e7
-	ld de,00030h		;42e9
+	ld de,00030h		;42e9   ; 0x30 = 48 pasos de 100, o sea 4.800 puntos
 	ld (0e1e1h),de		;42ec
 L_42F0:
-	jp L_4212		;42f0
+	jp avanza_de_submodo		;42f0
 L_42F3:
-	set 4,(hl)		;42f3
+	set 4,(hl)		;42f3   ; bit 4 de 0xE1C8: la mano se va sin pagar
 	ld a,(0e302h)		;42f5
 	bit 1,a		;42f8
-	ld a,010h		;42fa
+	ld a,010h		;42fa   ; 16 fotogramas si el turno era de la maquina
 	jr nz,L_4300		;42fc
-	ld a,0b0h		;42fe
+	ld a,0b0h		;42fe   ; y 176 si era del jugador, que hay mas que leer
 L_4300:
 	jp L_420F		;4300
-L_4303:
-	ld hl,0e004h		;4303
+submodo_4_del_estado_11:
+	ld hl,0e004h		;4303   ; SUBMODO 4 DEL ESTADO 11: pura cuenta atras antes del recuento
 	dec (hl)			;4306
 	ret nz			;4307
-	jp L_4212		;4308
-L_430B:
+	jp avanza_de_submodo		;4308
+
+; ----------------------------------------------------------------------
+; SUBMODO 5 DEL ESTADO 11: canta la jugada. 0x5AEE es quien decide de que jugada se trata y la escribe; mientras el bit 2 de 0xE1A8 siga puesto, aqui no se avanza. Al terminar pinta los tres digitos de 0xE1B2 en 0x38A8.
+; ----------------------------------------------------------------------
+submodo_5_del_estado_11:
 	call L_5AEE		;430b
-	ld hl,0e1a8h		;430e
+	ld hl,0e1a8h		;430e   ; bit 2 de 0xE1A8: la jugada aun se esta cantando
 	bit 2,(hl)		;4311
 	ret nz			;4313
-	ld hl,0e1b2h		;4314
-	ld de,038a8h		;4317
-	ld b,003h		;431a
-	call L_4518		;431c
-	xor a			;431f
+	ld hl,0e1b2h		;4314   ; los tres digitos del importe
+	ld de,038a8h		;4317   ; 0x38A8, donde van
+	ld b,003h		;431a   ; tres celdas
+	call pinta_un_numero_bcd		;431c
+	xor a			;431f   ; sin espera, al submodo 6
 	jp L_420F		;4320
-L_4323:
-	ld hl,0e004h		;4323
+submodo_6_del_estado_11:
+	ld hl,0e004h		;4323   ; SUBMODO 6 DEL ESTADO 11: espera, y levanta el bit 3 de 0xE1A8
 	dec (hl)			;4326
 	ret nz			;4327
 	ld hl,0e1a8h		;4328
-	set 3,(hl)		;432b
-	jp L_4212		;432d
-L_4330:
-	call L_5DF9		;4330
+	set 3,(hl)		;432b   ; bit 3: la senal para que el submodo 7 pague
+	jp avanza_de_submodo		;432d
+
+; ----------------------------------------------------------------------
+; SUBMODO 7 DEL ESTADO 11: EL PAGO. 0x5DF9 va moviendo los puntos de cien en cien, con su sonido, hasta que no queda nada pendiente; el bit 3 de 0xE1A8 es lo que dice que aun queda. Al terminar carga 0xE050, que es cuanto se espera en el submodo 8 antes de seguir solo: uno en el demo, y diez o dos en partida.
+; ----------------------------------------------------------------------
+submodo_7_del_estado_11:
+	call mueve_cien_puntos		;4330   ; mueve cien puntos y pinta el marcador
 	ld hl,0e1a8h		;4333
-	bit 3,(hl)		;4336
+	bit 3,(hl)		;4336   ; bit 3 de 0xE1A8: aun queda por pagar
 	ret nz			;4338
 	ld a,(0e002h)		;4339
-	bit 6,a		;433c
+	bit 6,a		;433c   ; bit 6 de 0xE002: hay una persona jugando
 	jr nz,L_4345		;433e
-	ld hl,00001h		;4340
+	ld hl,00001h		;4340   ; en el demo no se espera nada: un fotograma y a otra cosa
 	jr L_4352		;4343
 L_4345:
 	ld a,(0e302h)		;4345
-	bit 2,a		;4348
-	ld hl,0000ah		;434a
+	bit 2,a		;4348   ; bit 2 de 0xE302
+	ld hl,0000ah		;434a   ; diez fotogramas de espera
 	jr z,L_4352		;434d
-	ld hl,00002h		;434f
+	ld hl,00002h		;434f   ; o dos
 L_4352:
-	ld (0e050h),hl		;4352
-	jp L_4212		;4355
-L_4358:
-	ld a,(0e009h)		;4358
-	and 030h		;435b
+	ld (0e050h),hl		;4352   ; el reloj del submodo 8
+	jp avanza_de_submodo		;4355
+
+; ----------------------------------------------------------------------
+; SUBMODO 8 DEL ESTADO 11, EL ULTIMO: "pulsa para seguir". Sale de aqui de dos maneras -por espacio o select (la mascara 0x30 de 0xE009), o porque se agote el reloj de 16 bits de 0xE050- y entonces DECIDE SI LA PARTIDA SIGUE: con el bit 4 de 0xE1A8 puesto pasa al estado 12, el recuento final; sin el, vuelve al estado 9 y se reparte otra mano.
+; ----------------------------------------------------------------------
+submodo_8_del_estado_11:
+	ld a,(0e009h)		;4358   ; las teclas de este fotograma
+	and 030h		;435b   ; bits 4 y 5: espacio o select valen igual
 	jr nz,L_436E		;435d
-	ld a,(0e003h)		;435f
+	ld a,(0e003h)		;435f   ; y si no, hay que esperar a que pase el contador de fotogramas
 	or a			;4362
 	ret nz			;4363
-	ld hl,(0e050h)		;4364
+	ld hl,(0e050h)		;4364   ; el reloj de 16 bits que cargo el submodo 7
 	dec hl			;4367
 	ld (0e050h),hl		;4368
 	ld a,l			;436b
 	or h			;436c
 	ret nz			;436d
 L_436E:
-	call L_44DA		;436e
+	call borra_la_fila_de_abajo		;436e   ; limpia lo que hubiera en pantalla
 	ld hl,0e1a8h		;4371
-	bit 4,(hl)		;4374
-	jp nz,L_41FF		;4376
+	bit 4,(hl)		;4374   ; bit 4 de 0xE1A8: la partida se ha terminado
+	jp nz,avanza_de_estado		;4376   ; al estado 12, el recuento final
 	ld hl,0e000h		;4379
-	ld (hl),009h		;437c
-	ld a,030h		;437e
+	ld (hl),009h		;437c   ; y si no, al estado 9: otra mano
+	ld a,030h		;437e   ; con 48 fotogramas de espera
 	jp L_41FC		;4380
 L_4383:
-	ld a,(0e001h)		;4383
-	call L_408F		;4386
+	ld a,(0e001h)		;4383   ; ESTADO 12: cuatro submodos por (0xE001)
+	call despacha_por_tabla		;4386
 
 ; ----------------------------------------------------------------------
 ; DATOS tabla_de_submodos_12: Las cuatro palabras del despachador, detras del
@@ -594,111 +674,120 @@ DATA_tabla_de_submodos_12:
 
 
 L_4391:
-	jp L_4207		;4391
+	jp espera_32_y_avanza_de_submodo		;4391   ; SUBMODO 0 DEL ESTADO 12: paso de largo
 L_4394:
-	call L_44B2		;4394
+	call pinta_una_franja_del_tapete		;4394   ; SUBMODO 1 DEL ESTADO 12: monta la pantalla del recuento final
 	ret p			;4397
-	ld hl,0e1a8h		;4398
+	ld hl,0e1a8h		;4398   ; 0xE1A8 a 1: solo el bit 0, todo lo demas limpio
 	ld (hl),001h		;439b
-	ld hl,038c5h		;439d
+	ld hl,038c5h		;439d   ; 0x38C5, donde va el texto
 	ld (0e05dh),hl		;43a0
 	xor a			;43a3
-	call L_4A22		;43a4
+	call L_4A22		;43a4   ; borra el sonido
 	ld hl,086d6h		;43a7
-	call L_468F		;43aa
+	call pinta_lista_formato_b		;43aa
 	ld hl,08799h		;43ad
-	call L_468F		;43b0
+	call pinta_lista_formato_b		;43b0
 	call L_4669		;43b3
 	ld hl,087b4h		;43b6
-	call L_468F		;43b9
+	call pinta_lista_formato_b		;43b9
 	ld hl,0e128h		;43bc
 	ld (hl),038h		;43bf
-	ld a,040h		;43c1
-	jp L_420F		;43c3
+	ld a,040h		;43c1   ; 0x38 en 0xE128
+	jp L_420F		;43c3   ; 64 fotogramas
 L_43C6:
-	ld hl,0e004h		;43c6
+	ld hl,0e004h		;43c6   ; SUBMODO 2 DEL ESTADO 12: cuenta atras
 	dec (hl)			;43c9
 	ret nz			;43ca
-	jp L_4212		;43cb
+	jp avanza_de_submodo		;43cb
 L_43CE:
-	call L_488D		;43ce
+	call L_488D		;43ce   ; SUBMODO 3 DEL ESTADO 12: el recuento, y hasta que 0xE1A8 no quede a cero no se sale
 	ld a,(0e1a8h)		;43d1
-	or a			;43d4
+	or a			;43d4   ; mientras quede un solo bit puesto, aqui se sigue
 	ret nz			;43d5
-	ld a,080h		;43d6
+	ld a,080h		;43d6   ; 128 fotogramas y al estado 13
 	jp L_41FC		;43d8
 L_43DB:
-	ld a,099h		;43db
-	call L_9C4A		;43dd
+	ld a,099h		;43db   ; ESTADO 13: el rotulo del final
+	call L_9C4A		;43dd   ; sonido 0x99
 	ld hl,08598h		;43e0
-	call L_409D		;43e3
-	ld a,070h		;43e6
+	call L_409D		;43e3   ; pinta el rotulo
+	ld a,070h		;43e6   ; 112 fotogramas
 	jp L_41FC		;43e8
 L_43EB:
-	ld a,(0e003h)		;43eb
-	and 003h		;43ee
+	ld a,(0e003h)		;43eb   ; ESTADO 14: cuenta atras, uno de cada cuatro fotogramas
+	and 003h		;43ee   ; solo cuenta uno de cada cuatro: la espera sale por cuatro
 	ret nz			;43f0
 	ld hl,0e004h		;43f1
 	dec (hl)			;43f4
 	ret nz			;43f5
 	ld hl,0e002h		;43f6
 	ld a,(hl)			;43f9
-	and 0bfh		;43fa
+	and 0bfh		;43fa   ; APAGA EL BIT 6: la partida se acaba y vuelve a mandar el demo
 	ld (hl),a			;43fc
-	jp L_4196		;43fd
-L_4400:
-	ld a,050h		;4400
+	jp vuelve_al_estado_0		;43fd   ; y al estado 0, a empezar de nuevo
+
+; ----------------------------------------------------------------------
+; La salida del estado 8: pone 0xE002 a 0x50, borra el marcador y se va al estado 9. ESE 0x50 SE ESCRIBE SIEMPRE, sin mirar que tecla se habia pulsado, y parece que se lleve por delante la dificultad recien elegida. NO SE LA LLEVA, y esta medido: la dificultad ya no viaja en 0xE002 a estas alturas, sino en 0xE040, que 0x4453 calculo durante el parpadeo y aqui nadie toca. De 0xE002 solo se mira el bit 6 de aqui en adelante, y 0x50 lo lleva puesto.
+; Medido en openMSX arrancando en frio, pulsando una sola tecla en el demo y leyendo la RAM (tools/omsx_prueba_dificultad.tcl, un log por tecla en work/): con la tecla 1, 0xE002 pasa por 0x40 y 0xE040 queda en 0x01; con la 2, por 0x60 y queda en 0x04; con la 3, por 0x50 y queda en 0x02. En los tres casos 0xE002 acaba en 0x50 y 0xE040 se conserva hasta el final de la mano. Las tres dificultades SI llegan al juego.
+; ----------------------------------------------------------------------
+cierra_la_pantalla_de_dificultad:
+	ld a,050h		;4400   ; 0x50: bit 6 puesto, y los bits 5-4 fijos pase lo que pase
 	ld (0e002h),a		;4402
-	call L_44A4		;4405
-	jp L_41F4		;4408
-L_440B:
+	call L_44A4		;4405   ; borra el marcador y las 622 variables de detras
+	jp espera_32_y_avanza_de_estado		;4408
+
+; ----------------------------------------------------------------------
+; EL ESTADO 8, LA PANTALLA DE DIFICULTAD. Es el estado al que salta 0x4ABC cuando alguien pulsa 1, 2 o 3 durante el demo, y el unico al que 0x40CA no le pone retorno postizo. El submodo 0 limpia el sonido y la pantalla y carga 80 fotogramas; a partir de ahi 0x4438 hace parpadear la linea de la dificultad elegida -ocho fotogramas puesta, ocho quitada, que es lo que mide el bit 3 del reloj- hasta que se agota, y entonces pasa por 0x4400 camino del estado 9.
+; ----------------------------------------------------------------------
+estado_8_elige_dificultad:
 	ld a,(0e001h)		;440b
 	or a			;440e
 	jr nz,L_4438		;440f
-	ld hl,0e010h		;4411
+	ld hl,0e010h		;4411   ; borra los cuarenta bytes de los canales de sonido
 	ld (hl),000h		;4414
 	ld de,0e011h		;4416
 	ld bc,00027h		;4419
 	ldir		;441c
-	call L_45EC		;441e
+	call limpia_la_pantalla_entera		;441e   ; limpia la pantalla
 	xor a			;4421
 	call L_4A22		;4422
-	call L_4472		;4425
-	call L_45AA		;4428
+	call L_4472		;4425   ; pinta la mesa
+	call L_45AA		;4428   ; y el texto de las tres dificultades
 	ld a,050h		;442b
-	ld (0e004h),a		;442d
-	ld a,09ch		;4430
+	ld (0e004h),a		;442d   ; 80 fotogramas de parpadeo
+	ld a,09ch		;4430   ; sonido 0x9C, el de empezar partida
 	call L_9C4A		;4432
-	jp L_4212		;4435
+	jp avanza_de_submodo		;4435
 L_4438:
-	ld hl,0e004h		;4438
+	ld hl,0e004h		;4438   ; cada fotograma mientras dure el parpadeo
 	dec (hl)			;443b
-	jr z,L_4400		;443c
+	jr z,cierra_la_pantalla_de_dificultad		;443c   ; agotado: por 0x4400 al estado 9
 	ld a,(hl)			;443e
-	and 008h		;443f
-	jp nz,L_45AA		;4441
-	ld a,(0e002h)		;4444
+	and 008h		;443f   ; bit 3 del reloj: ocho fotogramas si y ocho no
+	jp nz,L_45AA		;4441   ; en los "si", el texto entero repintado
+	ld a,(0e002h)		;4444   ; y en los "no", se borra la linea de la elegida
 	rra			;4447
 	rra			;4448
 	rra			;4449
 	rra			;444a
-	and 003h		;444b
+	and 003h		;444b   ; los bits 5 y 4 de 0xE002 bajados a un indice de 0 a 3
 	ld c,a			;444d
 	or a			;444e
 	jr nz,L_4452		;444f
-	ccf			;4451
+	ccf			;4451   ; la dificultad 0 no vale cero: se le mete el acarreo
 L_4452:
 	rla			;4452
-	ld (0e040h),a		;4453
+	ld (0e040h),a		;4453   ; 0xE040, la dificultad tal como la lee el estado 11: 1, 4 o 2
 	ld a,c			;4456
-	ld hl,0446bh		;4457
-	call L_4063		;445a
+	ld hl,0446bh		;4457   ; la tabla de las cuatro filas
+	call suma_a_a_hl		;445a
 	ld a,(hl)			;445d
-	ld de,03a40h		;445e
-	call L_4068		;4461
-	ld bc,00020h		;4464
+	ld de,03a40h		;445e   ; 0x3A40, la primera de las tres lineas de dificultad
+	call suma_a_a_de		;4461
+	ld bc,00020h		;4464   ; borra la fila entera, 32 celdas
 	xor a			;4467
-	jp L_45F6		;4468
+	jp rellena_la_vram		;4468
 
 ; ----------------------------------------------------------------------
 ; DATOS desplazamientos_de_borrado: Cuatro desplazamientos, 0x00 0x80 0x40
@@ -723,15 +812,15 @@ L_4472:
 	ld de,l4600h		;447e
 	ld bc,00180h		;4481
 	ld a,070h		;4484
-	call L_45F6		;4486
+	call rellena_la_vram		;4486
 	call L_4674		;4489
 	ld hl,085d5h		;448c
-	call L_468F		;448f
+	call pinta_lista_formato_b		;448f
 	ld de,04500h		;4492
 	ld bc,002f0h		;4495
 	ld a,0c0h		;4498
 L_449A:
-	call L_4051		;449a
+	call escribe_en_vram		;449a
 	inc de			;449d
 	dec c			;449e
 	jr nz,L_449A		;449f
@@ -746,21 +835,25 @@ L_44A4:
 	ld (hl),000h		;44ad
 	ldir		;44af
 	ret			;44b1
-L_44B2:
-	ld b,018h		;44b2
+
+; ----------------------------------------------------------------------
+; Baja los dos relojes (0xE003 y 0xE004) y, mientras el de 0xE004 no se agote, va pintando 24 celdas de una columna del tapete. El xor 0x1F de 0x44C0 le da la vuelta al indice en los fotogramas pares, asi que la franja avanza en un sentido y luego en el otro. Sale con el signo puesto para que el estado sepa si ya ha terminado (ret p en los estados 0, 6 y 10).
+; ----------------------------------------------------------------------
+pinta_una_franja_del_tapete:
+	ld b,018h		;44b2   ; 24 celdas, una columna entera de la pantalla
 	ld hl,0e003h		;44b4
-	dec (hl)			;44b7
+	dec (hl)			;44b7   ; baja el reloj de fotogramas
 	inc hl			;44b8
-	dec (hl)			;44b9
-	ret m			;44ba
+	dec (hl)			;44b9   ; y el de la espera del estado
+	ret m			;44ba   ; negativo: la espera se ha agotado, el estado puede seguir
 	ld a,(hl)			;44bb
 	srl a		;44bc
 	jr c,L_44C2		;44be
-	xor 01fh		;44c0
+	xor 01fh		;44c0   ; en los fotogramas pares el recorrido va al reves
 L_44C2:
 	ld e,a			;44c2
-	ld d,038h		;44c3
-	ld a,(0e1b8h)		;44c5
+	ld d,038h		;44c3   ; 0x38xx, la tabla de nombres de la pantalla
+	ld a,(0e1b8h)		;44c5   ; mas el desplazamiento del tapete
 	add a,e			;44c8
 	ld e,a			;44c9
 	ld a,(0e1b9h)		;44ca
@@ -768,53 +861,65 @@ L_44C2:
 	ld d,a			;44ce
 L_44CF:
 	xor a			;44cf
-	call L_4051		;44d0
+	call escribe_en_vram		;44d0
 	ld a,020h		;44d3
-	call L_4068		;44d5
+	call suma_a_a_de		;44d5   ; 0x20 = una fila entera abajo
 	djnz L_44CF		;44d8
-L_44DA:
+
+; ----------------------------------------------------------------------
+; Escribe el tile 0xD0 en 0x3B00 y vuelve con A a cero. Es lo que limpia el aviso de "pulsa para seguir" al salir del submodo 8.
+; ----------------------------------------------------------------------
+borra_la_fila_de_abajo:
 	ld de,03b00h		;44da
 	ld a,0d0h		;44dd
-	call L_4051		;44df
+	call escribe_en_vram		;44df
 	xor a			;44e2
 	ret			;44e3
 L_44E4:
-	call L_4578		;44e4
-L_44E7:
-	ld de,039c2h		;44e7
+	call pinta_el_contador_de_e04b		;44e4
+
+; ----------------------------------------------------------------------
+; Pinta los dos marcadores con su signo delante. El signo no es un caracter que se calcule: son dos tiles distintos, el 0x01 y el 0x21, y se elige mirando el bit de 0xE100. El de 0xE047 va en 0x39C2 y el de 0xE044 en 0x3922, tres celdas cada uno.
+; ----------------------------------------------------------------------
+pinta_los_dos_marcadores:
+	ld de,039c2h		;44e7   ; 0x39C2, donde va el marcador de 0xE047
 	ld a,(0e100h)		;44ea
 	rra			;44ed
-	rra			;44ee
-	ld a,001h		;44ef
+	rra			;44ee   ; el bit 1 del signo
+	ld a,001h		;44ef   ; tile 0x01: el marcador esta en positivo
 	jr nc,L_44F5		;44f1
-	ld a,021h		;44f3
+	ld a,021h		;44f3   ; tile 0x21: esta en numeros rojos
 L_44F5:
-	call L_4051		;44f5
-	ld hl,0e049h		;44f8
+	call escribe_en_vram		;44f5
+	ld hl,0e049h		;44f8   ; y detras los tres bytes BCD
 	inc de			;44fb
 	ld b,003h		;44fc
-	call L_4518		;44fe
-	ld de,03922h		;4501
+	call pinta_un_numero_bcd		;44fe
+	ld de,03922h		;4501   ; 0x3922, el otro marcador
 	ld a,(0e100h)		;4504
 	rla			;4507
-	rla			;4508
+	rla			;4508   ; aqui el bit que manda es el 7
 	ld a,001h		;4509
 	jr nc,L_450F		;450b
 	ld a,021h		;450d
 L_450F:
-	call L_4051		;450f
+	call escribe_en_vram		;450f
 	ld hl,0e046h		;4512
 	inc de			;4515
 	ld b,003h		;4516
-L_4518:
-	ld a,(hl)			;4518
+
+; ----------------------------------------------------------------------
+; EL PINTADOR DE NUMEROS, y no es un simple volcado: SUPRIME LOS CEROS DE LA IZQUIERDA. Entra con HL en el byte MAS significativo del contador, B = cuantos bytes y DE = donde va en la VRAM. Cada byte da dos cifras, nibble alto primero, y la cifra se convierte en tile sumandole 0x10: el tile 0x10 es el "0" y el 0x19 el "9". El tile 0x01 es el blanco, y es lo que se pinta en lugar de un cero mientras no haya salido ninguna cifra distinta de cero. Para saberlo mira los bytes de ENCIMA, que en un contador de byte bajo primero son los mas significativos. Baja por la memoria con el `dec hl` de 0x456B, o sea que pinta de la cifra mas alta a la mas baja.
+; ----------------------------------------------------------------------
+pinta_un_numero_bcd:
+	ld a,(hl)			;4518   ; el byte que toca, dos cifras dentro
 	push af			;4519
-	and 00fh		;451a
-	or 010h		;451c
+	and 00fh		;451a   ; el nibble bajo, la cifra de la derecha
+	or 010h		;451c   ; mas 0x10: asi la cifra 0 es el tile 0x10
 	ld c,a			;451e
 	pop af			;451f
-	and 0f0h		;4520
-	rra			;4522
+	and 0f0h		;4520   ; y ahora el nibble alto
+	rra			;4522   ; cuatro rotaciones para bajarlo
 	rra			;4523
 	rra			;4524
 	rra			;4525
@@ -822,20 +927,20 @@ L_4518:
 	push de			;4528
 	ld d,a			;4529
 	ld a,b			;452a
-	cp 003h		;452b
+	cp 003h		;452b   ; el primer byte no tiene ninguno encima que mirar
 	ld a,d			;452d
 	jr z,L_4555		;452e
-	inc hl			;4530
+	inc hl			;4530   ; mira el byte de encima, el mas significativo
 	ld a,(hl)			;4531
 	dec hl			;4532
 	or a			;4533
 	ld a,d			;4534
-	jr nz,L_4562		;4535
+	jr nz,L_4562		;4535   ; si alguno de arriba no era cero, ya no se suprime nada
 	ld a,b			;4537
-	cp 002h		;4538
+	cp 002h		;4538   ; el segundo byte solo tiene uno encima
 	ld a,d			;453a
 	jr z,L_4555		;453b
-	inc hl			;453d
+	inc hl			;453d   ; y el tercero tiene dos
 	inc hl			;453e
 	ld a,(hl)			;453f
 	dec hl			;4540
@@ -843,16 +948,16 @@ L_4518:
 	or a			;4542
 	ld a,d			;4543
 	jr nz,L_4562		;4544
-	cp 010h		;4546
+	cp 010h		;4546   ; la cifra alta es un cero: candidata a suprimirse
 	jr nz,L_4562		;4548
-	ld a,c			;454a
+	ld a,c			;454a   ; y si la baja tambien lo es, las dos van en blanco
 	cp 010h		;454b
-	ld a,001h		;454d
+	ld a,001h		;454d   ; tile 0x01, el blanco
 	jr nz,L_4562		;454f
-	ld c,010h		;4551
+	ld c,010h		;4551   ; la baja tambien en blanco
 	jr L_4562		;4553
 L_4555:
-	cp 010h		;4555
+	cp 010h		;4555   ; el primer byte del todo: mismo criterio, sin nada encima
 	jr nz,L_4562		;4557
 	ld a,c			;4559
 	cp 010h		;455a
@@ -861,19 +966,27 @@ L_4555:
 	ld c,001h		;4560
 L_4562:
 	pop de			;4562
-	call L_4051		;4563
+	call escribe_en_vram		;4563   ; la cifra alta a la VRAM
 	inc de			;4566
 	ld a,c			;4567
-	call L_4051		;4568
-	dec hl			;456b
+	call escribe_en_vram		;4568   ; y la baja en la celda de al lado
+	dec hl			;456b   ; se baja al byte siguiente, que es menos significativo
 	inc de			;456c
-	djnz L_4518		;456d
+	djnz pinta_un_numero_bcd		;456d
 	ret			;456f
-L_4570:
+
+; ----------------------------------------------------------------------
+; Pinta el byte de 0xE04A -dos cifras BCD- en 0x3985. Igual que su gemela de abajo pero con otra variable y otro sitio; las dos comparten el cuerpo de 0x457E.
+; ----------------------------------------------------------------------
+pinta_el_contador_de_e04a:
 	ld de,03985h		;4570
 	ld hl,0e04ah		;4573
 	jr L_457E		;4576
-L_4578:
+
+; ----------------------------------------------------------------------
+; Pinta el byte de 0xE04B en 0x39AA. Cae por abajo en el cuerpo comun. La diferencia con 0x4518 es que aqui la cifra alta, cuando es cero, no se pinta en blanco sino como tile 1: es un contador de dos cifras, no un marcador.
+; ----------------------------------------------------------------------
+pinta_el_contador_de_e04b:
 	ld de,039aah		;4578
 	ld hl,0e04bh		;457b
 L_457E:
@@ -888,17 +1001,17 @@ L_457E:
 	rra			;4589
 	rra			;458a
 	rra			;458b
-	or a			;458c
+	or a			;458c   ; la cifra alta a cero
 	jr nz,L_4592		;458d
-	inc a			;458f
+	inc a			;458f   ; tile 1 en vez del 0x10
 	jr L_4594		;4590
 L_4592:
 	or 010h		;4592
 L_4594:
-	call L_4051		;4594
+	call escribe_en_vram		;4594
 	inc de			;4597
 	ld a,c			;4598
-	jp L_4051		;4599
+	jp escribe_en_vram		;4599
 L_459C:
 	ld a,(hl)			;459c
 	and 00fh		;459d
@@ -907,39 +1020,43 @@ L_459C:
 	jr nz,L_45A7		;45a3
 	ld a,001h		;45a5
 L_45A7:
-	jp L_4051		;45a7
+	jp escribe_en_vram		;45a7
 L_45AA:
 	xor a			;45aa
 	ld (0e00ah),a		;45ab
 L_45AE:
-	call L_45B4		;45ae
+	call suelta_una_linea_de_texto		;45ae
 	jr c,L_45AE		;45b1
 	ret			;45b3
-L_45B4:
+
+; ----------------------------------------------------------------------
+; Suelta una linea del texto de presentacion por fotograma, hasta 18 (0x12), llevando la cuenta en 0xE00A. Vuelve con acarreo mientras queden lineas, y sin el cuando se acaban: por eso el estado 3 hace ret c para quedarse.
+; ----------------------------------------------------------------------
+suelta_una_linea_de_texto:
 	ld hl,0e00ah		;45b4
-	ld a,(hl)			;45b7
+	ld a,(hl)			;45b7   ; la linea que toca
 	inc (hl)			;45b8
-	cp 012h		;45b9
+	cp 012h		;45b9   ; dieciocho lineas y se acabo
 	jr nc,L_45DA		;45bb
-	ld de,03887h		;45bd
+	ld de,03887h		;45bd   ; 0x3887, la primera celda del texto
 	ld c,a			;45c0
 	add a,e			;45c1
 	ld e,a			;45c2
 	ld a,c			;45c3
-	add a,a			;45c4
+	add a,a			;45c4   ; tres celdas de ancho por linea
 	add a,c			;45c5
 	add a,0a0h		;45c6
 	ld c,a			;45c8
-	ld b,003h		;45c9
+	ld b,003h		;45c9   ; tres celdas
 	inc c			;45cb
 L_45CC:
-	call L_4051		;45cc
+	call escribe_en_vram		;45cc
 	ld a,020h		;45cf
-	call L_4068		;45d1
+	call suma_a_a_de		;45d1   ; 0x20: baja una fila
 	ld a,c			;45d4
 	inc c			;45d5
 	djnz L_45CC		;45d6
-	scf			;45d8
+	scf			;45d8   ; acarreo puesto: aun quedan lineas
 	ret			;45d9
 L_45DA:
 	push af			;45da
@@ -948,7 +1065,11 @@ L_45DA:
 	pop af			;45e1
 	cp 034h		;45e2
 	ret			;45e4
-L_45E5:
+
+; ----------------------------------------------------------------------
+; Resta A de DE. La contraria de 0x4068, para las rutinas que suben por la VRAM en vez de bajar.
+; ----------------------------------------------------------------------
+resta_a_de_de:
 	ld b,a			;45e5
 	ld a,e			;45e6
 	sub b			;45e7
@@ -956,19 +1077,27 @@ L_45E5:
 	ret nc			;45e9
 	dec d			;45ea
 	ret			;45eb
-L_45EC:
-	call L_44DA		;45ec
-	ld de,07800h		;45ef
-	ld bc,00300h		;45f2
+
+; ----------------------------------------------------------------------
+; Borra el aviso de abajo y luego los 768 bytes de la tabla de nombres a partir de 0x7800. Lo llama el estado 8 al empezar la partida.
+; ----------------------------------------------------------------------
+limpia_la_pantalla_entera:
+	call borra_la_fila_de_abajo		;45ec
+	ld de,07800h		;45ef   ; 0x7800, la tabla de nombres del tercer tercio
+	ld bc,00300h		;45f2   ; 768 bytes, la pantalla entera
 	xor a			;45f5
-L_45F6:
-	call L_470F		;45f6
+
+; ----------------------------------------------------------------------
+; Rellena BC bytes de VRAM desde DE con el valor de A. Es el borrador de todo el cartucho: lo usan el arranque (16 KB de golpe), el borrado de filas del menu y la limpieza entre pantallas. El bucle escribe directo al puerto que 0x470F dejo en C', sin volver a armar la direccion cada byte.
+; ----------------------------------------------------------------------
+rellena_la_vram:
+	call prepara_escritura_vram		;45f6   ; arma la direccion y deja el puerto en C'
 L_45F9:
 	ex af,af'			;45f9
 L_45FA:
 	ex af,af'			;45fa
 	exx			;45fb
-	out (c),a		;45fc
+	out (c),a		;45fc   ; el byte, al puerto de datos
 	exx			;45fe
 	ex af,af'			;45ff
 L_4600:
@@ -984,7 +1113,7 @@ L_4607:
 	jr L_45F9		;4609
 L_460B:
 	di			;460b
-	call L_470F		;460c
+	call prepara_escritura_vram		;460c
 L_460F:
 	ld a,(hl)			;460f
 	exx			;4610
@@ -999,7 +1128,7 @@ L_460F:
 	ret			;461b
 L_461C:
 	di			;461c
-	call L_471E		;461d
+	call prepara_lectura_vram		;461d
 L_4620:
 	exx			;4620
 	in a,(c)		;4621
@@ -1015,7 +1144,7 @@ L_4620:
 	ei			;462d
 	ret			;462e
 L_462F:
-	call L_471E		;462f
+	call prepara_lectura_vram		;462f
 L_4632:
 	exx			;4632
 	in a,(c)		;4633
@@ -1037,9 +1166,9 @@ L_463C:
 	ei			;4646
 	ret			;4647
 L_4648:
-	call L_405A		;4648
+	call lee_de_vram		;4648
 	ex de,hl			;464b
-	call L_4051		;464c
+	call escribe_en_vram		;464c
 	ex de,hl			;464f
 	inc hl			;4650
 	inc de			;4651
@@ -1066,7 +1195,7 @@ L_4674:
 L_4676:
 	ld de,00080h		;4676
 	ld bc,00180h		;4679
-	call L_45F6		;467c
+	call rellena_la_vram		;467c
 	ld hl,083b1h		;467f
 	ld a,020h		;4682
 	add a,d			;4684
@@ -1074,67 +1203,79 @@ L_4676:
 	ld bc,00180h		;4686
 	call L_460B		;4689
 	jp L_4669		;468c
-L_468F:
-	ld e,(hl)			;468f
+
+; ----------------------------------------------------------------------
+; El interprete de FORMATO B, el que gasta casi todos los dibujos del cartucho. Lee dos bytes de destino en la VRAM y luego ordenes, cada una un byte: los siete bits bajos son la CUENTA y el bit 7 elige que hacer con ella, 0x4607 o 0x460F. Una orden con la cuenta a cero termina: si el bit 7 esta puesto (byte 0x80) vuelve arriba a leer otro destino, y si el byte es 0x00 del todo, se acabo la lista. La entrada de 0x4693 se salta la lectura del destino, para las listas que lo traen ya puesto en DE desde fuera.
+; ----------------------------------------------------------------------
+pinta_lista_formato_b:
+	ld e,(hl)			;468f   ; los dos bytes de destino, byte bajo primero
 	inc hl			;4690
 	ld d,(hl)			;4691
 	inc hl			;4692
 L_4693:
-	di			;4693
-	call L_470F		;4694
+	di			;4693   ; entra aqui quien ya trae el destino en DE
+	call prepara_escritura_vram		;4694   ; arma el VDP y deja el puerto de datos en C'
 L_4697:
 	ld a,(hl)			;4697
-	and 07fh		;4698
+	and 07fh		;4698   ; los siete bits bajos son la cuenta
 	ld c,a			;469a
-	ld a,(hl)			;469b
+	ld a,(hl)			;469b   ; y el byte entero, con su bit 7
 	inc hl			;469c
-	jr nz,L_46A4		;469d
-	cp c			;469f
-	jr nz,L_468F		;46a0
-	ei			;46a2
+	jr nz,L_46A4		;469d   ; cuenta distinta de cero: hay orden que ejecutar
+	cp c			;469f   ; cuenta cero y bit 7 puesto: viene otro destino
+	jr nz,pinta_lista_formato_b		;46a0
+	ei			;46a2   ; cuenta cero y byte cero: fin de la lista
 	ret			;46a3
 L_46A4:
 	ld b,000h		;46a4
-	cp c			;46a6
+	cp c			;46a6   ; compara el byte con su parte baja: dice si el bit 7 esta puesto
 	push af			;46a7
-	call nz,L_460F		;46a8
+	call nz,L_460F		;46a8   ; con el bit 7 puesto, por 0x460F
 	pop af			;46ab
-	call z,L_4607		;46ac
+	call z,L_4607		;46ac   ; y sin el, por 0x4607
 	jr L_4697		;46af
-L_46B1:
-	call L_470F		;46b1
-	ld c,024h		;46b4
+
+; ----------------------------------------------------------------------
+; Vuelca 36 columnas de 48 bytes leyendo 0xE2E5 HACIA ATRAS y dandole la vuelta a cada byte con 0x46D0. Bajar por la memoria invierte el orden vertical y el espejo de bits invierte el horizontal: el dibujo sale girado 180 grados. Es la mano del jugador de enfrente, que se ve del reves desde este lado de la mesa.
+; ----------------------------------------------------------------------
+pinta_la_mano_del_espejo:
+	call prepara_escritura_vram		;46b1
+	ld c,024h		;46b4   ; 36 columnas
 L_46B6:
 	push bc			;46b6
-	call L_7883		;46b7
+	call L_7883		;46b7   ; rellena el trozo de 0xE2E5 antes de volcarlo
 	pop bc			;46ba
 	ld hl,0e2e5h		;46bb
-	ld b,030h		;46be
+	ld b,030h		;46be   ; 48 bytes por columna
 L_46C0:
-	call L_46D0		;46c0
+	call espeja_los_bits		;46c0   ; el byte, ya con los bits del reves
 	exx			;46c3
-	out (c),a		;46c4
+	out (c),a		;46c4   ; y al VDP
 	exx			;46c6
 	inc de			;46c7
-	dec hl			;46c8
+	dec hl			;46c8   ; hacia ATRAS por la memoria: eso invierte el dibujo de arriba abajo
 	djnz L_46C0		;46c9
 	dec c			;46cb
 	jr nz,L_46B6		;46cc
 	ei			;46ce
 	ret			;46cf
-L_46D0:
+
+; ----------------------------------------------------------------------
+; Le da la vuelta a los ocho bits de A. El truco son las dos rotaciones encadenadas: `rl c` saca el bit de mas peso de C al acarreo y `rra` lo mete a A por el otro extremo, ocho veces. Un byte de patron espejado es ese mismo dibujo visto del reves de izquierda a derecha.
+; ----------------------------------------------------------------------
+espeja_los_bits:
 	ld a,(hl)			;46d0
 	push bc			;46d1
-	ld b,008h		;46d2
+	ld b,008h		;46d2   ; ocho bits
 	ld c,a			;46d4
 L_46D5:
-	rl c		;46d5
-	rra			;46d7
+	rl c		;46d5   ; saca el bit de mas peso por el acarreo
+	rra			;46d7   ; y entra en A por el de menos peso
 	djnz L_46D5		;46d8
 	pop bc			;46da
 	ret			;46db
 L_46DC:
-	call L_470F		;46dc
+	call prepara_escritura_vram		;46dc
 	ld c,024h		;46df
 L_46E1:
 	push bc			;46e1
@@ -1158,9 +1299,9 @@ L_46F9:
 	xor a			;46f9
 	ld de,06000h		;46fa
 	ld bc,00030h		;46fd
-	call L_45F6		;4700
+	call rellena_la_vram		;4700
 	ld hl,04708h		;4703
-	jr L_468F		;4706
+	jr pinta_lista_formato_b		;4706
 
 ; ----------------------------------------------------------------------
 ; DATOS lista_de_los_seis_ceros: Lista de formato B que 0x4703 pinta llamando
@@ -1174,19 +1315,27 @@ DATA_lista_de_los_seis_ceros:
 ; ======================================================================
 
 
-L_470F:
+
+; ----------------------------------------------------------------------
+; Prepara el VDP para escribir en la direccion que trae DE y deja el puerto de datos en C'. Guarda A en A' porque SETWRT lo machaca. Sale con las interrupciones QUITADAS a proposito: quien llama las devuelve.
+; ----------------------------------------------------------------------
+prepara_escritura_vram:
 	ex af,af'			;470f
 	ex de,hl			;4710
-	call 00053h		;4711   ; BIOS SETWRT - Enables VDP to write
-	di			;4714
+	call 00053h		;4711   ; BIOS SETWRT - Enables VDP to write | SETWRT arma la direccion de escritura
+	di			;4714   ; nadie puede colarse entre la direccion y el dato
 	ex de,hl			;4715
 	exx			;4716
-	ld a,(00006h)		;4717
+	ld a,(00006h)		;4717   ; 0x0006 = el puerto de datos del VDP, que la BIOS deja ahi
 	ld c,a			;471a
 	exx			;471b
 	ex af,af'			;471c
 	ret			;471d
-L_471E:
+
+; ----------------------------------------------------------------------
+; La hermana de 0x470F para leer: SETRD en vez de SETWRT, y coge el puerto de 0x0007.
+; ----------------------------------------------------------------------
+prepara_lectura_vram:
 	ex de,hl			;471e
 	call 00050h		;471f   ; BIOS SETRD - Enables VDP to read
 	di			;4722
@@ -1199,7 +1348,7 @@ L_471E:
 L_472B:
 	push hl			;472b
 	ld hl,04735h		;472c
-	call L_4063		;472f
+	call suma_a_a_hl		;472f
 	ld a,(hl)			;4732
 	pop hl			;4733
 	ret			;4734
@@ -1227,7 +1376,7 @@ L_476F:
 	push bc			;4771
 	push af			;4772
 	ld hl,047b8h		;4773
-	call L_468F		;4776
+	call pinta_lista_formato_b		;4776
 	pop af			;4779
 	cp 002h		;477a
 	push af			;477c
@@ -1243,12 +1392,12 @@ L_478B:
 	ld (0e061h),a		;478d
 	add a,a			;4790
 	ld hl,047b2h		;4791
-	call L_4063		;4794
+	call suma_a_a_hl		;4794
 	ld e,(hl)			;4797
 	inc hl			;4798
 	ld d,(hl)			;4799
 	ex de,hl			;479a
-	call L_468F		;479b
+	call pinta_lista_formato_b		;479b
 	pop af			;479e
 	cp 002h		;479f
 	call z,L_47A8		;47a1
@@ -1319,7 +1468,7 @@ L_47FB:
 	inc c			;480b
 L_480C:
 	ld a,c			;480c
-	call L_4068		;480d
+	call suma_a_a_de		;480d
 	ld a,(0e1bfh)		;4810
 	sub c			;4813
 	ret z			;4814
@@ -1408,7 +1557,7 @@ L_488D:
 	cp 00ah		;489c
 	jr nz,L_48B6		;489e
 	ld a,050h		;48a0
-	call L_4068		;48a2
+	call suma_a_a_de		;48a2
 	ld (0e05dh),de		;48a5
 	ld (hl),001h		;48a9
 	ld hl,0e060h		;48ab
@@ -1467,10 +1616,10 @@ L_48F6:
 	ld hl,0e12ch		;4904
 	ld (hl),c			;4907
 	ld a,003h		;4908
-	call L_4063		;490a
+	call suma_a_a_hl		;490a
 	ld (hl),c			;490d
 	ld a,005h		;490e
-	call L_4063		;4910
+	call suma_a_a_hl		;4910
 	ld (hl),c			;4913
 	ld hl,0e063h		;4914
 	inc (hl)			;4917
@@ -1509,11 +1658,11 @@ L_493B:
 	ld hl,0e12dh		;4949
 	ld (hl),c			;494c
 	ld a,005h		;494d
-	call L_4063		;494f
+	call suma_a_a_hl		;494f
 	inc c			;4952
 	ld (hl),c			;4953
 	ld a,005h		;4954
-	call L_4063		;4956
+	call suma_a_a_hl		;4956
 	inc c			;4959
 	ld (hl),c			;495a
 	ret			;495b
@@ -1541,7 +1690,7 @@ L_4976:
 	ld a,h			;4979
 	ld c,a			;497a
 	ld de,04fbfh		;497b
-	call L_4068		;497e
+	call suma_a_a_de		;497e
 	ld a,(de)			;4981
 	ld b,a			;4982
 	ret			;4983
@@ -1549,7 +1698,7 @@ L_4984:
 	ld a,c			;4984
 	ld c,b			;4985
 	ld hl,0e186h		;4986
-	call L_4063		;4989
+	call suma_a_a_hl		;4989
 	ld d,h			;498c
 	ld e,l			;498d
 	ret			;498e
@@ -1611,24 +1760,32 @@ L_49E1:
 L_49E3:
 	scf			;49e3
 	ret			;49e4
-L_49E5:
-	call 00132h		;49e5   ; BIOS CHGCAP - Alternates the CAPS lamp status
-	ld a,007h		;49e8
+
+; ----------------------------------------------------------------------
+; Enciende la maquina: apaga la lampara de CAPS, calla el PSG, para el sonido del juego y borra los 16 KB de VRAM de un tiron. Cae por abajo en 0x49FE, que carga los registros del VDP.
+; ----------------------------------------------------------------------
+arranca_el_hardware:
+	call 00132h		;49e5   ; BIOS CHGCAP - Alternates the CAPS lamp status | CHGCAP apaga la lampara de bloqueo de mayusculas
+	ld a,007h		;49e8   ; registro 7 del PSG: todos los canales callados
 	ld e,0b8h		;49ea
 	call 00093h		;49ec   ; BIOS WRTPSG - Writes data to PSG-register
-	ld a,09fh		;49ef
+	ld a,09fh		;49ef   ; 0x9F para el sonido que estuviera sonando
 	call L_9C4A		;49f1
-	ld de,00000h		;49f4
+	ld de,00000h		;49f4   ; borra la VRAM entera, 0x0000 a 0x3FFF, con ceros
 	ld bc,04000h		;49f7
 	xor a			;49fa
-	call L_45F6		;49fb
-L_49FE:
+	call rellena_la_vram		;49fb
+
+; ----------------------------------------------------------------------
+; Copia los ocho registros del VDP a la RAM (0xE038) y luego los escribe uno a uno. Se pasan por RAM para poder retocar uno solo sin volver a la tabla; 0x4A09 es la entrada de los que ya lo han retocado.
+; ----------------------------------------------------------------------
+carga_los_registros_del_vdp:
 	ld hl,04a1ah		;49fe
 	ld de,0e038h		;4a01
 	ld bc,00008h		;4a04
 	ldir		;4a07
 L_4A09:
-	ld hl,0e038h		;4a09
+	ld hl,0e038h		;4a09   ; entra aqui quien solo quiere reescribirlos
 	ld d,008h		;4a0c
 	ld c,000h		;4a0e
 L_4A10:
@@ -1656,90 +1813,102 @@ DATA_registros_del_vdp:
 L_4A22:
 	ld (0e03fh),a		;4a22
 	jr $-28		;4a25
-L_4A27:
+
+; ----------------------------------------------------------------------
+; De donde salen las teclas cada fotograma, y el bit 6 de 0xE002 decide de cual de los dos sitios: si hay partida, de la matriz del teclado de verdad; si no, del guion grabado del demo. Las dos ramas terminan en 0x4A52 con la misma mascara en A: bit 0 arriba, bit 1 abajo, bit 2 izquierda, bit 3 derecha, bit 4 espacio, bit 5 select.
+; ----------------------------------------------------------------------
+lee_los_mandos:
 	ld a,(0e002h)		;4a27
-	bit 6,a		;4a2a
-	jr z,L_4A68		;4a2c
+	bit 6,a		;4a2a   ; bit 6: hay una persona jugando
+	jr z,sirve_el_guion_del_demo		;4a2c   ; sin partida, las teclas salen del guion del demo
 	ld a,007h		;4a2e
-	call 00141h		;4a30   ; BIOS SNSMAT - Returns the value of the specified line from the keyboard matrix
-	cpl			;4a33
+	call 00141h		;4a30   ; BIOS SNSMAT - Returns the value of the specified line from the keyboard matrix | fila 7 de la matriz, de donde sale SELECT
+	cpl			;4a33   ; la matriz da los ceros como pulsados: se le da la vuelta
 	rrca			;4a34
-	and 020h		;4a35
+	and 020h		;4a35   ; SELECT queda en el bit 5
 	ld e,a			;4a37
 	ld a,008h		;4a38
-	call 00141h		;4a3a   ; BIOS SNSMAT - Returns the value of the specified line from the keyboard matrix
+	call 00141h		;4a3a   ; BIOS SNSMAT - Returns the value of the specified line from the keyboard matrix | fila 8: las cuatro flechas y el espacio
 	cpl			;4a3d
 	rrca			;4a3e
 	rrca			;4a3f
 	ld b,a			;4a40
-	and 004h		;4a41
+	and 004h		;4a41   ; izquierda al bit 2
 	or e			;4a43
 	ld c,a			;4a44
 	ld a,b			;4a45
 	rrca			;4a46
 	rrca			;4a47
 	ld b,a			;4a48
-	and 018h		;4a49
+	and 018h		;4a49   ; derecha al bit 3 y espacio al bit 4
 	or c			;4a4b
 	ld c,a			;4a4c
 	ld a,b			;4a4d
 	rrca			;4a4e
-	and 003h		;4a4f
+	and 003h		;4a4f   ; arriba al bit 0 y abajo al bit 1
 	or c			;4a51
-L_4A52:
+
+; ----------------------------------------------------------------------
+; Guarda la mascara de teclas de este fotograma en 0xE009 y empuja la anterior a 0xE008. Con las dos se saca el FLANCO del espacio: 0xE23A vale 1 solo el fotograma en que se acaba de pulsar, no mientras se mantiene.
+; ----------------------------------------------------------------------
+guarda_las_teclas:
 	ld hl,0e009h		;4a52
-	ld c,(hl)			;4a55
+	ld c,(hl)			;4a55   ; la de antes pasa a 0xE008
 	ld (hl),a			;4a56
 	dec hl			;4a57
 	ld (hl),c			;4a58
-	and 010h		;4a59
+	and 010h		;4a59   ; el bit 4, el espacio
 	jr z,L_4A64		;4a5b
 	ld b,a			;4a5d
-	and c			;4a5e
+	and c			;4a5e   ; si ya estaba pulsado el fotograma anterior, no cuenta
 	xor b			;4a5f
 	jr z,L_4A64		;4a60
 	ld a,001h		;4a62
 L_4A64:
-	ld (0e23ah),a		;4a64
+	ld (0e23ah),a		;4a64   ; 1 = el espacio se acaba de pulsar AHORA
 	ret			;4a67
-L_4A68:
+
+; ----------------------------------------------------------------------
+; Sirve la pulsacion siguiente del guion grabado en 0x4AE8, y por eso el demo sale igual cada vez. Formato de longitud variable: el nibble bajo de la entrada dice si ocupa uno o dos bytes. Con nibble bajo cero la entrada dura 64 fotogramas y ocupa un byte; con nibble bajo no cero ocupa dos y el segundo es cuantas veces seguidas se repite. 0xE066 es el puntero, 0xE068 el contador de los 64 y 0xE069 lo que queda de repeticion.
+; ----------------------------------------------------------------------
+sirve_el_guion_del_demo:
 	ld a,(0e1a8h)		;4a68
-	bit 1,a		;4a6b
+	bit 1,a		;4a6b   ; bit 1 de 0xE1A8: sin el, el demo no toca ninguna tecla
 	jr z,L_4AB9		;4a6d
-	ld de,(0e066h)		;4a6f
+	ld de,(0e066h)		;4a6f   ; donde va el guion
 	ld a,(de)			;4a73
 	ld c,00fh		;4a74
-	and 00fh		;4a76
-	jr z,L_4AA8		;4a78
-	ld a,(0e069h)		;4a7a
+	and 00fh		;4a76   ; el nibble bajo decide el formato de la entrada
+	jr z,L_4AA8		;4a78   ; nibble bajo cero: entrada de un solo byte
+	ld a,(0e069h)		;4a7a   ; si no queda repeticion en curso, se carga la cuenta
 	or a			;4a7d
 	jr nz,L_4A86		;4a7e
 	inc de			;4a80
-	ld a,(de)			;4a81
+	ld a,(de)			;4a81   ; el segundo byte es cuantas veces
 	ld (0e069h),a		;4a82
 	dec de			;4a85
 L_4A86:
 	ld a,(de)			;4a86
-	and 00ch		;4a87
+	and 00ch		;4a87   ; las teclas de los bits 2 y 3 no esperan a los 64 fotogramas
 	jr nz,L_4A94		;4a89
 	ld hl,0e068h		;4a8b
-	inc (hl)			;4a8e
+	inc (hl)			;4a8e   ; sube el contador de 64
 	ld a,(hl)			;4a8f
-	and 03fh		;4a90
+	and 03fh		;4a90   ; y hasta que no da la vuelta, no hay tecla
 	jr nz,L_4AB9		;4a92
 L_4A94:
 	ld a,(0e069h)		;4a94
-	dec a			;4a97
+	dec a			;4a97   ; gasta una repeticion
 	ld (0e069h),a		;4a98
 	jr nz,L_4AA5		;4a9b
-	inc de			;4a9d
+	inc de			;4a9d   ; agotada la cuenta, la entrada de dos bytes queda atras
 	inc de			;4a9e
 	ld (0e066h),de		;4a9f
 	dec de			;4aa3
 	dec de			;4aa4
 L_4AA5:
-	ld a,(de)			;4aa5
-	jr L_4A52		;4aa6
+	ld a,(de)			;4aa5   ; la tecla que se sirve este fotograma
+	jr guarda_las_teclas		;4aa6
 L_4AA8:
 	ld hl,0e068h		;4aa8
 	inc (hl)			;4aab
@@ -1747,47 +1916,66 @@ L_4AA8:
 	and 03fh		;4aad
 	jr nz,L_4AB9		;4aaf
 	ld a,(de)			;4ab1
-	inc de			;4ab2
+	inc de			;4ab2   ; la entrada de un byte se pasa de largo con un inc
 	ld (0e066h),de		;4ab3
-	jr L_4A52		;4ab7
+	jr guarda_las_teclas		;4ab7
 L_4AB9:
-	xor a			;4ab9
-	jr L_4A52		;4aba
-L_4ABC:
-	xor a			;4abc
+	xor a			;4ab9   ; fuera del guion no se toca ninguna tecla
+	jr guarda_las_teclas		;4aba
+
+; ----------------------------------------------------------------------
+; LA PUERTA DE ENTRADA AL JUEGO DE VERDAD. Solo se llama mientras corre el demo (0x40CA elige entre esta y un ret pelado segun el bit 6 de 0xE002). Mira la fila 0 del teclado: las teclas 1, 2 y 3 arrancan partida, cada una con su dificultad, y saltan al estado 8. La tecla 4 cae en una entrada vacia de la tabla y no hace nada.
+; ----------------------------------------------------------------------
+arranca_la_partida:
+	xor a			;4abc   ; fila 0 de la matriz: las teclas 0 a 7
 	call 00141h		;4abd   ; BIOS SNSMAT - Returns the value of the specified line from the keyboard matrix
 	cpl			;4ac0
-	and 01eh		;4ac1
-	rra			;4ac3
+	and 01eh		;4ac1   ; solo interesan las teclas 1, 2, 3 y 4
+	rra			;4ac3   ; las baja a indice 0-7
 	dec a			;4ac4
-	cp 008h		;4ac5
+	cp 008h		;4ac5   ; si hay varias pulsadas a la vez el indice se dispara: fuera
 	ret nc			;4ac7
 	ld hl,04ae0h		;4ac8
-	call L_4063		;4acb
+	call suma_a_a_hl		;4acb   ; la tabla que traduce tecla a dificultad
 	ld a,(hl)			;4ace
 	or a			;4acf
-	ret z			;4ad0
-	ld (0e002h),a		;4ad1
-	ld hl,00008h		;4ad4
+	ret z			;4ad0   ; la entrada vacia: esa tecla no arranca nada
+	ld (0e002h),a		;4ad1   ; EL BYTE DE LA PARTIDA: bit 6 encendido, mas la dificultad en 5 y 4
+	ld hl,00008h		;4ad4   ; estado 8 y submodo 0 de una tacada, que son bytes contiguos
 	ld (0e000h),hl		;4ad7
-	ld a,09fh		;4ada
+	ld a,09fh		;4ada   ; y calla el sonido del demo
 	call L_9C4A		;4adc
 	ret			;4adf
 
 ; ----------------------------------------------------------------------
-; DATOS tabla_de_teclas: Ocho bytes, 0x40 0x60 0x00 0x50 y cuatro ceros, que
-;   0x4ACC indexa con la fila de teclado ya reducida. El cero significa "esa
-;   tecla no hace nada".
+; DATOS tabla_de_dificultad: Ocho bytes, 0x40 0x60 0x00 0x50 y cuatro ceros,
+;   que 0x4ACC indexa con la tecla de la fila 0 del teclado ya reducida a 0-7
+;   (`and 0x1E` deja las teclas 1 a 4, `rra` las divide por dos y `dec a` las
+;   baja a indice). ESTA TABLA ES LA QUE ARRANCA LA PARTIDA: el valor que sale
+;   va a 0xE002, y su bit 6 es lo que distingue partida de demo en 0x40CA y en
+;   0x4A27. Indice 0 (tecla 1) = 0x40, indice 1 (tecla 2) = 0x60, indice 3
+;   (tecla 3) = 0x50; los bits 5 y 4 son la DIFICULTAD (ninguno, bit 5, bit
+;   4), las tres que el titulo rotula AMACHUA, SEMIPROFESSIONAL y
+;   PROFESSIONAL. La tecla 4 cae en el indice 7, que vale cero: no hace nada.
 ;   0x4ae0..0x4ae8  (8 bytes)
-DATA_tabla_de_teclas:
+DATA_tabla_de_dificultad:
 	defb 040h,060h,000h,050h,000h,000h,000h,000h	; 4ae0  @`.P....
 
 ; ----------------------------------------------------------------------
-; DATOS tabla_del_estado_7: Ciento cuatro bytes que 0x416B guarda en 0xE066 al
-;   entrar en el estado 7. Los valores son 0x00, 0x01, 0x02, 0x04, 0x08, 0x10,
-;   0x18, 0x20, 0x30 y 0x38.
+; DATOS guion_del_demo: EL DEMO NO PIENSA: LEE ESTE GUION. Ciento cuatro bytes
+;   que 0x416B guarda en 0xE066 al entrar en el estado 7 y que 0x4A68 va
+;   sirviendo en lugar del teclado mientras el bit 6 de 0xE002 este a cero.
+;   Por eso el demo es determinista al centesimo desde el encendido (medido:
+;   dos pasadas independientes, ver docs/la_partida.md). Los valores son las
+;   MISMAS mascaras que arma 0x4A27 leyendo la matriz: bit 0 arriba, bit 1
+;   abajo, bit 2 izquierda, bit 3 derecha, bit 4 espacio, bit 5 select. El
+;   formato es de longitud variable y lo decide el nibble bajo: si es cero
+;   (0x00, 0x10, 0x20, 0x30) la entrada ocupa UN byte y se sirve una vez cada
+;   64 fotogramas; si no (0x01, 0x02, 0x04, 0x08, 0x18, 0x38) ocupa DOS y el
+;   segundo es cuantas veces seguidas se repite. Los ocho ceros del final son
+;   el guion agotado: tecla ninguna para siempre.
 ;   0x4ae8..0x4b50  (104 bytes)
-DATA_tabla_del_estado_7:
+DATA_guion_del_demo:
 	defb 000h,008h,030h,010h,000h,010h,000h,008h,030h,010h,000h,010h,000h,004h,030h,010h	; 4ae8  ..0.....0.....0.
 	defb 000h,010h,000h,004h,038h,010h,000h,010h,010h,000h,010h,010h,000h,002h,002h,020h	; 4af8  ....8.......... 
 	defb 000h,004h,008h,010h,000h,010h,000h,004h,010h,010h,000h,010h,010h,000h,010h,000h	; 4b08  ................
@@ -1812,7 +2000,7 @@ L_4B50:
 	ld de,00200h		;4b64
 	ld bc,000d0h		;4b67
 	ld a,0f0h		;4b6a
-	call L_45F6		;4b6c
+	call rellena_la_vram		;4b6c
 	call L_4658		;4b6f
 	jp L_4669		;4b72
 L_4B75:
@@ -1833,14 +2021,14 @@ L_4B75:
 	ld b,c			;4b94
 	call L_4BA1		;4b95
 	xor a			;4b98
-	call L_45F6		;4b99
+	call rellena_la_vram		;4b99
 	ld hl,0e00ah		;4b9c
 	dec (hl)			;4b9f
 	ret			;4ba0
 L_4BA1:
 	push de			;4ba1
 L_4BA2:
-	call L_4051		;4ba2
+	call escribe_en_vram		;4ba2
 	inc de			;4ba5
 	inc a			;4ba6
 	djnz L_4BA2		;4ba7
@@ -1928,17 +2116,17 @@ L_4CA8:
 	ld (0e127h),a		;4cac
 L_4CAF:
 	ld hl,04cf2h		;4caf
-	call L_468F		;4cb2
+	call pinta_lista_formato_b		;4cb2
 	jp L_6FDF		;4cb5
 L_4CB8:
 	ld a,001h		;4cb8
 	ld de,03920h		;4cba
 	ld bc,000c0h		;4cbd
-	call L_45F6		;4cc0
+	call rellena_la_vram		;4cc0
 	call L_44E4		;4cc3
 	ld hl,04d24h		;4cc6
 	call L_409D		;4cc9
-	call L_4570		;4ccc
+	call pinta_el_contador_de_e04a		;4ccc
 	ld a,(0e040h)		;4ccf
 	rra			;4cd2
 	ld hl,04d36h		;4cd3
@@ -2065,7 +2253,7 @@ L_4DD0:
 	ld a,b			;4dd3
 	dec a			;4dd4
 	ld de,0e12ch		;4dd5
-	call L_4068		;4dd8
+	call suma_a_a_de		;4dd8
 	ld a,(hl)			;4ddb
 	ld (de),a			;4ddc
 	djnz L_4DD0		;4ddd
@@ -2170,10 +2358,10 @@ L_4E92:
 	jr z,L_4EAE		;4e97
 	push af			;4e99
 	ld hl,0e12ch		;4e9a
-	call L_4063		;4e9d
+	call suma_a_a_hl		;4e9d
 	pop af			;4ea0
 	ld de,0e13ah		;4ea1
-	call L_4068		;4ea4
+	call suma_a_a_de		;4ea4
 	ld a,(hl)			;4ea7
 	ld (de),a			;4ea8
 	ld hl,0e1b7h		;4ea9
@@ -2295,7 +2483,7 @@ L_4F64:
 L_4F74:
 	call L_4F2B		;4f74
 	ld hl,0e186h		;4f77
-	call L_4063		;4f7a
+	call suma_a_a_hl		;4f7a
 	ld a,(hl)			;4f7d
 	cp 004h		;4f7e
 	jr c,L_4F8A		;4f80
@@ -2306,7 +2494,7 @@ L_4F8A:
 	inc (hl)			;4f8a
 	ld a,(0e065h)		;4f8b
 	ld hl,04fbfh		;4f8e
-	call L_4063		;4f91
+	call suma_a_a_hl		;4f91
 	ld a,(hl)			;4f94
 	ret			;4f95
 L_4F96:
@@ -2440,7 +2628,7 @@ L_5079:
 	push af			;508c
 	dec a			;508d
 	ld hl,0e14ch		;508e
-	call L_4063		;5091
+	call suma_a_a_hl		;5091
 	ld a,(0e22bh)		;5094
 	ld (hl),a			;5097
 	pop af			;5098
@@ -2541,7 +2729,7 @@ L_5144:
 	ld bc,00058h		;5157
 	ldir		;515a
 	ld hl,0524ch		;515c
-	call L_468F		;515f
+	call pinta_lista_formato_b		;515f
 	ld hl,05204h		;5162
 	ld de,03b10h		;5165
 	ld bc,00048h		;5168
@@ -2671,7 +2859,7 @@ L_52AD:
 L_52B3:
 	ld a,(0e1c2h)		;52b3
 	ld hl,0e13ah		;52b6
-	call L_4063		;52b9
+	call suma_a_a_hl		;52b9
 	ld a,(hl)			;52bc
 	ld (0e1bch),a		;52bd
 	call L_49C6		;52c0
@@ -2724,17 +2912,17 @@ L_5305:
 L_5324:
 	ld a,(0e1c2h)		;5324
 	ld hl,05350h		;5327
-	call L_4063		;532a
+	call suma_a_a_hl		;532a
 	ld a,(hl)			;532d
 	ld (0e0a9h),a		;532e
 	ld (0e0adh),a		;5331
 L_5334:
 	ld a,0e0h		;5334
 	ld de,03b08h		;5336
-	call L_4051		;5339
+	call escribe_en_vram		;5339
 	ld a,0e0h		;533c
 	ld de,03b0ch		;533e
-	call L_4051		;5341
+	call escribe_en_vram		;5341
 	ld hl,0e0a8h		;5344
 	ld de,03b00h		;5347
 	ld bc,00008h		;534a
@@ -2774,10 +2962,10 @@ L_5378:
 L_5382:
 	ld a,0e0h		;5382
 	push de			;5384
-	call L_4051		;5385
+	call escribe_en_vram		;5385
 	pop de			;5388
 	ld a,004h		;5389
-	call L_4068		;538b
+	call suma_a_a_de		;538b
 	djnz L_5382		;538e
 	xor a			;5390
 	ld (0e1cdh),a		;5391
@@ -2800,7 +2988,7 @@ L_539A:
 	jr nz,L_5378		;53b6
 L_53B8:
 	ld de,01000h		;53b8
-	call L_5F24		;53bb
+	call cobra_mil_el_de_e047		;53bb
 	ld a,(0e04ah)		;53be
 	add a,001h		;53c1
 	daa			;53c3
@@ -2808,7 +2996,7 @@ L_53B8:
 L_53C7:
 	ld a,(0e1c2h)		;53c7
 	ld hl,0e13ah		;53ca
-	call L_4063		;53cd
+	call suma_a_a_hl		;53cd
 	ld (hl),039h		;53d0
 	call L_6F2E		;53d2
 	ld a,(0e1cdh)		;53d5
@@ -2823,7 +3011,7 @@ L_53C7:
 	ld (hl),0a8h		;53e9
 L_53EB:
 	ld hl,05350h		;53eb
-	call L_4063		;53ee
+	call suma_a_a_hl		;53ee
 	ld a,(hl)			;53f1
 	ld hl,0e0d9h		;53f2
 	ld (hl),a			;53f5
@@ -2849,10 +3037,10 @@ L_540C:
 	call L_6F2E		;541d
 	ld a,0e0h		;5420
 	ld de,03b00h		;5422
-	call L_4051		;5425
+	call escribe_en_vram		;5425
 	ld a,0e0h		;5428
 	ld de,03b04h		;542a
-	call L_4051		;542d
+	call escribe_en_vram		;542d
 	ld hl,0e1aah		;5430
 	set 3,(hl)		;5433
 	ret			;5435
@@ -2868,7 +3056,7 @@ L_5436:
 	inc (hl)			;5449
 	ld a,(0e1beh)		;544a
 	ld hl,0e15eh		;544d
-	call L_4063		;5450
+	call suma_a_a_hl		;5450
 	ld a,(0e1bch)		;5453
 	ld (hl),a			;5456
 	call L_6F4E		;5457
@@ -2934,7 +3122,7 @@ L_54DE:
 	push af			;54de
 	ld a,(0e208h)		;54df
 	ld hl,0e14ch		;54e2
-	call L_4063		;54e5
+	call suma_a_a_hl		;54e5
 	pop af			;54e8
 	ld (hl),a			;54e9
 	ret			;54ea
@@ -2994,7 +3182,7 @@ L_553C:
 L_5555:
 	call L_48CE		;5555
 	ld hl,0e14ch		;5558
-	call L_4063		;555b
+	call suma_a_a_hl		;555b
 	ld (hl),039h		;555e
 	ret			;5560
 L_5561:
@@ -3019,7 +3207,7 @@ L_556C:
 	inc (hl)			;5586
 	ld a,(0e1bfh)		;5587
 	ld hl,0e172h		;558a
-	call L_4063		;558d
+	call suma_a_a_hl		;558d
 	ld a,(0e22bh)		;5590
 	ld (hl),a			;5593
 	call L_6F60		;5594
@@ -3084,7 +3272,7 @@ L_5603:
 	push af			;5616
 	ld a,(0e1c3h)		;5617
 	ld hl,0e13ah		;561a
-	call L_4063		;561d
+	call suma_a_a_hl		;561d
 	pop af			;5620
 	ld (hl),a			;5621
 	call L_6F2E		;5622
@@ -3224,10 +3412,10 @@ L_571C:
 	cp (hl)			;5728
 	jr z,L_5743		;5729
 	ld hl,0e12bh		;572b
-	call L_4063		;572e
+	call suma_a_a_hl		;572e
 	ld a,(0e1b7h)		;5731
 	ld de,0e14ch		;5734
-	call L_4068		;5737
+	call suma_a_a_de		;5737
 	ld a,(hl)			;573a
 	ld (de),a			;573b
 	ld hl,0e1b7h		;573c
@@ -3289,7 +3477,7 @@ L_579A:
 	cp 013h		;57a4
 	jr z,L_57EF		;57a6
 	ld de,01000h		;57a8
-	call L_5F31		;57ab
+	call cobra_mil_el_de_e044		;57ab
 	ld a,(0e04ah)		;57ae
 	add a,001h		;57b1
 	daa			;57b3
@@ -3305,7 +3493,7 @@ L_57C7:
 	sub 00eh		;57c7
 	xor 0ffh		;57c9
 	ld hl,05350h		;57cb
-	call L_4063		;57ce
+	call suma_a_a_hl		;57ce
 	ld a,(hl)			;57d1
 	ld hl,0e0ddh		;57d2
 	ld (hl),a			;57d5
@@ -3557,10 +3745,10 @@ L_59A3:
 	ret			;59a3
 L_59A4:
 	ld hl,059b3h		;59a4
-	call L_4063		;59a7
+	call suma_a_a_hl		;59a7
 	ld a,(hl)			;59aa
 	ld hl,0e186h		;59ab
-	call L_4063		;59ae
+	call suma_a_a_hl		;59ae
 	dec (hl)			;59b1
 	ret			;59b2
 
@@ -3804,7 +3992,7 @@ L_5B85:
 	ld de,038e8h		;5b90
 	ld hl,0e1e5h		;5b93
 	ld b,003h		;5b96
-	call L_4518		;5b98
+	call pinta_un_numero_bcd		;5b98
 	ld a,(0e1d1h)		;5b9b
 	rra			;5b9e
 	ret nc			;5b9f
@@ -3818,7 +4006,7 @@ L_5B85:
 	ld hl,05d83h		;5baf
 	call L_5C70		;5bb2
 L_5BB5:
-	call L_4063		;5bb5
+	call suma_a_a_hl		;5bb5
 	ld e,(hl)			;5bb8
 	inc hl			;5bb9
 	ld d,(hl)			;5bba
@@ -3908,7 +4096,7 @@ L_5C30:
 	cp c			;5c31
 	jr z,L_5C3C		;5c32
 	ld a,004h		;5c34
-	call L_4068		;5c36
+	call suma_a_a_de		;5c36
 	djnz L_5C30		;5c39
 	ret			;5c3b
 L_5C3C:
@@ -3948,7 +4136,7 @@ L_5C65:
 L_5C70:
 	ld a,e			;5c70
 	add a,a			;5c71
-	call L_4063		;5c72
+	call suma_a_a_hl		;5c72
 	ld e,(hl)			;5c75
 	inc hl			;5c76
 	ld d,(hl)			;5c77
@@ -3958,7 +4146,7 @@ L_5C70:
 	add a,a			;5c7d
 	ret			;5c7e
 L_5C7F:
-	call L_4063		;5c7f
+	call suma_a_a_hl		;5c7f
 	ld e,(hl)			;5c82
 	inc hl			;5c83
 	ld d,(hl)			;5c84
@@ -4160,14 +4348,18 @@ DATA_mano_maxima_al_robar:
 ; ======================================================================
 
 
-L_5DF9:
-	ld hl,(0e1b1h)		;5df9
+
+; ----------------------------------------------------------------------
+; EL PAGO, cien puntos por fotograma. Lleva DOS pendientes en paralelo, 0xE1B1 y 0xE1E4, cada uno un contador BCD de dos bytes que cuenta PASOS DE CIEN: los 0x0120 y 0x0080 que carga 0x4290 son 12.000 y 8.000 puntos. Cada fotograma quita cien de un marcador y los pone en el otro, y baja el pendiente en uno con 0x5F18. Quien cobra y quien paga sale de 0xE302, 0xE1AC y 0xE1AD. El segundo pendiente ademas suena cada cuatro fotogramas: es el tintineo del recuento.
+; ----------------------------------------------------------------------
+mueve_cien_puntos:
+	ld hl,(0e1b1h)		;5df9   ; el primer pendiente
 	ld a,h			;5dfc
-	or l			;5dfd
+	or l			;5dfd   ; si esta a cero, no hay nada que mover por aqui
 	jr z,L_5E2E		;5dfe
-	ld de,00100h		;5e00
+	ld de,00100h		;5e00   ; cien puntos, en BCD
 	ld a,(0e302h)		;5e03
-	bit 2,a		;5e06
+	bit 2,a		;5e06   ; bit 2 de 0xE302: quien tiene el turno
 	jr nz,L_5E10		;5e08
 	rra			;5e0a
 	rra			;5e0b
@@ -4181,24 +4373,24 @@ L_5E10:
 	rra			;5e1a
 	jr nc,L_5E22		;5e1b
 L_5E1D:
-	call L_835F		;5e1d
+	call resta_del_marcador_de_e044		;5e1d   ; cobra el jugador de 0xE044
 	jr L_5E25		;5e20
 L_5E22:
-	call L_831D		;5e22
+	call resta_del_marcador_de_e047		;5e22   ; cobra el jugador de 0xE047
 L_5E25:
 	ld hl,(0e1b1h)		;5e25
-	call L_5F18		;5e28
+	call baja_un_paso_bcd		;5e28   ; y el pendiente baja un paso, o sea cien puntos
 	ld (0e1b1h),hl		;5e2b
 L_5E2E:
-	ld hl,(0e1e4h)		;5e2e
+	ld hl,(0e1e4h)		;5e2e   ; el segundo pendiente, con el mismo mecanismo
 	ld a,h			;5e31
 	or l			;5e32
 	jr z,L_5E70		;5e33
 	ld a,(0e003h)		;5e35
-	and 003h		;5e38
+	and 003h		;5e38   ; uno de cada cuatro fotogramas
 	jr nz,L_5E41		;5e3a
 	ld a,002h		;5e3c
-	call L_9C4A		;5e3e
+	call L_9C4A		;5e3e   ; sonido 2: el tintineo de las fichas de puntos
 L_5E41:
 	ld de,00100h		;5e41
 	ld a,(0e302h)		;5e44
@@ -4216,17 +4408,17 @@ L_5E51:
 	rra			;5e5b
 	jr nc,L_5E63		;5e5c
 L_5E5E:
-	call L_8307		;5e5e
+	call suma_al_marcador_de_e047		;5e5e
 	jr L_5E66		;5e61
 L_5E63:
-	call L_8349		;5e63
+	call suma_al_marcador_de_e044		;5e63
 L_5E66:
 	ld hl,(0e1e4h)		;5e66
-	call L_5F18		;5e69
+	call baja_un_paso_bcd		;5e69
 	ld (0e1e4h),hl		;5e6c
 	ret			;5e6f
 L_5E70:
-	ld a,(0e002h)		;5e70
+	ld a,(0e002h)		;5e70   ; sin nada pendiente: si no hay persona jugando, por 0x5F00
 	bit 6,a		;5e73
 	jp z,L_5F00		;5e75
 	ld a,(0e302h)		;5e78
@@ -4261,7 +4453,7 @@ L_5EAA:
 	sub 001h		;5eab
 	daa			;5ead
 	ld (hl),a			;5eae
-	call L_4570		;5eaf
+	call pinta_el_contador_de_e04a		;5eaf
 	ld a,002h		;5eb2
 	call L_9C4A		;5eb4
 	ld b,00ah		;5eb7
@@ -4271,10 +4463,10 @@ L_5EB9:
 	ld a,(0e302h)		;5ebd
 	bit 1,a		;5ec0
 	jr nz,L_5EC9		;5ec2
-	call L_8307		;5ec4
+	call suma_al_marcador_de_e047		;5ec4
 	jr L_5ECC		;5ec7
 L_5EC9:
-	call L_8349		;5ec9
+	call suma_al_marcador_de_e044		;5ec9
 L_5ECC:
 	pop bc			;5ecc
 	djnz L_5EB9		;5ecd
@@ -4318,32 +4510,44 @@ L_5F12:
 	ld hl,0e1a8h		;5f12
 	res 3,(hl)		;5f15
 	ret			;5f17
-L_5F18:
+
+; ----------------------------------------------------------------------
+; Resta uno en BCD al contador de dos bytes de HL. Es lo que gasta los pendientes de 0x5DF9, de cien en cien puntos.
+; ----------------------------------------------------------------------
+baja_un_paso_bcd:
 	ld a,l			;5f18
 	sub 001h		;5f19
-	daa			;5f1b
+	daa			;5f1b   ; daa: tambien aqui la cuenta es decimal
 	ld l,a			;5f1c
-	ret nc			;5f1d
+	ret nc			;5f1d   ; sin acarreo no hay que tocar el byte alto
 	ld a,h			;5f1e
 	sub 001h		;5f1f
 	daa			;5f21
 	ld h,a			;5f22
 	ret			;5f23
-L_5F24:
+
+; ----------------------------------------------------------------------
+; Mil puntos de golpe para el marcador de 0xE047: diez vueltas de cien. La hermana de abajo hace lo mismo con el otro. Mil es lo que cuesta el palo de riichi.
+; ----------------------------------------------------------------------
+cobra_mil_el_de_e047:
 	ld b,00ah		;5f24
 L_5F26:
 	push bc			;5f26
 	ld de,00100h		;5f27
-	call L_831D		;5f2a
+	call resta_del_marcador_de_e047		;5f2a
 	pop bc			;5f2d
 	djnz L_5F26		;5f2e
 	ret			;5f30
-L_5F31:
+
+; ----------------------------------------------------------------------
+; La gemela de 0x5F24 para el marcador de 0xE044: diez vueltas de cien puntos.
+; ----------------------------------------------------------------------
+cobra_mil_el_de_e044:
 	ld b,00ah		;5f31
 L_5F33:
 	push bc			;5f33
 	ld de,00100h		;5f34
-	call L_835F		;5f37
+	call resta_del_marcador_de_e044		;5f37
 	pop bc			;5f3a
 	djnz L_5F33		;5f3b
 	ret			;5f3d
@@ -4384,7 +4588,7 @@ L_5F6A:
 	ld (0e347h),a		;5f90
 	ld a,(0e20ah)		;5f93
 	ld hl,0e32bh		;5f96
-	call L_4063		;5f99
+	call suma_a_a_hl		;5f99
 	ld c,(hl)			;5f9c
 	ld a,(0e22ch)		;5f9d
 	or a			;5fa0
@@ -4397,11 +4601,11 @@ L_5F6A:
 	ld hl,0e15eh		;5faf
 	ld a,(0e1beh)		;5fb2
 L_5FB5:
-	call L_4063		;5fb5
+	call suma_a_a_hl		;5fb5
 	ld c,(hl)			;5fb8
 	ld hl,0e32bh		;5fb9
 	ld a,(0e20ah)		;5fbc
-	call L_4063		;5fbf
+	call suma_a_a_hl		;5fbf
 	ld (hl),c			;5fc2
 	ld a,c			;5fc3
 	ld (0e347h),a		;5fc4
@@ -4468,7 +4672,7 @@ L_6019:
 	add a,a			;601e
 	add a,c			;601f
 	ld hl,0e2dbh		;6020
-	call L_4063		;6023
+	call suma_a_a_hl		;6023
 	ld a,004h		;6026
 	sub c			;6028
 	or a			;6029
@@ -4493,7 +4697,7 @@ L_6042:
 	ld hl,0e2f1h		;6042
 	ld a,(0e304h)		;6045
 	ld de,0e2f1h		;6048
-	call L_4068		;604b
+	call suma_a_a_de		;604b
 	ld l,e			;604e
 	inc l			;604f
 	ld a,(de)			;6050
@@ -4551,7 +4755,7 @@ L_6091:
 	jr z,L_60B4		;60a6
 	ld a,(0e304h)		;60a8
 	ld de,0e2f1h		;60ab
-	call L_4068		;60ae
+	call suma_a_a_de		;60ae
 	call L_61DA		;60b1
 L_60B4:
 	ld a,(0e303h)		;60b4
@@ -4608,7 +4812,7 @@ L_6108:
 	ld a,(de)			;6114
 	push af			;6115
 	ld a,006h		;6116
-	call L_4068		;6118
+	call suma_a_a_de		;6118
 	pop af			;611b
 	inc a			;611c
 	ld (de),a			;611d
@@ -4638,7 +4842,7 @@ L_6148:
 	ldir		;614e
 	ld a,(0e304h)		;6150
 	ld de,0e2f1h		;6153
-	jp L_4068		;6156
+	jp suma_a_a_de		;6156
 L_6159:
 	ld a,(0e304h)		;6159
 	cp 00eh		;615c
@@ -4856,7 +5060,7 @@ L_62C9:
 	ldir		;62cc
 	ld a,(0e304h)		;62ce
 	ld de,0e2f1h		;62d1
-	jp L_4068		;62d4
+	jp suma_a_a_de		;62d4
 L_62D7:
 	call L_6204		;62d7
 	jp nz,L_60E0		;62da
@@ -5254,32 +5458,32 @@ L_65BD:
 	ld d,h			;65d4
 	ld e,l			;65d5
 	ld a,001h		;65d6
-	call L_4051		;65d8
+	call escribe_en_vram		;65d8
 	ex de,hl			;65db
 	ld a,b			;65dc
 	rra			;65dd
 	jr c,L_65F9		;65de
 	ld a,020h		;65e0
-	call L_4068		;65e2
+	call suma_a_a_de		;65e2
 	ld a,e			;65e5
 	cp 0f9h		;65e6
 	jr nz,L_65EF		;65e8
 	ld a,0a0h		;65ea
-	call L_45E5		;65ec
+	call resta_a_de_de		;65ec
 L_65EF:
 	ld h,d			;65ef
 	ld l,e			;65f0
 	ld (0e1c5h),hl		;65f1
 	ld a,0eah		;65f4
-	jp L_4051		;65f6
+	jp escribe_en_vram		;65f6
 L_65F9:
 	ld a,020h		;65f9
-	call L_45E5		;65fb
+	call resta_a_de_de		;65fb
 	ld a,e			;65fe
 	cp 039h		;65ff
 	jr nz,L_65EF		;6601
 	ld a,0a0h		;6603
-	call L_4068		;6605
+	call suma_a_a_de		;6605
 	jr L_65EF		;6608
 L_660A:
 	ld hl,(0e1c5h)		;660a
@@ -5433,7 +5637,7 @@ L_670D:
 	pop bc			;6739
 	ld a,(0e209h)		;673a
 	ld de,0e2f1h		;673d
-	call L_4068		;6740
+	call suma_a_a_de		;6740
 	ld hl,(0e382h)		;6743
 	ld a,c			;6746
 	cp 0ffh		;6747
@@ -5441,7 +5645,7 @@ L_670D:
 	ld a,b			;674b
 	sub 001h		;674c
 	ld hl,04fbfh		;674e
-	call L_4063		;6751
+	call suma_a_a_hl		;6751
 L_6754:
 	ld a,(hl)			;6754
 	ld (de),a			;6755
@@ -5463,7 +5667,7 @@ L_6754:
 	ld hl,0e20eh		;6777
 L_677A:
 	ld a,(0e128h)		;677a
-	call L_4063		;677d
+	call suma_a_a_hl		;677d
 	ld a,(0e129h)		;6780
 	ld (hl),a			;6783
 	ld a,(0e128h)		;6784
@@ -5536,7 +5740,7 @@ L_67F0:
 	jr z,L_67FD		;67f1
 	push af			;67f3
 	ld a,004h		;67f4
-	call L_4063		;67f6
+	call suma_a_a_hl		;67f6
 	pop af			;67f9
 	djnz L_67F0		;67fa
 	ret			;67fc
@@ -5567,7 +5771,7 @@ L_680B:
 	ld a,(0e1beh)		;6825
 	ld hl,0e15eh		;6828
 L_682B:
-	call L_4063		;682b
+	call suma_a_a_hl		;682b
 	ld a,(hl)			;682e
 	cp 039h		;682f
 	jp z,L_68EF		;6831
@@ -5633,7 +5837,7 @@ L_689D:
 	ld (0e20bh),a		;689d
 	inc a			;68a0
 	ld hl,0e32bh		;68a1
-	call L_4063		;68a4
+	call suma_a_a_hl		;68a4
 	ld a,(0e128h)		;68a7
 	ld (hl),a			;68aa
 	inc hl			;68ab
@@ -5703,7 +5907,7 @@ L_6923:
 	ld d,a			;6924
 	inc (hl)			;6925
 	inc hl			;6926
-	call L_4063		;6927
+	call suma_a_a_hl		;6927
 	ld a,(0e128h)		;692a
 	ld (hl),a			;692d
 	ret			;692e
@@ -5731,7 +5935,7 @@ L_694B:
 	ld a,(0e1beh)		;695c
 	ld hl,0e15eh		;695f
 L_6962:
-	call L_4063		;6962
+	call suma_a_a_hl		;6962
 	ld a,(hl)			;6965
 	cp 031h		;6966
 	jp nc,L_6BC6		;6968
@@ -5855,7 +6059,7 @@ L_6A65:
 	ld a,(0e1f0h)		;6a65
 	sla a		;6a68
 	ld hl,0e1e9h		;6a6a
-	call L_4063		;6a6d
+	call suma_a_a_hl		;6a6d
 	ld b,(hl)			;6a70
 	inc hl			;6a71
 	ld c,(hl)			;6a72
@@ -5866,13 +6070,13 @@ L_6A65:
 	ld a,c			;6a79
 	sub l			;6a7a
 	ld hl,05350h		;6a7b
-	call L_4063		;6a7e
+	call suma_a_a_hl		;6a7e
 	ld a,(hl)			;6a81
 	ld (0e0a9h),a		;6a82
 	ld (0e0adh),a		;6a85
 	ld a,b			;6a88
 	ld hl,05350h		;6a89
-	call L_4063		;6a8c
+	call suma_a_a_hl		;6a8c
 	ld a,(hl)			;6a8f
 	ld (0e0b1h),a		;6a90
 	ld (0e0b5h),a		;6a93
@@ -5894,7 +6098,7 @@ L_6AB7:
 	ld a,(0e1f0h)		;6ab7
 	sla a		;6aba
 	ld hl,0e1e9h		;6abc
-	call L_4063		;6abf
+	call suma_a_a_hl		;6abf
 	ld b,(hl)			;6ac2
 	inc hl			;6ac3
 	ld c,(hl)			;6ac4
@@ -5926,10 +6130,10 @@ L_6AF6:
 	ld (0e20bh),a		;6af6
 	inc a			;6af9
 	ld hl,0e32bh		;6afa
-	call L_4063		;6afd
+	call suma_a_a_hl		;6afd
 	ld a,(0e1f0h)		;6b00
 	ld de,0e1f1h		;6b03
-	call L_4068		;6b06
+	call suma_a_a_de		;6b06
 	ld a,(de)			;6b09
 	ld (hl),a			;6b0a
 	inc a			;6b0b
@@ -5945,7 +6149,7 @@ L_6AF6:
 	ld b,a			;6b1a
 	dec a			;6b1b
 	ld hl,0e32bh		;6b1c
-	call L_4063		;6b1f
+	call suma_a_a_hl		;6b1f
 	ld a,(0e128h)		;6b22
 L_6B25:
 	cp (hl)			;6b25
@@ -5963,7 +6167,7 @@ L_6B2B:
 	ld a,d			;6b34
 	jr c,L_6B59		;6b35
 	ld hl,0e0e0h		;6b37
-	call L_4063		;6b3a
+	call suma_a_a_hl		;6b3a
 	ld (hl),0bch		;6b3d
 	ld a,b			;6b3f
 	cp 00eh		;6b40
@@ -5972,16 +6176,16 @@ L_6B2B:
 	ld (hl),0a8h		;6b46
 L_6B48:
 	ld hl,05350h		;6b48
-	call L_4063		;6b4b
+	call suma_a_a_hl		;6b4b
 	ld a,d			;6b4e
 	ld de,0e0e1h		;6b4f
-	call L_4068		;6b52
+	call suma_a_a_de		;6b52
 	ld a,(hl)			;6b55
 	ld (de),a			;6b56
 	jr L_6B7D		;6b57
 L_6B59:
 	ld hl,0e0f0h		;6b59
-	call L_4063		;6b5c
+	call suma_a_a_hl		;6b5c
 	ld (hl),0ffh		;6b5f
 	ld a,b			;6b61
 	cp 00eh		;6b62
@@ -5992,10 +6196,10 @@ L_6B6A:
 	sub 00eh		;6b6a
 	xor 0ffh		;6b6c
 	ld hl,05350h		;6b6e
-	call L_4063		;6b71
+	call suma_a_a_hl		;6b71
 	ld a,d			;6b74
 	ld de,0e0f1h		;6b75
-	call L_4068		;6b78
+	call suma_a_a_de		;6b78
 	ld a,(hl)			;6b7b
 	ld (de),a			;6b7c
 L_6B7D:
@@ -6055,7 +6259,7 @@ L_6BE0:
 L_6BE6:
 	ld a,0e0h		;6be6
 	ld de,03b00h		;6be8
-	call L_4051		;6beb
+	call escribe_en_vram		;6beb
 	ld a,e			;6bee
 	add a,004h		;6bef
 	ld e,a			;6bf1
@@ -6065,7 +6269,7 @@ L_6BF5:
 	ld a,(0e1efh)		;6bf5
 	sra a		;6bf8
 	ld hl,0e1f1h		;6bfa
-	call L_4063		;6bfd
+	call suma_a_a_hl		;6bfd
 	ld (hl),b			;6c00
 	ret			;6c01
 L_6C02:
@@ -6074,7 +6278,7 @@ L_6C02:
 	inc (hl)			;6c06
 	ld a,(0e1efh)		;6c07
 	ld hl,0e1e9h		;6c0a
-	call L_4063		;6c0d
+	call suma_a_a_hl		;6c0d
 	ld (hl),b			;6c10
 	ret			;6c11
 L_6C12:
@@ -6096,12 +6300,12 @@ L_6C12:
 	ld a,(0e1beh)		;6c36
 	ld hl,0e15eh		;6c39
 L_6C3C:
-	call L_4063		;6c3c
+	call suma_a_a_hl		;6c3c
 	jr L_6C4A		;6c3f
 L_6C41:
 	ld a,(0e209h)		;6c41
 	ld hl,0e32bh		;6c44
-	call L_4063		;6c47
+	call suma_a_a_hl		;6c47
 L_6C4A:
 	ld a,(hl)			;6c4a
 	cp 039h		;6c4b
@@ -6122,7 +6326,7 @@ L_6C4A:
 	jr nz,L_6CCA		;6c6b
 	ld a,(0e20ah)		;6c6d
 	ld de,0e32bh		;6c70
-	call L_4068		;6c73
+	call suma_a_a_de		;6c73
 	ld a,e			;6c76
 	cp l			;6c77
 	jr z,L_6CCA		;6c78
@@ -6146,7 +6350,7 @@ L_6C4A:
 	ex de,hl			;6c99
 	ld a,(0e20ah)		;6c9a
 	ld hl,0e32bh		;6c9d
-	call L_4063		;6ca0
+	call suma_a_a_hl		;6ca0
 	ld a,(0e128h)		;6ca3
 	cp (hl)			;6ca6
 	jr nz,L_6CCA		;6ca7
@@ -6157,7 +6361,7 @@ L_6CB0:
 	push hl			;6cb0
 	ld a,(0e209h)		;6cb1
 	ld hl,0e32bh		;6cb4
-	call L_4063		;6cb7
+	call suma_a_a_hl		;6cb7
 	ld (0e129h),hl		;6cba
 	ld c,001h		;6cbd
 	ld hl,(0e129h)		;6cbf
@@ -6192,7 +6396,7 @@ L_6CE7:
 	ld b,a			;6cf8
 	ld hl,0e32bh		;6cf9
 	ld a,(0e20bh)		;6cfc
-	call L_4063		;6cff
+	call suma_a_a_hl		;6cff
 	ld a,(0e128h)		;6d02
 L_6D05:
 	cp (hl)			;6d05
@@ -6322,7 +6526,7 @@ L_6DC4:
 	jr z,L_6DED		;6dce
 	ld a,(0e20bh)		;6dd0
 	ld hl,0e32bh		;6dd3
-	call L_4063		;6dd6
+	call suma_a_a_hl		;6dd6
 	ld a,(0e128h)		;6dd9
 	ld b,a			;6ddc
 	ld c,a			;6ddd
@@ -6497,7 +6701,7 @@ L_6F0C:
 	ld de,0e1e8h		;6f0c
 	ld a,(0e1c3h)		;6f0f
 	ld hl,0e13ah		;6f12
-	call L_4063		;6f15
+	call suma_a_a_hl		;6f15
 	ld a,(de)			;6f18
 	ld (hl),a			;6f19
 	jr L_6F2E		;6f1a
@@ -6554,7 +6758,7 @@ L_6F78:
 	ld (0e127h),a		;6f79
 	ld b,003h		;6f7c
 L_6F7E:
-	call L_470F		;6f7e
+	call prepara_escritura_vram		;6f7e
 	ld a,(0e127h)		;6f81
 	exx			;6f84
 	out (c),a		;6f85
@@ -6573,7 +6777,7 @@ L_6F8C:
 L_6F97:
 	ld (0e127h),a		;6f97
 	ld a,020h		;6f9a
-	call L_4068		;6f9c
+	call suma_a_a_de		;6f9c
 	djnz L_6F7E		;6f9f
 	ei			;6fa1
 L_6FA2:
@@ -6583,7 +6787,7 @@ L_6FA3:
 L_6FA5:
 	call L_6F72		;6fa5
 	ld a,05eh		;6fa8
-	call L_45E5		;6faa
+	call resta_a_de_de		;6faa
 	inc hl			;6fad
 	dec c			;6fae
 	jr nz,L_6FA5		;6faf
@@ -6593,27 +6797,27 @@ L_6FB2:
 L_6FB4:
 	call L_6F72		;6fb4
 	ld a,062h		;6fb7
-	call L_45E5		;6fb9
+	call resta_a_de_de		;6fb9
 	inc hl			;6fbc
 	dec c			;6fbd
 	jr nz,L_6FB4		;6fbe
 	ret			;6fc0
 L_6FC1:
 	ld hl,08ad7h		;6fc1
-	call L_468F		;6fc4
+	call pinta_lista_formato_b		;6fc4
 	ld hl,090d4h		;6fc7
-	call L_468F		;6fca
+	call pinta_lista_formato_b		;6fca
 	ld hl,08a9fh		;6fcd
 	ld de,02818h		;6fd0
 	ld bc,00038h		;6fd3
 	call L_460B		;6fd6
 	ld hl,090cfh		;6fd9
-	jp L_468F		;6fdc
+	jp pinta_lista_formato_b		;6fdc
 L_6FDF:
 	ld hl,093aah		;6fdf
 	ld (0e05bh),hl		;6fe2
 	ld de,02140h		;6fe5
-	call L_46B1		;6fe8
+	call pinta_la_mano_del_espejo		;6fe8
 	ld hl,09a05h		;6feb
 	ld de,00140h		;6fee
 	ld (0e05bh),hl		;6ff1
@@ -6623,11 +6827,11 @@ L_6FDF:
 	ld bc,00060h		;6ffd
 	call L_460B		;7000
 	ld hl,09343h		;7003
-	call L_468F		;7006
+	call pinta_lista_formato_b		;7006
 	ld hl,099f4h		;7009
-	call L_468F		;700c
+	call pinta_lista_formato_b		;700c
 	ld hl,099f9h		;700f
-	jp L_468F		;7012
+	jp pinta_lista_formato_b		;7012
 L_7015:
 	call L_7024		;7015
 L_7018:
@@ -6689,13 +6893,13 @@ L_7081:
 	jp L_460B		;7088
 L_708B:
 	ld hl,08832h		;708b
-	call L_468F		;708e
+	call pinta_lista_formato_b		;708e
 	ld hl,08a78h		;7091
-	jp L_468F		;7094
+	jp pinta_lista_formato_b		;7094
 L_7097:
 	call L_6EF4		;7097
 	ld hl,07376h		;709a
-	call L_468F		;709d
+	call pinta_lista_formato_b		;709d
 	ld a,(0e04dh)		;70a0
 	ld c,a			;70a3
 	ld a,(0e302h)		;70a4
@@ -6736,7 +6940,7 @@ L_70E0:
 	push af			;70e5
 	add a,a			;70e6
 	ld hl,07642h		;70e7
-	call L_4063		;70ea
+	call suma_a_a_hl		;70ea
 	ld e,(hl)			;70ed
 	inc hl			;70ee
 	ld d,(hl)			;70ef
@@ -6787,12 +6991,12 @@ L_7136:
 	ld (hl),002h		;7141
 L_7143:
 	ld a,00bh		;7143
-	call L_4068		;7145
+	call suma_a_a_de		;7145
 	call L_457E		;7148
 L_714B:
 	pop de			;714b
 	ld a,020h		;714c
-	call L_4068		;714e
+	call suma_a_a_de		;714e
 	ld (0e317h),de		;7151
 	ret			;7155
 L_7156:
@@ -6822,7 +7026,7 @@ L_7176:
 	ld a,(hl)			;7185
 	ld hl,07690h		;7186
 	add a,a			;7189
-	call L_4063		;718a
+	call suma_a_a_hl		;718a
 	ld e,(hl)			;718d
 	inc hl			;718e
 	ld d,(hl)			;718f
@@ -6841,7 +7045,7 @@ L_7176:
 	ld hl,0e2c5h		;71a8
 	sla a		;71ab
 	sla a		;71ad
-	call L_4063		;71af
+	call suma_a_a_hl		;71af
 	ld c,003h		;71b2
 	call L_6FA5		;71b4
 	ld c,(hl)			;71b7
@@ -6883,7 +7087,7 @@ L_71DD:
 	sla a		;71f2
 	sla a		;71f4
 	add a,b			;71f6
-	call L_4063		;71f7
+	call suma_a_a_hl		;71f7
 	ld c,004h		;71fa
 	dec de			;71fc
 	dec de			;71fd
@@ -6900,7 +7104,7 @@ L_71DD:
 	call L_6F74		;720c
 	pop de			;720f
 	ld a,006h		;7210
-	call L_4068		;7212
+	call suma_a_a_de		;7212
 	ld a,038h		;7215
 	call L_6F74		;7217
 	pop hl			;721a
@@ -6931,7 +7135,7 @@ L_723E:
 	ld de,0e322h		;723e
 	ld hl,0e32ah		;7241
 	ld a,(hl)			;7244
-	call L_4068		;7245
+	call suma_a_a_de		;7245
 	ld a,b			;7248
 	ld (de),a			;7249
 	inc (hl)			;724a
@@ -6949,13 +7153,13 @@ L_724C:
 	ld hl,0e2b3h		;725d
 	sla a		;7260
 	sla a		;7262
-	call L_4063		;7264
+	call suma_a_a_hl		;7264
 	ld c,003h		;7267
 	call L_6FA5		;7269
 	ld de,0e322h		;726c
 	ld hl,0e32ah		;726f
 	ld a,(hl)			;7272
-	call L_4068		;7273
+	call suma_a_a_de		;7273
 	xor a			;7276
 	ld (de),a			;7277
 	inc (hl)			;7278
@@ -7068,7 +7272,7 @@ L_7320:
 	dec a			;7329
 	ld (0e32ah),a		;732a
 	add a,a			;732d
-	call L_4063		;732e
+	call suma_a_a_hl		;732e
 	ld e,(hl)			;7331
 	inc hl			;7332
 	ld d,(hl)			;7333
@@ -7076,7 +7280,7 @@ L_7320:
 	inc (hl)			;7337
 	ld a,(hl)			;7338
 	ld hl,0e321h		;7339
-	call L_4063		;733c
+	call suma_a_a_hl		;733c
 	ld a,(0e1e1h)		;733f
 	ld c,(hl)			;7342
 	add a,c			;7343
@@ -7270,7 +7474,7 @@ L_76A6:
 	ld hl,0e062h		;76a6
 	inc (hl)			;76a9
 	ld hl,0782ch		;76aa
-	call L_468F		;76ad
+	call pinta_lista_formato_b		;76ad
 	xor a			;76b0
 	ld (0e206h),a		;76b1
 	ld a,(0e302h)		;76b4
@@ -7306,7 +7510,7 @@ L_76ED:
 	and 007h		;76f5
 	add a,a			;76f7
 	ld hl,07853h		;76f8
-	call L_4063		;76fb
+	call suma_a_a_hl		;76fb
 	ld e,(hl)			;76fe
 	inc hl			;76ff
 	ld d,(hl)			;7700
@@ -7628,7 +7832,7 @@ L_7944:
 L_7950:
 	call L_7AE5		;7950
 	ld hl,04fbfh		;7953
-	call L_4063		;7956
+	call suma_a_a_hl		;7956
 	ld a,(hl)			;7959
 	cp 030h		;795a
 	jr nc,L_7944		;795c
@@ -7825,7 +8029,7 @@ L_7AA5:
 	ld a,00bh		;7aa5
 L_7AA7:
 	ld hl,0e21ch		;7aa7
-	call L_4063		;7aaa
+	call suma_a_a_hl		;7aaa
 	ld (hl),039h		;7aad
 L_7AAF:
 	ld hl,0e21ch		;7aaf
@@ -7835,7 +8039,7 @@ L_7AB8:
 	call L_7AE5		;7ab8
 	ld c,a			;7abb
 	ld de,04fbfh		;7abc
-	call L_4068		;7abf
+	call suma_a_a_de		;7abf
 	ld a,(de)			;7ac2
 	ld b,a			;7ac3
 	and 0f0h		;7ac4
@@ -7857,7 +8061,7 @@ L_7ADA:
 	ld a,c			;7ada
 	ld c,b			;7adb
 	ld hl,0e186h		;7adc
-	call L_4063		;7adf
+	call suma_a_a_hl		;7adf
 	ld d,h			;7ae2
 	ld e,l			;7ae3
 	ret			;7ae4
@@ -7977,7 +8181,7 @@ L_7BAF:
 L_7BC3:
 	ld c,a			;7bc3
 	ld de,0e15eh		;7bc4
-	call L_4068		;7bc7
+	call suma_a_a_de		;7bc7
 	ld a,(de)			;7bca
 	cp 039h		;7bcb
 	jr z,L_7BD7		;7bcd
@@ -8027,7 +8231,7 @@ L_7BFC:
 L_7C10:
 	ld c,a			;7c10
 	ld de,0e172h		;7c11
-	call L_4068		;7c14
+	call suma_a_a_de		;7c14
 	ld a,(de)			;7c17
 	cp 039h		;7c18
 	jr z,L_7C24		;7c1a
@@ -8193,7 +8397,7 @@ L_7D03:
 	ret			;7d0e
 L_7D0F:
 	ld a,004h		;7d0f
-	call L_4068		;7d11
+	call suma_a_a_de		;7d11
 	djnz L_7D03		;7d14
 	ret			;7d16
 L_7D17:
@@ -8212,7 +8416,7 @@ L_7D23:
 	inc c			;7d2b
 L_7D2C:
 	ld a,004h		;7d2c
-	call L_4063		;7d2e
+	call suma_a_a_hl		;7d2e
 	djnz L_7D23		;7d31
 	ld a,c			;7d33
 	or a			;7d34
@@ -8242,7 +8446,7 @@ L_7D58:
 	cp (hl)			;7d5b
 	jr z,L_7D6B		;7d5c
 	ld a,004h		;7d5e
-	call L_4063		;7d60
+	call suma_a_a_hl		;7d60
 	djnz L_7D58		;7d63
 	inc de			;7d65
 	dec c			;7d66
@@ -8262,7 +8466,7 @@ L_7D75:
 	cp (hl)			;7d78
 	ret z			;7d79
 	ld a,004h		;7d7a
-	call L_4063		;7d7c
+	call suma_a_a_hl		;7d7c
 	djnz L_7D75		;7d7f
 	pop hl			;7d81
 	ret			;7d82
@@ -8367,7 +8571,7 @@ L_7E31:
 	cp (hl)			;7e34
 	jr z,L_7E64		;7e35
 	ld a,004h		;7e37
-	call L_4063		;7e39
+	call suma_a_a_hl		;7e39
 	djnz L_7E31		;7e3c
 	inc de			;7e3e
 	dec c			;7e3f
@@ -8387,7 +8591,7 @@ L_7E51:
 	cp (hl)			;7e54
 	jr z,L_7E64		;7e55
 	ld a,005h		;7e57
-	call L_4063		;7e59
+	call suma_a_a_hl		;7e59
 	djnz L_7E51		;7e5c
 	inc de			;7e5e
 	dec c			;7e5f
@@ -8408,7 +8612,7 @@ L_7E71:
 	cp (hl)			;7e74
 	ret z			;7e75
 	ld a,004h		;7e76
-	call L_4063		;7e78
+	call suma_a_a_hl		;7e78
 	djnz L_7E71		;7e7b
 	inc de			;7e7d
 	dec c			;7e7e
@@ -8427,7 +8631,7 @@ L_7E8D:
 	cp (hl)			;7e90
 	ret z			;7e91
 	ld a,005h		;7e92
-	call L_4063		;7e94
+	call suma_a_a_hl		;7e94
 	djnz L_7E8D		;7e97
 	inc de			;7e99
 	dec c			;7e9a
@@ -8445,7 +8649,7 @@ L_7E9F:
 	inc c			;7ea7
 L_7EA8:
 	ld a,(0e127h)		;7ea8
-	call L_4063		;7eab
+	call suma_a_a_hl		;7eab
 	djnz L_7E9F		;7eae
 	ret			;7eb0
 L_7EB1:
@@ -8521,7 +8725,7 @@ L_7F0C:
 L_7F27:
 	push hl			;7f27
 	ld a,(de)			;7f28
-	call L_4063		;7f29
+	call suma_a_a_hl		;7f29
 	inc (hl)			;7f2c
 	pop hl			;7f2d
 	inc de			;7f2e
@@ -8649,7 +8853,7 @@ L_7FE4:
 	ret			;7fef
 L_7FF0:
 	ld a,c			;7ff0
-	call L_4068		;7ff1
+	call suma_a_a_de		;7ff1
 	djnz L_7FDC		;7ff4
 	ret			;7ff6
 L_7FF7:
@@ -8703,7 +8907,7 @@ L_803F:
 	cp 005h		;8046
 	jr nc,L_8051		;8048
 	ld a,c			;804a
-	call L_4068		;804b
+	call suma_a_a_de		;804b
 	djnz L_803F		;804e
 	ret			;8050
 L_8051:
@@ -8769,7 +8973,7 @@ L_80AA:
 	inc c			;80b2
 L_80B3:
 	ld a,(0e127h)		;80b3
-	call L_4068		;80b6
+	call suma_a_a_de		;80b6
 	djnz L_80A1		;80b9
 	ret			;80bb
 L_80BC:
@@ -8894,7 +9098,7 @@ L_817B:
 	inc (hl)			;8184
 L_8185:
 	ld a,c			;8185
-	call L_4068		;8186
+	call suma_a_a_de		;8186
 	djnz L_817B		;8189
 	ret			;818b
 L_818C:
@@ -9026,7 +9230,7 @@ L_8258:
 	ld (hl),a			;8261
 L_8262:
 	ld a,(0e128h)		;8262
-	call L_4068		;8265
+	call suma_a_a_de		;8265
 	djnz L_8258		;8268
 	ret			;826a
 L_826B:
@@ -9114,7 +9318,7 @@ L_82E6:
 	inc (hl)			;82e9
 	ld a,(hl)			;82ea
 	ld hl,0e304h		;82eb
-	call L_4063		;82ee
+	call suma_a_a_hl		;82ee
 	ld (hl),c			;82f1
 	ld hl,0e316h		;82f2
 	ld a,(hl)			;82f5
@@ -9128,34 +9332,42 @@ L_82F9:
 	ld bc,00012h		;8301
 	ldir		;8304
 	ret			;8306
-L_8307:
+
+; ----------------------------------------------------------------------
+; Suma DE al marcador de 0xE047 teniendo en cuenta el signo de 0xE100. Si el marcador esta en negativo, sumar es restar del valor absoluto, y si al restar se llega a cero se le da la vuelta al signo.
+; ----------------------------------------------------------------------
+suma_al_marcador_de_e047:
 	ld hl,0e100h		;8307
 	ld a,(hl)			;830a
-	rra			;830b
+	rra			;830b   ; bit 0 del signo
 	jr nc,L_8310		;830c
-	res 1,(hl)		;830e
+	res 1,(hl)		;830e   ; con el bit 0 puesto, el 1 sobra
 L_8310:
-	rra			;8310
-	jr c,L_8325		;8311
+	rra			;8310   ; bit 1: el marcador esta en numeros rojos
+	jr c,L_8325		;8311   ; en rojos, sumar es restar del valor absoluto
 	res 0,(hl)		;8313
-	ld hl,0e047h		;8315
-	call L_838B		;8318
+	ld hl,0e047h		;8315   ; marcador del jugador de 0xE047: suma
+	call suma_bcd_de_3_bytes		;8318
 	jr L_832D		;831b
-L_831D:
+
+; ----------------------------------------------------------------------
+; Resta DE del marcador de 0xE047. Si ya estaba en negativo (algun bit de los dos bajos puesto) lo que hace es SUMAR al valor absoluto, que es lo mismo que restar de un numero rojo.
+; ----------------------------------------------------------------------
+resta_del_marcador_de_e047:
 	ld hl,0e100h		;831d
 	ld a,(hl)			;8320
-	and 003h		;8321
-	jr nz,L_833B		;8323
+	and 003h		;8321   ; los dos bits del signo de este marcador
+	jr nz,L_833B		;8323   ; ya esta en rojos: se le suma al valor absoluto
 L_8325:
 	res 0,(hl)		;8325
-	ld hl,0e047h		;8327
-	call L_839E		;832a
+	ld hl,0e047h		;8327   ; marcador del jugador de 0xE047: resta
+	call resta_bcd_de_3_bytes		;832a
 L_832D:
-	or e			;832d
+	or e			;832d   ; el resultado, byte a byte: hay que saber si ha quedado en cero
 	or d			;832e
 	ld hl,0e100h		;832f
 	jr nz,L_8339		;8332
-	res 1,(hl)		;8334
+	res 1,(hl)		;8334   ; justo en cero: se sale de los numeros rojos
 	nop			;8336
 	set 0,(hl)		;8337
 L_8339:
@@ -9164,38 +9376,46 @@ L_833B:
 	res 0,(hl)		;833b
 	nop			;833d
 	set 1,(hl)		;833e
-	ld hl,0e047h		;8340
-	call L_838B		;8343
+	ld hl,0e047h		;8340   ; marcador del jugador de 0xE047: suma
+	call suma_bcd_de_3_bytes		;8343
 L_8346:
-	jp L_44E7		;8346
-L_8349:
+	jp pinta_los_dos_marcadores		;8346   ; y a repintar los dos marcadores
+
+; ----------------------------------------------------------------------
+; La misma de 0x8307 para el otro marcador, con los bits 7 y 6 de 0xE100 en vez de los bits 0 y 1, y `rla` en vez de `rra` para mirarlos.
+; ----------------------------------------------------------------------
+suma_al_marcador_de_e044:
 	ld hl,0e100h		;8349
 	ld a,(hl)			;834c
-	rla			;834d
+	rla			;834d   ; bit 7 del signo
 	jr nc,L_8352		;834e
 	res 6,(hl)		;8350
 L_8352:
-	rla			;8352
+	rla			;8352   ; bit 6: este marcador esta en numeros rojos
 	jr c,L_8367		;8353
 	res 7,(hl)		;8355
-	ld hl,0e044h		;8357
-	call L_838B		;835a
+	ld hl,0e044h		;8357   ; marcador del jugador de 0xE044: suma
+	call suma_bcd_de_3_bytes		;835a
 	jr L_836F		;835d
-L_835F:
+
+; ----------------------------------------------------------------------
+; La misma de 0x831D para el marcador de 0xE044, con los bits 7 y 6.
+; ----------------------------------------------------------------------
+resta_del_marcador_de_e044:
 	ld hl,0e100h		;835f
 	ld a,(hl)			;8362
-	and 0c0h		;8363
+	and 0c0h		;8363   ; los dos bits altos, el signo de este marcador
 	jr nz,L_837D		;8365
 L_8367:
 	res 7,(hl)		;8367
-	ld hl,0e044h		;8369
-	call L_839E		;836c
+	ld hl,0e044h		;8369   ; marcador del jugador de 0xE044: resta
+	call resta_bcd_de_3_bytes		;836c
 L_836F:
 	or e			;836f
 	or d			;8370
 	ld hl,0e100h		;8371
 	jr nz,L_837B		;8374
-	set 7,(hl)		;8376
+	set 7,(hl)		;8376   ; justo en cero: se sale de los numeros rojos
 	nop			;8378
 	res 6,(hl)		;8379
 L_837B:
@@ -9204,14 +9424,18 @@ L_837D:
 	res 7,(hl)		;837d
 	nop			;837f
 	set 6,(hl)		;8380
-	ld hl,0e044h		;8382
-	call L_838B		;8385
+	ld hl,0e044h		;8382   ; marcador del jugador de 0xE044: suma
+	call suma_bcd_de_3_bytes		;8385
 L_8388:
-	jp L_44E7		;8388
-L_838B:
+	jp pinta_los_dos_marcadores		;8388
+
+; ----------------------------------------------------------------------
+; Suma DE en BCD sobre el contador de tres bytes al que apunta HL, byte bajo primero. El `daa` detras de cada suma es lo que lo hace decimal; el tercer byte solo se toca si hubo arrastre (`ret nc`). La usan los dos marcadores, 0xE044 y 0xE047.
+; ----------------------------------------------------------------------
+suma_bcd_de_3_bytes:
 	ld a,(hl)			;838b
 	add a,e			;838c
-	daa			;838d
+	daa			;838d   ; daa: la suma es DECIMAL, no binaria
 	ld (hl),a			;838e
 	ld e,a			;838f
 	inc l			;8390
@@ -9222,15 +9446,19 @@ L_838B:
 	ld d,a			;8395
 	inc hl			;8396
 	ld a,(hl)			;8397
-	ret nc			;8398
+	ret nc			;8398   ; si no hubo arrastre, el byte alto se queda como esta
 	add a,001h		;8399
 	daa			;839b
 	ld (hl),a			;839c
 	ret			;839d
-L_839E:
+
+; ----------------------------------------------------------------------
+; La hermana de suma_bcd_de_3_bytes: resta DE en BCD sobre el contador de tres bytes al que apunta HL. Mismo recorrido de byte bajo a alto y mismo `ret nc` para no tocar el tercero sin necesidad.
+; ----------------------------------------------------------------------
+resta_bcd_de_3_bytes:
 	ld a,(hl)			;839e
 	sub e			;839f
-	daa			;83a0
+	daa			;83a0   ; daa: la resta tambien es DECIMAL
 	ld (hl),a			;83a1
 	ld e,a			;83a2
 	inc hl			;83a3
@@ -9853,7 +10081,7 @@ L_9C7F:
 	and 03fh		;9c7f
 	add a,a			;9c81
 	ld de,09ca1h		;9c82
-	call L_4068		;9c85
+	call suma_a_a_de		;9c85
 	dec hl			;9c88
 	dec hl			;9c89
 L_9C8A:
@@ -10145,7 +10373,7 @@ L_9FB7:
 	call L_9F20		;9fb7
 	ld a,b			;9fba
 	ld hl,09fd9h		;9fbb
-	call L_4063		;9fbe
+	call suma_a_a_hl		;9fbe
 	ld l,(hl)			;9fc1
 	ld h,000h		;9fc2
 	ld a,(ix+005h)		;9fc4
