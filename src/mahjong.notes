@@ -216,3 +216,50 @@ D 0x7642 0x7690 tabla_de_punteros_de_jugadas  Las 39 palabras que indexan el blo
 F 0x7642 2
 D 0x7690 0x76A6 tabla_de_filas_del_marcador  Once palabras con direcciones de VRAM (fila de nombres), de 0x39E4 a 0x3AA6. 0x7186 la indexa con (0xE1D8) doblado; el mismo bloque, desde su quinta entrada (0x769A), lo vuelve a indexar 0x7320 con (0xE32A) doblado.
 F 0x7690 2
+
+# ---------------------------------------------------------------------------
+# LA MAQUINA DE ESTADOS, medida sobre el cartucho corriendo (2026-08-22).
+# Ver docs/la_partida.md. El demo se juega SOLO y es determinista desde el
+# encendido: dos pasadas independientes dieron los mismos instantes al
+# centesimo. Un ciclo completo son 168,96 s y vuelve a empezar.
+# ---------------------------------------------------------------------------
+L 0x41FF avanza_de_estado
+B 0x41FF Avanza al estado siguiente y resetea el submodo: `inc (0xE000)` y luego `ld (0xE001),0`. La usan los estados 1 a 14, y es el 0x4202/0x4204 que aparece escribiendo en el trazado del demo.
+C 0x41FF hl = 0xE000, el estado del juego
+C 0x4202 estado = estado + 1
+C 0x4203 hl = 0xE001, el submodo
+C 0x4204 submodo = 0, que el estado nuevo empieza por el suyo
+
+L 0x4212 avanza_de_submodo
+B 0x4212 Avanza al submodo siguiente dentro del estado: `inc (0xE001)`. Es el unico sitio que hace crecer el submodo; en el demo la mano entera (estado 11) recorre asi sus nueve.
+C 0x4215 submodo = submodo + 1
+
+L 0x4196 vuelve_al_estado_0
+B 0x4196 CIERRA EL BUCLE DEL JUEGO: pone el estado a 0 y el submodo a 0. Medido en el demo: se llega aqui en t=168,48 y otra vez en t=337,44, o sea cada 168,96 s.
+C 0x4197 estado = 0, se empieza de nuevo
+C 0x41A2 y el submodo tambien
+
+C 0x418C EL ESTADO 8 NUNCA LLEGA A DESPACHARSE: se escribe 8 aqui, pero el `jp L_41F4` de 0x4193 desemboca en `avanza_de_estado`, que hace `inc`, asi que el estado que corre es el 9. El 8 dura unas instrucciones. Se escribe porque sirve doble: el `rra` de 0x418F lo convierte en 4 para 0xE040.
+
+# ---------------------------------------------------------------------------
+# EL MARCADOR. Dos contadores BCD de TRES bytes, byte bajo primero, medidos
+# cruzando 55 volcados de la RAM del demo con lo que se ve en pantalla
+# (tools/busca_marcador.py). 0xE044 fue de 030000 a 029000 a mitad de mano y a
+# 023000 tras el recuento, mientras 0xE047 subia a 037500. El `daa` de las dos
+# rutinas de abajo confirma por su cuenta que la codificacion es BCD.
+# ---------------------------------------------------------------------------
+L 0x838B suma_bcd_de_3_bytes
+B 0x838B Suma DE en BCD sobre el contador de tres bytes al que apunta HL, byte bajo primero. El `daa` detras de cada suma es lo que lo hace decimal; el tercer byte solo se toca si hubo arrastre (`ret nc`). La usan los dos marcadores, 0xE044 y 0xE047.
+C 0x838D daa: la suma es DECIMAL, no binaria
+C 0x8398 si no hubo arrastre, el byte alto se queda como esta
+
+L 0x839E resta_bcd_de_3_bytes
+B 0x839E La hermana de suma_bcd_de_3_bytes: resta DE en BCD sobre el contador de tres bytes al que apunta HL. Mismo recorrido de byte bajo a alto y mismo `ret nc` para no tocar el tercero sin necesidad.
+C 0x83A0 daa: la resta tambien es DECIMAL
+
+C 0x8315 marcador del jugador de 0xE047: suma
+C 0x8327 marcador del jugador de 0xE047: resta
+C 0x8340 marcador del jugador de 0xE047: suma
+C 0x8357 marcador del jugador de 0xE044: suma
+C 0x8369 marcador del jugador de 0xE044: resta
+C 0x8382 marcador del jugador de 0xE044: suma
