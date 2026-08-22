@@ -1,0 +1,13 @@
+# Zonas que el trazador NO debe leer como codigo: las tablas de palabras que van
+# INCRUSTADAS DETRAS de un `call 0x408F`.
+#
+# 0x408F no es un despachador normal: coge la direccion de retorno con `pop hl`
+# y la usa como base de la tabla, asi que los bytes que siguen al call son datos
+# y NO se vuelve a ellos (termina en `jp (hl)`).
+#     408F: add a,a / pop hl / call 4063h (HL+=A) / ld e,(hl) / inc hl /
+#           ld d,(hl) / ex de,hl / jp (hl)
+0x40ED 0x410B   15 palabras (call en 0x40EA); indice = (0xE000), el estado del juego
+0x4164 0x4168    2 palabras (call en 0x4161); indice = (0xE001), el submodo
+0x41AB 0x41AF    2 palabras (call en 0x41A8); indice = (0xE001)
+0x421D 0x422F    9 palabras (call en 0x421A); indice = (0xE001)
+0x4389 0x4391    4 palabras (call en 0x4386); indice = (0xE001)

@@ -1,0 +1,66 @@
+# Puntos de entrada de Konami's Mahjong (RC-707, 1984). ROM de 32 KB.
+#
+# La ROM ocupa DOS paginas: la BIOS solo mapea la pagina 1 (0x4000-0x7FFF) al
+# leer la cabecera; la propia INIT enciende la pagina 2 (0x8000-0xBFFF) con
+# ENASLT antes de tocar nada de ahi arriba.
+0x4010   # INIT, declarado en la cabecera del cartucho (bytes 2-3: 10 40)
+
+0x4071   # la rutina de interrupcion. INIT escribe `jp 0x4071` en el gancho
+         # H.KEYI (0xFD9A): `ld a,0C3h / ld (0FD9Ah),a / ld hl,4071h /
+         # ld (0FD9Bh),hl` en 0x4024-0x402E.
+
+# --- Destinos de las CINCO tablas del despachador de 0x408F. Termina en
+#     `jp (hl)`, asi que el trazador no puede alcanzarlos solo.
+
+# Tabla de 0x40ED, 15 palabras. El indice es (0xE000), el estado del juego.
+# En 0x40E2: `ld a,(0E000h) / cp 8 / jr z,+1 / push hl / call 0x408F`, con
+# HL = 0x4ABC (la direccion de retorno que se empuja para los otros catorce).
+0x410B   # estado 0
+0x4118   # estado 1
+0x412C   # estado 2
+0x413B   # estado 3
+0x413E   # estado 4
+0x4146   # estado 5
+0x414E   # estado 6
+0x415E   # estado 7
+0x440B   # estado 8 (el unico que llega sin el `push hl` de 0x40E9)
+0x4151   # estado 9
+0x41A5   # estado 10
+0x4217   # estado 11
+0x4383   # estado 12
+0x43DB   # estado 13
+0x43EB   # estado 14
+
+# Las otras cuatro tablas van indexadas por (0xE001), el submodo dentro del
+# estado: `ld a,(0E001h) / call 0x408F`.
+
+# Tabla de 0x4164, 2 palabras (call en 0x4161; estado 7).
+0x4168
+0x4196
+
+# Tabla de 0x41AB, 2 palabras (call en 0x41A8; estado 10).
+0x41AF
+0x41B6
+
+# Tabla de 0x421D, 9 palabras (call en 0x421A; estado 11).
+0x422F
+0x423B
+0x4248
+0x42AE
+0x4303
+0x430B
+0x4323
+0x4330
+0x4358
+
+# Tabla de 0x4389, 4 palabras (call en 0x4386; estado 12).
+0x4391
+0x4394
+0x43C6
+0x43CE
+
+# Direccion de RETORNO puesta a mano, no un salto: 0x40DF hace `ld hl,0x4ABC`
+# y 0x40E9 la empuja con `push hl` antes del `call 0x408F`, asi que los catorce
+# estados que pasan por ahi vuelven AQUI y no a 0x40ED. El estado 8 se salta el
+# `push` y por eso es el unico que no acaba en 0x4ABC.
+0x4ABC

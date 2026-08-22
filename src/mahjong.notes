@@ -1,0 +1,218 @@
+# Anotaciones de Konami's Mahjong (Konami, MSX1, cartucho RC-707).
+#
+# Cada linea va anclada a una direccion, asi que los comentarios sobreviven a
+# un retrazado. Directivas: L=etiqueta, C=comentario de linea, B=cabecera de
+# bloque, D=rango de datos, F=anchura de las filas de un bloque de datos. Todo
+# sale de leer el codigo que lo usa. Sin acentos a proposito.
+#
+# EL MAPA DE MEMORIA. Cartucho de 32 KB que ocupa DOS paginas, 0x4000-0xBFFF.
+# La BIOS solo mapea la pagina 1 al leer la cabecera AB; la pagina 2 la
+# enciende la propia INIT (0x4010) llamando a ENASLT (0x0024) con H=0x80,
+# despues de leer su ranura con RSLREG (0x0138). La RAM del juego empieza en
+# 0xE000: INIT borra 0xE000-0xE3FF, pone la pila en 0xE400, instala la
+# interrupcion en el gancho H.KEYI (0xFD9A) y sigue. Es el armazon B de
+# Konami, el mismo de Athletic Land, Antarctic Adventure y Monkey Academy.
+#
+# EL DESPACHADOR. 0x408F no salta a una tabla externa: coge la direccion de
+# retorno con `pop hl` y la usa como base, asi que la tabla va pegada detras
+# del `call` y no se vuelve a ella. Hay cinco:
+#   0x40ED  15 palabras, indice = (0xE000)   el estado del juego
+#   0x4164   2 palabras, indice = (0xE001)   submodo del estado 7
+#   0x41AB   2 palabras, indice = (0xE001)   submodo del estado 10
+#   0x421D   9 palabras, indice = (0xE001)   submodo del estado 11
+#   0x4389   4 palabras, indice = (0xE001)   submodo del estado 12
+#
+# ESTE CARTUCHO NO LLEVA LA MARCA OCULTA DE KONAMI (el RC-7xx y el titulo en
+# katakana al final de la ROM, que descubrio Manuel Pazos): no hay un solo
+# RC-7 en ASCII en los 32 KB. El RC-707 sale del catalogo, no del binario.
+
+# ---------------------------------------------------------------------------
+# Los bloques de datos
+# ---------------------------------------------------------------------------
+D 0x4000 0x4010 cabecera  Los dieciseis bytes que lee la BIOS al arrancar la maquina: AB, INIT=0x4010, y los otros tres punteros a cero. Este cartucho no declara STATEMENT, ni DEVICE, ni TEXT.
+F 0x4000 16
+
+D 0x40ED 0x410B tabla_de_estados  Las quince palabras del despachador de 0x408F, pegadas detras del `call` de 0x40EA. El indice es (0xE000), el estado del juego.
+F 0x40ED 2
+D 0x4164 0x4168 tabla_de_submodos_7  Las dos palabras del despachador, detras del `call` de 0x4161. El indice es (0xE001).
+F 0x4164 2
+D 0x41AB 0x41AF tabla_de_submodos_10  Las dos palabras del despachador, detras del `call` de 0x41A8. El indice es (0xE001).
+F 0x41AB 2
+D 0x421D 0x422F tabla_de_submodos_11  Las nueve palabras del despachador, detras del `call` de 0x421A. El indice es (0xE001).
+F 0x421D 2
+D 0x4389 0x4391 tabla_de_submodos_12  Las cuatro palabras del despachador, detras del `call` de 0x4386. El indice es (0xE001).
+F 0x4389 2
+
+# ---------------------------------------------------------------------------
+# LOS DOS INTERPRETES DE PINTADO, y el formato de sus listas
+# ---------------------------------------------------------------------------
+# Casi todos los datos de este cartucho se pintan con uno de estos dos, asi que
+# el formato de la lista es lo que dice donde ACABA cada bloque. Los limites de
+# abajo salen de pasar cada bloque por su interprete, no de mirar los bytes.
+#
+#   FORMATO A - lo lee 0x4099 / 0x409D
+#       [destino_VRAM:2] [bytes...] con 0xFE = viene otro destino, 0xFF = fin.
+#       Los bytes se escriben tal cual entrando por 0x409D (C=0xFF) o
+#       enmascarados con 0 entrando por 0x4099 (C=0x00): la MISMA lista pinta y
+#       borra, segun por donde se entre.
+#
+#   FORMATO B - lo lee 0x468F, y tambien 0x7883
+#       [destino_VRAM:2] [ordenes...] con 0x80 = viene otro destino, 0x00 = fin.
+#       Cada orden es un contador de 7 bits: con el bit 7 puesto copia (n and
+#       0x7F) bytes literales; con el bit 7 limpio repite n veces el byte que
+#       sigue. 0x7883 lee el MISMO formato pero sin destino delante y sacando
+#       a la RAM en tandas de 0x30 bytes, para el volcado girado de 0x46DC.
+#
+# LOS NUMEROS DE TILE SON ASCII DESPLAZADO. La fuente de 0x83B1 son los 48
+# patrones 0xC0-0xEF: 0xC0-0xC9 son los digitos y 0xD1-0xEA son la A a la Z, o
+# sea tile = ASCII + 0x90 para las letras. Por eso los rotulos se leen en claro.
+#
+# EL VDP (registros en 0x4A1A): patrones en 0x0000, patrones de sprite en
+# 0x1800, colores en 0x2000, nombres en 0x3800, atributos de sprite en 0x3B00.
+# Es SCREEN 2 con sprites de 16x16, la misma configuracion que Super Cobra.
+# Las direcciones que se le pasan a SETWRT llevan bits altos que la BIOS tira,
+# asi que 0x6500 es 0x2500 y 0x7942 es 0x3942.
+
+D 0x406D 0x4071 relleno_hasta_la_interrupcion  Cuatro bytes 0xFF para que la rutina de interrupcion caiga exactamente en 0x4071, que es lo que INIT escribe en el gancho H.KEYI.
+D 0x40B2 0x40CA codigo_al_que_no_llega_nadie  Dos rutinas completas y validas a las que no apunta ni un salto ni una llamada en los 32 KB: 0x40B2 pinta 0xE127 en 0x3AE6 con 0x4518, y 0x40BE es una espera de 256x256 vueltas. Se dejan como datos porque nadie las alcanza.
+D 0x446B 0x446F desplazamientos_de_borrado  Cuatro desplazamientos, 0x00 0x80 0x40 0xC0, que 0x4457 saca con el indice de C y suma a la direccion de VRAM 0x3A40 antes de borrar 0x20 bytes.
+F 0x446B 4
+D 0x4708 0x470F lista_de_los_seis_ceros  Lista de formato B que 0x4703 pinta llamando a 0x468F: destino 0x4008, ocho bytes de salida.
+D 0x47B2 0x47B8 punteros_de_los_tres_dibujos  Tres palabras -0x47C2, 0x47D8, 0x47EB- que 0x4791 indexa con A doblado. Cada una es una lista de formato B.
+F 0x47B2 2
+D 0x47B8 0x47C2 lista_de_fondo  Formato B desde 0x4776: borra las filas 10 y 13 de la columna 2.
+D 0x47C2 0x47D8 dibujo_0  Formato B: siete tiles en la fila 11 y siete en la fila 12, columna 2.
+D 0x47D8 0x47EB dibujo_1  Formato B, las mismas dos filas con otro dibujo.
+D 0x47EB 0x47FB dibujo_2  Formato B, las mismas dos filas con el tercer dibujo.
+D 0x4A1A 0x4A22 registros_del_vdp  Los ocho registros del VDP. 0x49FE los copia a 0xE038 y 0x4A10 los escribe uno a uno con WRTVDP subiendo C de 0 a 7: R0=0x02, R1=0xE2, R2=0x0E, R3=0x7F, R4=0x07, R5=0x76, R6=0x03, R7=0xE1.
+F 0x4A1A 8
+D 0x4CE4 0x4CEB rotulo_corto_1  Formato A desde 0x4C7D: cuatro tiles en la fila 16, columna 23.
+D 0x4CEB 0x4CF2 rotulo_corto_2  Formato A desde 0x4C92: cuatro tiles en la fila 16, columna 23 de la linea de arriba.
+D 0x4CF2 0x4D24 dibujo_de_seis_filas  Formato B desde 0x4CB2: seis destinos entre las filas 9 y 14, por la parte derecha de la pantalla.
+D 0x4D24 0x4D36 rotulo_de_tres_trozos  Formato A desde 0x4CC9: tres destinos en las filas 11, 12 y 13.
+D 0x4D36 0x4D3E marca_a  Formato A desde 0x4CD3: un tile en la fila 11 y otro en la fila 13, columna 23.
+D 0x4D3E 0x4D47 marca_b  Formato A desde 0x4CD9: lo mismo con otros tiles.
+D 0x4D47 0x4D58 marca_c  Formato A desde 0x4CE1: cuatro destinos, filas 10 a 13.
+D 0x524C 0x527F patrones_de_sprite  Formato B desde 0x515F: 224 bytes a 0x1800, o sea los patrones de sprite. Es el unico bloque del cartucho que escribe ahi.
+D 0x5A8E 0x5AB6 marcador_de_la_mano  Formato A desde 0x5A6A: seis destinos entre las filas 8 y 14.
+D 0x5AB6 0x5AC4 contador_0  Formato A: cuatro tiles en las filas 10 y 11, columna 10.
+D 0x5AC4 0x5AD2 contador_1  Formato A desde 0x5A8B, mismas dos filas.
+D 0x5AD2 0x5AE0 contador_2  Formato A, mismas dos filas.
+D 0x5AE0 0x5AEE contador_3  Formato A, mismas dos filas.
+D 0x7376 0x7404 dibujo_de_la_cabecera  Formato B desde 0x709D: nueve destinos, las filas 0 a 8 de la columna 8.
+D 0x7416 0x7428 rotulo_de_tres_filas  Formato A desde 0x70BC: tres tiles en cada una de las filas 1, 2 y 3.
+D 0x7451 0x747B rotulo_repetido_seis_veces  Formato A desde 0x730B: el mismo grupo de cuatro tiles en seis sitios de las filas 16, 19 y 22.
+D 0x782C 0x7853 dibujo_de_cinco_filas  Formato B desde 0x76AD: cinco destinos entre las filas 9 y 13.
+D 0x7853 0x7865 rotulo_largo  Formato A desde 0x7702: quince tiles seguidos en la fila 3.
+D 0x785B 0x7865 rotulo_corto  Formato A desde 0x7708: los siete ultimos tiles del bloque anterior, en la fila 12. Los dos rotulos COMPARTEN los mismos bytes; el corto entra por en medio del largo.
+
+# ---------------------------------------------------------------------------
+# La pagina 2: la fuente, los rotulos y los dibujos comprimidos
+# ---------------------------------------------------------------------------
+D 0x83B1 0x8531 fuente_grande  Los 48 patrones de 8x8 de los tiles 0xC0-0xEF: 0xC0-0xC9 son los diez digitos, 0xCA es el circulo del copyright, 0xD0 es el guion, 0xD1-0xEA son la A a la Z y el resto son trazos japoneses. 0x4472 la copia entera a los patrones 0x0600 y 0x448C a los colores 0x2600.
+F 0x83B1 8
+D 0x8531 0x8598 rotulos_del_menu  Formato A desde 0x45DE. Seis destinos: KEYBOARD ONLY (fila 13), PLAY SELECT (fila 16) y las tres dificultades numeradas -1 AMACHUA, 2 SEMIPROFESSIONAL, 3 PROFESSIONAL- en las filas 18, 20 y 22, mas el logotipo con el ano 1984 en la fila 8. El juego escribe el japones en ROMAJI con la fuente latina: AMACHUA es la transcripcion de amateur.
+D 0x8598 0x85BF logotipo_de_tres_filas  Formato A desde 0x43E3: tres filas de diez tiles en las filas 10, 11 y 12, columna 11.
+D 0x85BF 0x85D5 rotulo_video_cartridge  Formato A desde 0x4124 y 0x4134: VIDEO CARTRIDGE entre dos tiles de adorno, en la fila 11 columna 6. Se pinta por 0x409D y se BORRA por 0x4099, con la misma lista.
+D 0x85D5 0x86D6 colores_del_titulo_500  Formato B desde 0x448F: 432 bytes a los colores 0x2500.
+D 0x86D6 0x8799 colores_del_titulo_080  Formato B desde 0x43AA: 264 bytes a los colores 0x2080.
+D 0x8799 0x87B4 patrones_del_titulo_080  Formato B desde 0x43B0: los 264 bytes de patrones que hacen pareja con el bloque de arriba, a 0x0080.
+D 0x87B4 0x8832 nombres_del_titulo  Formato B desde 0x43B9: catorce destinos, las filas 5 a 18 de la columna 6.
+D 0x8832 0x8A78 colores_del_titulo_180  Formato B desde 0x708E: 640 bytes a los colores 0x2180.
+D 0x8A78 0x8A9F patrones_del_titulo_180  Formato B desde 0x7094: los 640 bytes de patrones de la pareja, a 0x0180.
+D 0x8A9F 0x8AD7 patrones_sin_comprimir  Los 56 bytes que 0x6FCD copia tal cual, sin pasar por ningun interprete, a los patrones 0x0818.
+F 0x8A9F 8
+D 0x8AD7 0x90CF colores_del_tablero_900  Formato B desde 0x6FC4: 1792 bytes a los colores 0x2900.
+D 0x90CF 0x90D4 patrones_sueltos_818  Formato B desde 0x6FDC: 56 bytes a los patrones 0x0818.
+D 0x90D4 0x92E3 patrones_del_tablero_900  Formato B desde 0x6FCA: los 1792 bytes de patrones de la pareja, a 0x0900.
+D 0x92E3 0x9343 colores_sin_comprimir  Los 96 bytes que 0x6FF7 copia tal cual a los colores 0x3020.
+F 0x92E3 8
+D 0x9343 0x99F4 colores_del_tercio_de_abajo  Formato B. Se lee DOS VECES y de dos maneras: 0x7003 lo pasa entero por 0x468F a los colores 0x30D0 (1840 bytes de salida), y 0x6FDF entra por 0x93AA, 103 bytes mas adelante, saltandose el prologo, para sacar por 0x7883 los 1728 bytes -36 tandas de 48- que 0x46B1 vuelca GIRADOS. La diferencia son 112 bytes exactos, y los dos caminos acaban en el mismo 0x99F3.
+D 0x99F4 0x99F9 patrones_sueltos_020  Formato B desde 0x700C: 96 bytes a los patrones 0x0020.
+D 0x99F9 0x9C4A patrones_del_tercio_de_abajo  Formato B, la pareja del bloque de colores. 0x700F lo pasa entero a los patrones 0x10D0, y 0x6FEB entra por 0x9A05 -12 bytes mas adelante- para el mismo volcado girado, esta vez por 0x46DC. Otra vez 1840 bytes por un camino y 1728 por el otro, y los dos acaban en 0x9C49.
+
+# ---------------------------------------------------------------------------
+# LAS REGLAS: las tablas que deciden
+# ---------------------------------------------------------------------------
+# Las fichas se codifican en un byte, con el palo en el nibble alto y el numero
+# en el bajo: 0x01-0x09 el primer palo, 0x11-0x19 el segundo, 0x21-0x29 el
+# tercero y 0x31-0x37 los siete honores. 34 codigos, con huecos.
+
+D 0x4FB1 0x4FBF mano_vacia  Catorce bytes 0x38, uno por hueco de la mano. 0x38 es el codigo siguiente al ultimo honor (0x37), o sea "aqui no hay ficha".
+F 0x4FB1 14
+D 0x4FBF 0x4FE1 los_treinta_y_cuatro_tipos  Los 34 codigos de ficha en orden: 0x01-0x09, 0x11-0x19, 0x21-0x29 y 0x31-0x37. Lo leen siete sitios distintos, entre ellos 0x497B, 0x4F8E, 0x674E, 0x7953 y 0x7ABC.
+F 0x4FBF 34
+D 0x59B3 0x59EB indice_por_codigo_de_ficha  La tabla INVERSA de la anterior: indexada por el codigo de ficha da 0..33 sin huecos ni repetidos, y los huecos del codigo (0x0A-0x10, 0x1A-0x20, 0x2A-0x30) valen 0. La lee 0x59A4.
+F 0x59B3 8
+D 0x6560 0x656D los_trece_terminales_y_honores  Los trece codigos que no son fichas de en medio: 0x01 y 0x09, 0x11 y 0x19, 0x21 y 0x29 -el uno y el nueve de cada palo- y los siete honores 0x31-0x37. La lee 0x6549.
+F 0x6560 13
+D 0x7CD5 0x7CDE los_nueve_comienzos_de_escalera  0x01 0x04 0x07, 0x11 0x14 0x17 y 0x21 0x24 0x27: los tres sitios por donde puede empezar una escalera en cada uno de los tres palos. La lee 0x7CC4.
+F 0x7CD5 9
+D 0x4968 0x4976 mano_de_ejemplo  Catorce codigos de ficha validos, uno por hueco de la mano, que 0x495C carga de golpe. Es una mano fija metida en la ROM.
+F 0x4968 14
+D 0x49A6 0x49C6 dos_repartos_fijos  Dos tiras de quince codigos de ficha: 0x4171 guarda la primera en 0xE06A y 0x4177 la segunda en 0xE06C, las dos al entrar en el estado 7.
+F 0x49A6 16
+D 0x4AE0 0x4AE8 tabla_de_teclas  Ocho bytes, 0x40 0x60 0x00 0x50 y cuatro ceros, que 0x4ACC indexa con la fila de teclado ya reducida. El cero significa "esa tecla no hace nada".
+F 0x4AE0 8
+D 0x4AE8 0x4B50 tabla_del_estado_7  Ciento cuatro bytes que 0x416B guarda en 0xE066 al entrar en el estado 7. Los valores son 0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x18, 0x20, 0x30 y 0x38.
+D 0x4735 0x476F cuatro_filas_de_posiciones  Cuatro filas de 16 bytes con diez valores utiles cada una, que bajan de seis en seis: 0xFA..0xC4, 0x88..0x58, 0xBE..0x8E y 0x52..0x28. La lee 0x472C indexando con A. Son las cuatro orientaciones de la mesa.
+F 0x4735 16
+D 0x5350 0x535E multiplos_de_dieciseis  Los catorce multiplos de 0x10, de 0x10 a 0xE0, uno por hueco de la mano. Lo leen siete sitios: 0x5327, 0x53EB, 0x57CB, 0x6A7B, 0x6A89, 0x6B48 y 0x6B6E.
+F 0x5350 14
+D 0x51F4 0x524C atributos_de_sprite  Veintidos registros de cuatro bytes que 0x5151 y 0x5162 mandan a la tabla de atributos de sprite. 0x5162 entra por el registro cuatro (0x5204).
+F 0x51F4 4
+D 0x7404 0x7416 rotulo_de_tres_filas_b  Formato A: tres tiles en cada una de las filas 1, 2 y 3, la version alterna del bloque de 0x7416.
+D 0x7428 0x7451 siete_rotulos_cortos  Siete tiras de numeros de tile terminadas en 0xFF, cada una apuntada por su cuenta desde 0x72C9-0x7302: 0x7428, 0x742F, 0x7436, 0x743D, 0x7444, 0x744B y 0x744E.
+D 0x7865 0x7883 tres_dibujos_de_la_fila_11  Tres listas de formato A de diez bytes, las tres al mismo destino 0x3962. No las apunta ningun inmediato: se llega a ellas calculando.
+
+# ---------------------------------------------------------------------------
+# LA PUNTUACION. Todo en BCD y en centenas de punto: 0x0116 son 11.600 puntos.
+# ---------------------------------------------------------------------------
+# Las cifras coinciden EXACTAMENTE con la tabla estandar del mahjong japones.
+# Eso es lo que permite leer las filas: la primera fila de cada mitad es la de
+# 20 fu (donde 1 han no existe y por eso vale cero), y de ahi para abajo 30, 40,
+# 50, 60, 70, 80 y 90 fu, con una novena fila que ya es el tope.
+
+D 0x5C97 0x5CA9 punteros_de_puntuacion_del_que_reparte  Nueve palabras, 0x5CBB a 0x5CFB de ocho en ocho. 0x5B36 las usa cuando el bit 0 de 0xE04E esta a cero.
+F 0x5C97 2
+D 0x5CA9 0x5CBB punteros_de_puntuacion_del_resto  Las otras nueve, 0x5D03 a 0x5D43. Las usa 0x5B3B.
+F 0x5CA9 2
+D 0x5CBB 0x5D03 pagos_del_que_reparte  Nueve filas de cuatro palabras: el pago por 1, 2, 3 y 4 han. 20 fu da 0/2.000/3.900/7.700; 30 fu da 1.500/2.900/5.800/11.600; y asi hasta 90 fu. La novena fila es 12.000 en las cuatro, el tope del que reparte.
+F 0x5CBB 8
+D 0x5D03 0x5D4B pagos_del_resto  Las mismas nueve filas para quien no reparte: 20 fu da 0/1.300/2.600/5.200, 30 fu da 1.000/2.000/3.900/7.700, y el tope es 8.000.
+F 0x5D03 8
+D 0x5D4B 0x5D5D topes_del_que_reparte  Nueve palabras: 12.000, 18.000, 18.000, 24.000, 24.000, 24.000, 36.000, 36.000 y 36.000. Los cuatro escalones de mano limite, cada uno repetido las veces que hace falta para que el indice de han caiga en el suyo. La lee 0x5B7D.
+F 0x5D4B 2
+D 0x5D5D 0x5D6F topes_del_resto  Las mismas nueve, para quien no reparte: 8.000, 12.000, 12.000, 16.000, 16.000, 16.000, 24.000, 24.000 y 24.000. La lee 0x5B82.
+F 0x5D5D 2
+D 0x5D6F 0x5D79 mano_maxima_del_que_reparte  Cinco palabras: 48.000, 96.000, 144.000, 192.000 y 240.000, o sea de una a cinco manos maximas. La lee 0x5B61.
+F 0x5D6F 2
+D 0x5D79 0x5D83 mano_maxima_del_resto  32.000, 64.000, 96.000, 128.000 y 160.000. La lee 0x5B66.
+F 0x5D79 2
+D 0x5D83 0x5D95 punteros_de_pago_al_robar  Nueve palabras, 0x5D95 a 0x5DD5 de ocho en ocho. La lee 0x5BAF.
+F 0x5D83 2
+D 0x5D95 0x5DDD pagos_al_robar  Nueve filas de cuatro palabras con lo que paga CADA jugador cuando se gana robando: 0/700/1.300/2.600 a 20 fu, 500/1.000/2.000/3.900 a 30 fu, y el tope en 4.000.
+F 0x5D95 8
+D 0x5DDD 0x5DEF topes_al_robar  Nueve palabras: 4.000, 6.000, 6.000, 8.000, 8.000, 8.000, 12.000, 12.000 y 12.000. Es la parte que le toca al que reparte en las manos limite. La lee 0x5BD6.
+F 0x5DDD 2
+D 0x5DEF 0x5DF9 mano_maxima_al_robar  Cinco palabras: 16.000, 32.000, 48.000, 64.000 y 80.000. La lee 0x5BCF.
+F 0x5DEF 2
+
+# ---------------------------------------------------------------------------
+# EL SONIDO
+# ---------------------------------------------------------------------------
+D 0x9CA3 0x9CE5 punteros_de_sonido  La tabla de sonidos que 0x9C82 indexa con `ld de,0x9CA1` y el numero de sonido doblado. LA ENTRADA 0 CAE SOBRE EL CODIGO: 0x9CA1 y 0x9CA2 son los dos ultimos bytes de la rutina de arriba (0x10 0xE8 del `djnz` y el 0xC9 del `ret`), asi que el sonido 0 leeria 0xC9E8, fuera del cartucho. No se puede pedir, y no lo pide nadie. Las entradas de la 1 a la 33 estan aqui, y las tres ultimas (31, 32 y 33) apuntan al mismo sitio.
+F 0x9CA3 2
+D 0x9CE5 0x9E86 datos_de_sonido  Los treinta y tres sonidos, uno detras de otro, tal como los apunta la tabla de arriba.
+D 0x9FD9 0x9FE5 periodos_de_los_doce_semitonos  Los doce divisores de un semitono: 0x6A, 0x64, 0x5F, 0x59, 0x54, 0x50, 0x4B, 0x47, 0x43, 0x3F, 0x3C y 0x38. 0x9FBB los indexa con la nota y 0x9FCB los dobla tantas veces como diga (IX+5), o sea que ese registro cuenta octavas HACIA ABAJO: cuanto mas se dobla el periodo, mas grave suena. El resultado va al PSG con WRTPSG.
+F 0x9FD9 12
+D 0x9FE5 0xC000 relleno_del_final  8.219 bytes de 0xFF seguidos, de 0x9FE5 a 0xBFFF: el banco entero de 8 KB de la pagina 2 mas 27 bytes. Ni una instruccion del cartucho apunta ahi. El contenido acaba en 0x9FE4, veintisiete bytes antes de la frontera de los 24 KB, o sea que el programa se escribio para caber en 24 KB. Lo que el binario NO dice es que chip llevaba el cartucho: 0xFF es lo que devuelve tanto una EPROM sin grabar como un bus sin conectar.
+
+D 0x4BB0 0x4C43 colores_del_menu_200  Formato B SIN cabecera de destino: 0x4B5B llama a la entrada 0x4693 (tres bytes dentro de 0x468F, saltandose el `ld e,(hl)/ld d,(hl)` que lee el destino) con DE=0x6200 puesto a mano, o sea que este bloque son solo ORDENES, sin los dos bytes de VRAM delante. Descomprime a 208 bytes en los colores 0x2200. Justo detras, 0x4B64 rellena los patrones 0x0200 con el byte fijo 0xF0 repetido 208 veces (`ld de,0x0200 / ld bc,0xD0 / ld a,0xF0 / call 0x45F6`): mismo tercio, mismo tamano, patron solido en vez de comprimido.
+D 0x7AEA 0x7AF8 mano_de_ejemplo_2  Catorce bytes que 0x78DD copia con LDIR a partir de 0xE21C, el mismo formato de mano que 0x4968: 0x32 0x39 0x08 0x08 0x17 0x17 0x25 0x25 0x33 0x33 0x13 0x13 0x21 0x21. El byte 0x39 en la segunda posicion NO es un codigo de ficha valido (el 0x38 ya es "hueco vacio"), y justo despues 0x7AAD sobreescribe el hueco de indice 11 con otro 0x39: dos huecos de los catorce quedan marcados igual, y los otros doce forman SEIS parejas (0x08, 0x17, 0x25, 0x33, 0x13, 0x21, cada uno dos veces). Es SUPOSICION, no confirmada: podria ser una mano de siete parejas (chiitoitsu) con dos huecos por rellenar en tiempo real.
+
+D 0x747B 0x7642 nombres_de_las_jugadas  Treinta y nueve registros de texto en la fuente katakana (tiles 0x30-0x7F), cada uno terminado en 0xFF. El primero (indice 0) es un registro VACIO -un solo 0xFF-, la entrada "ninguna jugada". Dentro de cada registro los bytes 0x01 y 0x00 aparecen como separadores, y el byte que va justo antes del 0xFF final toma solo los valores 0x11, 0x12, 0x13 o 0x15 segun el registro: es SUPOSICION, sin confirmar, que sea el numero de han de la jugada.
+D 0x7642 0x7690 tabla_de_punteros_de_jugadas  Las 39 palabras que indexan el bloque de arriba. 0x70E7 la usa doblando A (el numero de jugada, 0-38) antes de sumarlo con 0x4063.
+F 0x7642 2
+D 0x7690 0x76A6 tabla_de_filas_del_marcador  Once palabras con direcciones de VRAM (fila de nombres), de 0x39E4 a 0x3AA6. 0x7186 la indexa con (0xE1D8) doblado; el mismo bloque, desde su quinta entrada (0x769A), lo vuelve a indexar 0x7320 con (0xE32A) doblado.
+F 0x7690 2
