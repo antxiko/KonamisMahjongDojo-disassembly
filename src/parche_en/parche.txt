@@ -648,3 +648,27 @@ f19 c10  {01 01 01 09}
 f19 c22  {01 01 01 09}
 f22 c10  {01 01 01 09}
 f22 c22  {01 01 01 09}
+
+
+# =========================================================================
+# EL ROTULO DEL FINAL DE LA PARTIDA
+# =========================================================================
+# Al acabar la partida el cartucho pone 終局 (shuukyoku, fin de la partida) en
+# dos kanji de 24x24, en las filas 10 a 12 y las columnas 12-14 y 17-19. Son
+# DIECIOCHO tiles (0x10-0x21), que es justo lo que ocupan tres letras de dos
+# tiles de ancho por tres de alto: END entra exacto, y sobra sitio a los lados
+# para centrarlo en las diez celdas del rotulo.
+
+[patrones DATA_patrones_del_final_080 base=rom destino=0x6080 tiles=0x10-0x30]
+10-15 E@final
+16-1B N@final
+1C-21 D@final
+
+# Las tres filas del rotulo, con las diez celdas escritas enteras para que no
+# quede nada del kanji a los lados, y una celda en blanco entre letra y letra:
+# 1+2+1+2+1+2+1 = 10 clavadas.
+
+[formatoA DATA_logotipo_de_tres_filas]
+f10 c11  {01 10 11 01 16 17 01 1C 1D 01}
+f11 c11  {01 12 13 01 18 19 01 1E 1F 01}
+f12 c11  {01 14 15 01 1A 1B 01 20 21 01}
