@@ -510,3 +510,72 @@ f10 c17 {01 01 01 01 01 01 01}
 f11 c17  "      DRAW      "
 f12 c17  "      GAME      "
 f13 c17 {01 01 01 01 01 01 01}
+
+# =========================================================================
+# EL LOGO DEL TITULO
+# =========================================================================
+# El cartucho pone ahi 麻雀道場 (Mahjong Dojo) en cuatro kanji de 32x24, con
+# los tiles 0xA0-0xD5 del tercio 0: dieciocho columnas por tres filas, o sea
+# un lienzo de 144x24 pixeles. Aqui va el nombre en letras latinas, al estilo
+# de los logos de Konami de esos anos.
+#
+# Los tiles van ordenados POR COLUMNAS -A0 es f4c7, A1 f5c7, A2 f6c7 y A3
+# vuelve arriba en la c8-, que no es como reparte los glifos grandes la
+# seccion [patrones]; por eso el troceado lo hace tools/dibuja_logo.py y aqui
+# van los patrones ya cortados. Se regenera, no se edita a mano.
+
+[patrones DATA_patrones_del_titulo_500 base=rom destino=0x6500 tiles=0xA0-0xD5]
+A0 {00 00 E0 E0 F1 F1 FB FB}
+A1 {EE EE E4 E0 E0 E0 E0 E0}
+A2 {E0 E0 E0 E0 E0 E0 00 00}
+A3 {00 00 E0 E1 E1 E3 E3 E7}
+A4 {E7 EE EE EF EF EF EE EE}
+A5 {EE EE EE EE EE EE 00 00}
+A6 {00 00 E0 F0 F0 B8 B8 1C}
+A7 {1C 0E 0E FE FE FE 0E 0E}
+A8 {0E 0E 0E 0E 0E 0E 00 00}
+A9 {00 00 E0 E0 E0 E0 E0 E0}
+AA {E0 E0 FF FF FF E0 E0 E0}
+AB {E0 E0 E0 E0 E0 E0 00 00}
+AC {00 00 E0 E0 E0 E0 E0 E0}
+AD {E0 E0 E0 E0 E0 E0 E0 EE}
+AE {EE EE EF E7 E3 E1 00 00}
+AF {00 00 3E 3E 3E 1E 1E 1E}
+B0 {1E 1E 1E 1E 1E 1E 1E 1E}
+B1 {1E 3E 7C F8 F0 E0 00 00}
+B2 {00 00 1F 3F 7B 71 E0 E0}
+B3 {E0 E0 E0 E0 E0 E0 E0 E0}
+B4 {E0 E0 71 7B 3F 1F 00 00}
+B5 {00 00 0E 8F CF CF EF EE}
+B6 {EE EE EE EE EE EE EE EE}
+B7 {EE EE CE CE 8E 0E 00 00}
+B8 {00 00 0E 0E 0E 8E 8E CE}
+B9 {CE 6E 6E 3E 3E 1E 1E 0E}
+BA {0E 0E 0E 0E 0E 0E 00 00}
+BB {00 00 1F 3F 7B 71 E0 E0}
+BC {E0 E0 E0 E7 E7 E7 E0 E0}
+BD {E0 E0 71 7B 3F 1F 00 00}
+BE {00 00 00 80 C0 C0 E0 00}
+BF {00 00 00 E0 E0 E0 E0 E0}
+C0 {E0 E0 C0 C0 80 00 00 00}
+C1 {00 00 00 00 00 00 00 00}
+C2 {00 00 00 00 00 00 00 00}
+C3 {00 00 00 00 00 00 00 00}
+C4 {00 00 FF FF E3 E1 E0 E0}
+C5 {E0 E0 E0 E0 E0 E0 E0 E0}
+C6 {E0 E0 E1 E3 FF FF 00 00}
+C7 {00 00 01 83 C7 C7 EE EE}
+C8 {EE EE EE EE EE EE EE EE}
+C9 {EE EE C7 C7 83 01 00 00}
+CA {00 00 F0 F8 BC 1C 0E 0E}
+CB {0E 0E 0E 0E 0E 0E 0E 0E}
+CC {0E 0E 1C BC F8 F0 00 00}
+CD {00 00 03 03 03 01 01 01}
+CE {01 01 01 01 01 01 01 E1}
+CF {E1 E3 F7 7F 3F 1E 00 00}
+D0 {00 00 E1 E3 E7 E7 EE EE}
+D1 {EE EE EE EE EE EE EE EE}
+D2 {EE EE C7 87 03 01 00 00}
+D3 {00 00 F0 F8 BC 1C 0E 0E}
+D4 {0E 0E 0E 0E 0E 0E 0E 0E}
+D5 {0E 0E 1C BC F8 F0 00 00}
