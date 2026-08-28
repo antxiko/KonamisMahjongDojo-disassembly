@@ -504,12 +504,26 @@ f12 c2  "  PENALTY HAND"
 # las filas 9 a 13; el japones pone ahi 流局 en dos kanji de 16x16, que en
 # ingles caben centrados en dos lineas.
 
-[formatoB DATA_cartel_de_ryuukyoku charset=digrafos]
-f9 c20  {01 01}
-f10 c17 {01 01 01 01 01 01 01}
+# EL BORRADO NO PUEDE SER EL DEL CARTUCHO. El japones tapaba justo lo que
+# habia: la caja borraba dos celdas en la f9 (ウラ) y siete desde la c17 en la
+# f10 (las dos ドラ). En ingles esos rotulos ocupan otras celdas -DORA en
+# c16-c19 de la f10, URA en c20-c22 de la f9 y el segundo DORA en c20-c23 de la
+# f14, que ya esta debajo de la caja-, asi que con el borrado original quedaban
+# a la vista una "D" pegada a EAST 1, una "A" suelta encima de la caja y un
+# DORA colgando debajo. Medido en el emulador: work/parche/draw_game_antes.png.
+# Aqui se borran tres celdas en la f9, ocho desde la c16 en la f10 y las cuatro
+# del DORA de la f14.
+#
+# Con eso son 40 bytes y el hueco son 39, asi que el bloque se reubica y se
+# reapunta el `ld hl,0782ch` de cierra_la_mano_sin_ganador.
+
+[formatoB DATA_cartel_de_ryuukyoku charset=digrafos reubica=cierra_la_mano_sin_ganador]
+f9 c20  {01 01 01}
+f10 c16 {01 01 01 01 01 01 01 01}
 f11 c17  "      DRAW      "
 f12 c17  "      GAME      "
 f13 c17 {01 01 01 01 01 01 01}
+f14 c20 {01 01 01 01}
 
 # =========================================================================
 # EL LOGO DEL TITULO
