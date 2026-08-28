@@ -67,9 +67,15 @@ F 0x4389 2
 # patrones 0xC0-0xEF: 0xC0-0xC9 son los digitos y 0xD1-0xEA son la A a la Z, o
 # sea tile = ASCII + 0x90 para las letras. Por eso los rotulos se leen en claro.
 #
-# EL VDP (registros en 0x4A1A): patrones en 0x0000, patrones de sprite en
-# 0x1800, colores en 0x2000, nombres en 0x3800, atributos de sprite en 0x3B00.
-# Es SCREEN 2 con sprites de 16x16, la misma configuracion que Super Cobra.
+# EL VDP (registros en 0x4A1A): COLORES en 0x0000 (R3 = 0x7F), patrones de
+# sprite en 0x1800, PATRONES en 0x2000 (R4 = 0x07), nombres en 0x3800 y
+# atributos de sprite en 0x3B00. Es SCREEN 2 con sprites de 16x16, pero con
+# las dos tablas grandes AL REVES de lo habitual: R3 = 0x7F es la tabla de
+# colores en 0x0000 y R4 = 0x07 la de patrones en 0x2000 (lo corriente, 0xFF
+# y 0x03, las pondria al reves). CORREGIDO el 2026-08-28: hasta entonces estas
+# notas llamaban colores a los patrones y patrones a los colores en todos los
+# bloques de abajo. La prueba esta en 0x8832, que va a 0x2180 y descomprimido
+# es la fuente katakana, y en 0x8A78, que va a 0x0180 y son 640 bytes de 0xF1.
 # Las direcciones que se le pasan a SETWRT llevan bits altos que la BIOS tira,
 # asi que 0x6500 es 0x2500 y 0x7942 es 0x3942.
 
@@ -100,36 +106,36 @@ D 0x5AC4 0x5AD2 contador_1  Formato A desde 0x5A8B, mismas dos filas.
 D 0x5AD2 0x5AE0 contador_2  Formato A, mismas dos filas.
 D 0x5AE0 0x5AEE contador_3  Formato A, mismas dos filas.
 D 0x7376 0x7404 dibujo_de_la_cabecera  Formato B desde 0x709D: nueve destinos, las filas 0 a 8 de la columna 8.
-D 0x7416 0x7428 rotulo_de_tres_filas  Formato A desde 0x70BC: tres tiles en cada una de las filas 1, 2 y 3.
-D 0x7451 0x747B rotulo_repetido_seis_veces  Formato A desde 0x730B: el mismo grupo de cuatro tiles en seis sitios de las filas 16, 19 y 22.
+D 0x7416 0x7428 kanji_del_que_no_reparte  Formato A: los tiles 0x79-0x7F en el mismo sitio, el caracter de 24x24 que 0x70B9 elige cuando el ganador NO es el que reparte (0xE04E = 1). SUPOSICION por el uso: el kanji de ko, el hijo.
+D 0x7451 0x747B marcos_de_los_fu  Formato A desde 0x730B: el mismo marco de cuatro celdas -tile 0x26, dos blancos, tile 0x27- en seis sitios de las filas 16, 19 y 22, columnas 10 y 22. Son los huecos donde 0x7320 escribe los fu de cada figura del recuento.
 D 0x782C 0x7853 dibujo_de_cinco_filas  Formato B desde 0x76AD: cinco destinos entre las filas 9 y 13.
-D 0x7853 0x7865 rotulo_largo  Formato A desde 0x7702: quince tiles seguidos en la fila 3.
-D 0x785B 0x7865 rotulo_corto  Formato A desde 0x7708: los siete ultimos tiles del bloque anterior, en la fila 12. Los dos rotulos COMPARTEN los mismos bytes; el corto entra por en medio del largo.
+D 0x7853 0x785B punteros_de_los_avisos_del_final  Cuatro palabras -0x7865, 0x786F, 0x7879 y otra vez 0x7879- que 0x76F8 indexa con (0xE1AC & 7) doblado para elegir el aviso de la fila 11 cuando la mano acaba con penalizacion (0x76D9). CORRIGE la lectura anterior, que lo tomaba por un rotulo de quince tiles.
+D 0x785B 0x7865 rotulo_de_la_fila_12  Formato A desde 0x7705: siete tiles en la fila 12, columna 2, que salen debajo del aviso de la fila 11 cuando la mano acaba con penalizacion.
 
 # ---------------------------------------------------------------------------
 # La pagina 2: la fuente, los rotulos y los dibujos comprimidos
 # ---------------------------------------------------------------------------
-D 0x83B1 0x8531 fuente_grande  Los 48 patrones de 8x8 de los tiles 0xC0-0xEF: 0xC0-0xC9 son los diez digitos, 0xCA es el circulo del copyright, 0xD0 es el guion, 0xD1-0xEA son la A a la Z y el resto son trazos japoneses. 0x4472 la copia entera a los patrones 0x0600 y 0x448C a los colores 0x2600.
+D 0x83B1 0x8531 fuente_grande  Los 48 patrones de 8x8 de los tiles 0xC0-0xEF: 0xC0-0xC9 son los diez digitos, 0xCA es el circulo del copyright, 0xD0 es el guion, 0xD1-0xEA son la A a la Z y el resto son trazos japoneses. 0x4472 la copia entera a los colores 0x0600 y 0x448C a los patrones 0x2600: el mismo bloque a las dos tablas.
 F 0x83B1 8
 D 0x8531 0x8598 rotulos_del_menu  Formato A desde 0x45DE. Seis destinos: KEYBOARD ONLY (fila 13), PLAY SELECT (fila 16) y las tres dificultades numeradas -1 AMACHUA, 2 SEMIPROFESSIONAL, 3 PROFESSIONAL- en las filas 18, 20 y 22, mas el logotipo con el ano 1984 en la fila 8. El juego escribe el japones en ROMAJI con la fuente latina: AMACHUA es la transcripcion de amateur.
 D 0x8598 0x85BF logotipo_de_tres_filas  Formato A desde 0x43E3: tres filas de diez tiles en las filas 10, 11 y 12, columna 11.
 D 0x85BF 0x85D5 rotulo_video_cartridge  Formato A desde 0x4124 y 0x4134: VIDEO CARTRIDGE entre dos tiles de adorno, en la fila 11 columna 6. Se pinta por 0x409D y se BORRA por 0x4099, con la misma lista.
-D 0x85D5 0x86D6 colores_del_titulo_500  Formato B desde 0x448F: 432 bytes a los colores 0x2500.
-D 0x86D6 0x8799 colores_del_titulo_080  Formato B desde 0x43AA: 264 bytes a los colores 0x2080.
-D 0x8799 0x87B4 patrones_del_titulo_080  Formato B desde 0x43B0: los 264 bytes de patrones que hacen pareja con el bloque de arriba, a 0x0080.
+D 0x85D5 0x86D6 patrones_del_titulo_500  Formato B desde 0x448F: 432 bytes a los patrones 0x2500.
+D 0x86D6 0x8799 patrones_del_titulo_080  Formato B desde 0x43AA: 264 bytes a los patrones 0x2080: los tiles 0x10-0x30, entre ellos los trozos con los que se escriben los rotulos de la espera (0x7428).
+D 0x8799 0x87B4 colores_del_titulo_080  Formato B desde 0x43B0: los 264 bytes de colores que hacen pareja con el bloque de arriba, a 0x0080.
 D 0x87B4 0x8832 nombres_del_titulo  Formato B desde 0x43B9: catorce destinos, las filas 5 a 18 de la columna 6.
-D 0x8832 0x8A78 colores_del_titulo_180  Formato B desde 0x708E: 640 bytes a los colores 0x2180.
-D 0x8A78 0x8A9F patrones_del_titulo_180  Formato B desde 0x7094: los 640 bytes de patrones de la pareja, a 0x0180.
-D 0x8A9F 0x8AD7 patrones_sin_comprimir  Los 56 bytes que 0x6FCD copia tal cual, sin pasar por ningun interprete, a los patrones 0x0818.
+D 0x8832 0x8A78 fuente_katakana  Formato B desde 0x708E: 640 bytes a los patrones 0x2180, o sea LOS TILES 0x30-0x7F: LA FUENTE KATAKANA con la que se escriben los nombres de las jugadas. 0x30-0x5D son ア a ン en orden gojuon, 0x5E y 0x5F el dakuten y el handakuten como tile aparte, 0x60 el punto, 0x61 el alargamiento, 0x63-0x66 las pequenas ッ ャ ュ ョ, y de 0x70 en adelante los trozos de los dos kanji de 3x3 del recuento. Descomprimida en work/fuente_katakana_patrones.bin.
+D 0x8A78 0x8A9F colores_de_la_fuente_katakana  Formato B desde 0x7094: 640 bytes a los colores 0x0180, todos 0xF1, blanco sobre negro, para los tiles 0x30-0x7F. Es lo que habia en work/fuente_katakana.bin, tomado por la fuente.
+D 0x8A9F 0x8AD7 patrones_sueltos_2818  Los 56 bytes que 0x6FCD copia tal cual, sin pasar por ningun interprete, a los patrones 0x2818: los tiles 3 a 9 del segundo tercio.
 F 0x8A9F 8
-D 0x8AD7 0x90CF colores_del_tablero_900  Formato B desde 0x6FC4: 1792 bytes a los colores 0x2900.
-D 0x90CF 0x90D4 patrones_sueltos_818  Formato B desde 0x6FDC: 56 bytes a los patrones 0x0818.
-D 0x90D4 0x92E3 patrones_del_tablero_900  Formato B desde 0x6FCA: los 1792 bytes de patrones de la pareja, a 0x0900.
-D 0x92E3 0x9343 colores_sin_comprimir  Los 96 bytes que 0x6FF7 copia tal cual a los colores 0x3020.
+D 0x8AD7 0x90CF patrones_del_tablero_900  Formato B desde 0x6FC4: 1792 bytes a los patrones 0x2900.
+D 0x90CF 0x90D4 colores_sueltos_818  Formato B desde 0x6FDC: 56 bytes a los colores 0x0818, la pareja del bloque de 0x8A9F.
+D 0x90D4 0x92E3 colores_del_tablero_900  Formato B desde 0x6FCA: los 1792 bytes de colores de la pareja, a 0x0900.
+D 0x92E3 0x9343 patrones_sin_comprimir_3020  Los 96 bytes que 0x6FF7 copia tal cual a los patrones 0x3020.
 F 0x92E3 8
-D 0x9343 0x99F4 colores_del_tercio_de_abajo  Formato B. Se lee DOS VECES y de dos maneras: 0x7003 lo pasa entero por 0x468F a los colores 0x30D0 (1840 bytes de salida), y 0x6FDF entra por 0x93AA, 103 bytes mas adelante, saltandose el prologo, para sacar por 0x7883 los 1728 bytes -36 tandas de 48- que 0x46B1 vuelca GIRADOS. La diferencia son 112 bytes exactos, y los dos caminos acaban en el mismo 0x99F3.
-D 0x99F4 0x99F9 patrones_sueltos_020  Formato B desde 0x700C: 96 bytes a los patrones 0x0020.
-D 0x99F9 0x9C4A patrones_del_tercio_de_abajo  Formato B, la pareja del bloque de colores. 0x700F lo pasa entero a los patrones 0x10D0, y 0x6FEB entra por 0x9A05 -12 bytes mas adelante- para el mismo volcado girado, esta vez por 0x46DC. Otra vez 1840 bytes por un camino y 1728 por el otro, y los dos acaban en 0x9C49.
+D 0x9343 0x99F4 patrones_del_tercio_de_abajo  Formato B. Se lee DOS VECES y de dos maneras: 0x7003 lo pasa entero por 0x468F a los patrones 0x30D0 (1840 bytes de salida), y 0x6FDF entra por 0x93AA, 103 bytes mas adelante, saltandose el prologo, para sacar por 0x7883 los 1728 bytes -36 tandas de 48- que 0x46B1 vuelca GIRADOS. La diferencia son 112 bytes exactos, y los dos caminos acaban en el mismo 0x99F3.
+D 0x99F4 0x99F9 colores_sueltos_020  Formato B desde 0x700C: 96 bytes a los colores 0x0020.
+D 0x99F9 0x9C4A colores_del_tercio_de_abajo  Formato B, la pareja del bloque de patrones. 0x700F lo pasa entero a los colores 0x10D0, y 0x6FEB entra por 0x9A05 -12 bytes mas adelante- para el mismo volcado girado, esta vez por 0x46DC. Otra vez 1840 bytes por un camino y 1728 por el otro, y los dos acaban en 0x9C49.
 
 # ---------------------------------------------------------------------------
 # LAS REGLAS: las tablas que deciden
@@ -155,15 +161,15 @@ F 0x49A6 16
 D 0x4AE0 0x4AE8 tabla_de_dificultad  Ocho bytes, 0x40 0x60 0x00 0x50 y cuatro ceros, que 0x4ACC indexa con la tecla de la fila 0 del teclado ya reducida a 0-7 (`and 0x1E` deja las teclas 1 a 4, `rra` las divide por dos y `dec a` las baja a indice). ESTA TABLA ES LA QUE ARRANCA LA PARTIDA: el valor que sale va a 0xE002, y su bit 6 es lo que distingue partida de demo en 0x40CA y en 0x4A27. Indice 0 (tecla 1) = 0x40, indice 1 (tecla 2) = 0x60, indice 3 (tecla 3) = 0x50; los bits 5 y 4 son la DIFICULTAD (ninguno, bit 5, bit 4), las tres que el titulo rotula AMACHUA, SEMIPROFESSIONAL y PROFESSIONAL. La tecla 4 cae en el indice 7, que vale cero: no hace nada.
 F 0x4AE0 8
 D 0x4AE8 0x4B50 guion_del_demo  EL DEMO NO PIENSA: LEE ESTE GUION. Ciento cuatro bytes que 0x416B guarda en 0xE066 al entrar en el estado 7 y que 0x4A68 va sirviendo en lugar del teclado mientras el bit 6 de 0xE002 este a cero. Por eso el demo es determinista al centesimo desde el encendido (medido: dos pasadas independientes, ver docs/la_partida.md). Los valores son las MISMAS mascaras que arma 0x4A27 leyendo la matriz: bit 0 arriba, bit 1 abajo, bit 2 izquierda, bit 3 derecha, bit 4 espacio, bit 5 select. El formato es de longitud variable y lo decide el nibble bajo: si es cero (0x00, 0x10, 0x20, 0x30) la entrada ocupa UN byte y se sirve una vez cada 64 fotogramas; si no (0x01, 0x02, 0x04, 0x08, 0x18, 0x38) ocupa DOS y el segundo es cuantas veces seguidas se repite. Los ocho ceros del final son el guion agotado: tecla ninguna para siempre.
-D 0x4735 0x476F cuatro_filas_de_posiciones  Cuatro filas de 16 bytes con diez valores utiles cada una, que bajan de seis en seis: 0xFA..0xC4, 0x88..0x58, 0xBE..0x8E y 0x52..0x28. La lee 0x472C indexando con A. Son las cuatro orientaciones de la mesa.
+D 0x4735 0x476F primer_tile_de_cada_ficha  Cuatro filas de 16 bytes con diez valores utiles cada una, que bajan de seis en seis: 0xFA..0xC4, 0x88..0x58, 0xBE..0x8E y 0x52..0x28. La lee 0x472C indexando con el CODIGO DE FICHA (palo en el nibble alto, numero en el bajo), asi que cada fila es un palo -0, 1, 2- y la cuarta son los honores. El valor es el PRIMER TILE del dibujo de la ficha, que son seis tiles seguidos, dos de ancho por tres de alto (0x6F72); por eso bajan de seis en seis. En la fila de los honores el indice 8 (codigo 0x38) es el dorso de la ficha y el 9 (0x39) el hueco vacio. CORRIGE la lectura anterior, que las tomaba por cuatro orientaciones de la mesa.
 F 0x4735 16
 D 0x5350 0x535E multiplos_de_dieciseis  Los catorce multiplos de 0x10, de 0x10 a 0xE0, uno por hueco de la mano. Lo leen siete sitios: 0x5327, 0x53EB, 0x57CB, 0x6A7B, 0x6A89, 0x6B48 y 0x6B6E.
 F 0x5350 14
 D 0x51F4 0x524C atributos_de_sprite  Veintidos registros de cuatro bytes que 0x5151 y 0x5162 mandan a la tabla de atributos de sprite. 0x5162 entra por el registro cuatro (0x5204).
 F 0x51F4 4
-D 0x7404 0x7416 rotulo_de_tres_filas_b  Formato A: tres tiles en cada una de las filas 1, 2 y 3, la version alterna del bloque de 0x7416.
-D 0x7428 0x7451 siete_rotulos_cortos  Siete tiras de numeros de tile terminadas en 0xFF, cada una apuntada por su cuenta desde 0x72C9-0x7302: 0x7428, 0x742F, 0x7436, 0x743D, 0x7444, 0x744B y 0x744E.
-D 0x7865 0x7883 tres_dibujos_de_la_fila_11  Tres listas de formato A de diez bytes, las tres al mismo destino 0x3962. No las apunta ningun inmediato: se llega a ellas calculando.
+D 0x7404 0x7416 kanji_del_que_reparte  Formato A: los nueve tiles 0x70-0x78 de la fuente katakana, tres por fila en las filas 1, 2 y 3, columna 3: un caracter de 24x24. Lo pinta 0x70B0 cuando el ganador ES el que reparte (0xE04E = 0). SUPOSICION por el uso: el kanji de oya, el que reparte.
+D 0x7428 0x7451 rotulos_de_la_espera  Siete tiras de numeros de tile terminadas en 0xFF, de la fuente de trozos (tiles 0x0C-0x27) y no de la katakana, asi que no se leen letra a letra. Las cinco primeras son el TIPO DE ESPERA que elige 0x72B8 por los bits de 0xE1D2: 0x7428 ryanmen (bit 0), 0x742F kanchan (bit 1), 0x7436 penchan (bit 2), 0x743D tanki (bit 3) y 0x7444 shanpon (sin bits). Las dos ultimas, de dos tiles, son la marca del TSUMO (0x744B) y la del RON (0x744E), que 0x72F4 elige por el bit 0 de 0xE1D1.
+D 0x7865 0x7883 tres_avisos_de_la_fila_11  Tres listas de formato A de diez bytes, las tres al mismo destino 0x3962 (fila 11, columna 2), apuntadas por la tabla de 0x7853: el aviso 0 para 0xE1AC = 0 (furiten sobre el propio rio, 0x4833), el 1 para 0xE1AC = 1 (furiten tras el riichi, 0x47FB) y el 2 para 0xE1AC = 2 y 3 (sin jugada al cantar, 0x7B08).
 
 # ---------------------------------------------------------------------------
 # LA PUNTUACION. Todo en BCD y en centenas de punto: 0x0116 son 11.600 puntos.
@@ -208,13 +214,13 @@ D 0x9FD9 0x9FE5 periodos_de_los_doce_semitonos  Los doce divisores de un semiton
 F 0x9FD9 12
 D 0x9FE5 0xC000 relleno_del_final  8.219 bytes de 0xFF seguidos, de 0x9FE5 a 0xBFFF: el banco entero de 8 KB de la pagina 2 mas 27 bytes. Ni una instruccion del cartucho apunta ahi. El contenido acaba en 0x9FE4, veintisiete bytes antes de la frontera de los 24 KB, o sea que el programa se escribio para caber en 24 KB. Lo que el binario NO dice es que chip llevaba el cartucho: 0xFF es lo que devuelve tanto una EPROM sin grabar como un bus sin conectar.
 
-D 0x4BB0 0x4C43 colores_del_menu_200  Formato B SIN cabecera de destino: 0x4B5B llama a la entrada 0x4693 (tres bytes dentro de 0x468F, saltandose el `ld e,(hl)/ld d,(hl)` que lee el destino) con DE=0x6200 puesto a mano, o sea que este bloque son solo ORDENES, sin los dos bytes de VRAM delante. Descomprime a 208 bytes en los colores 0x2200. Justo detras, 0x4B64 rellena los patrones 0x0200 con el byte fijo 0xF0 repetido 208 veces (`ld de,0x0200 / ld bc,0xD0 / ld a,0xF0 / call 0x45F6`): mismo tercio, mismo tamano, patron solido en vez de comprimido.
-D 0x7AEA 0x7AF8 mano_de_ejemplo_2  Catorce bytes que 0x78DD copia con LDIR a partir de 0xE21C, el mismo formato de mano que 0x4968: 0x32 0x39 0x08 0x08 0x17 0x17 0x25 0x25 0x33 0x33 0x13 0x13 0x21 0x21. El byte 0x39 en la segunda posicion NO es un codigo de ficha valido (el 0x38 ya es "hueco vacio"), y justo despues 0x7AAD sobreescribe el hueco de indice 11 con otro 0x39: dos huecos de los catorce quedan marcados igual, y los otros doce forman SEIS parejas (0x08, 0x17, 0x25, 0x33, 0x13, 0x21, cada uno dos veces). Es SUPOSICION, no confirmada: podria ser una mano de siete parejas (chiitoitsu) con dos huecos por rellenar en tiempo real.
+D 0x4BB0 0x4C43 patrones_del_menu_200  Formato B SIN cabecera de destino: 0x4B5B llama a la entrada 0x4693 (tres bytes dentro de 0x468F, saltandose el `ld e,(hl)/ld d,(hl)` que lee el destino) con DE=0x6200 puesto a mano, o sea que este bloque son solo ORDENES, sin los dos bytes de VRAM delante. Descomprime a 208 bytes en los patrones 0x2200. Justo detras, 0x4B64 rellena los colores 0x0200 con el byte fijo 0xF0 repetido 208 veces (`ld de,0x0200 / ld bc,0xD0 / ld a,0xF0 / call 0x45F6`): mismo tercio, mismo tamano, color fijo en vez de comprimido.
+D 0x7AEA 0x7AF8 mano_de_la_maquina_en_el_demo  LA MANO DEL JUGADOR 2 EN EL DEMO: catorce bytes que 0x78DD copia a 0xE21C sin sortear nada, y que 0x4DA9 pasa a la mano de trabajo. Seis parejas (0x08, 0x17, 0x25, 0x33, 0x13 y 0x21), un sur (0x32) y un 0x39, el hueco vacio, que al ordenar cae al final: trece fichas, siete parejas a falta de la del sur. En el demo no pasa por 0x7AAD, que solo corre con partida, asi que el hueco es este y no el de indice 11. CORRIGE la nota anterior, que lo tomaba por un ejemplo con dos huecos.
 
-D 0x747B 0x7642 nombres_de_las_jugadas  Treinta y nueve registros de texto en la fuente katakana (tiles 0x30-0x7F), cada uno terminado en 0xFF. El primero (indice 0) es un registro VACIO -un solo 0xFF-, la entrada "ninguna jugada". Dentro de cada registro los bytes 0x01 y 0x00 aparecen como separadores, y el byte que va justo antes del 0xFF final toma solo los valores 0x11, 0x12, 0x13 o 0x15 segun el registro: es SUPOSICION, sin confirmar, que sea el numero de han de la jugada.
+D 0x747B 0x7642 nombres_de_las_jugadas  LOS 39 NOMBRES DE JUGADA, en la fuente katakana de 0x8832 (tiles 0x30-0x7F: 0x30-0x5D son ア a ン en orden gojuon, 0x5E y 0x5F el dakuten y el handakuten como tile aparte, 0x60 el punto, 0x61 el alargamiento, 0x63-0x66 las pequenas ッ ャ ュ ョ), cada registro terminado en 0xFF y el 0 vacio. Leidos tile a tile, y el indice es el que usa 0x82E6 al apuntar la jugada: 1 テンホー tenhou, 2 チーホー chiihou (y tambien el renhou de 0x82E3), 3 コクシムソウ kokushi musou, 4 ツーイーソウ tsuuiisou, 5 ダイスウシー daisuushii, 6 ダイサンゲン daisangen, 7 チューレンポートー chuuren poutou, 8 チンロートウ chinroutou, 9 リューイーソウ ryuuiisou, 10 スーアンコウ suuankou, 11 スーカンツ suukantsu; y del 12 en adelante, con su han ABIERTO como ultimo tile (0x11 = 1, 0x12 = 2, 0x13 = 3, 0x15 = 5): 12 ダブルリーチ 2, 13 リーチ 1, 14 リーチソク 2 (riichi con ippatsu, que el cartucho llama soku), 15 ダブルリーチソク 3, 16 メンゼン ツモ 1, 17 チンイツ 5, 18 リャンペイコウ 3, 19 サンシキドウコウ 3, 20 チートイ 2, 21 ホンイツ 2, 22 トイトイ 2, 23 ジュンチャン 2, 24 サンアンコウ 2, 25 サンカンツ 2, 26 ショウサンゲン 2, 27 ホンロートウ 2, 28 ピンフ 1, 29 タンヤオ 1, 30 イーペーコウ 1, 31 イッツウ 1, 32 サンシキ 1, 33 チャンタ 1, 34 ヤクハイ 1, 35 ハイテイ ツモ 2, 36 ハイテイ フリコミ 1, 37 リンシャンカイホウ 1 y 38 ドラ・ウラドラ sin numero. Los del 12 al 37 van rellenos con blancos (0x01) hasta diez celdas y luego 0x00, 0x01 y el han. Los indices 1-11 son los yakuman: 0x70BF corta la lista al llegar a uno y 0x5B01 los cuenta para pagar la mano limite.
 D 0x7642 0x7690 tabla_de_punteros_de_jugadas  Las 39 palabras que indexan el bloque de arriba. 0x70E7 la usa doblando A (el numero de jugada, 0-38) antes de sumarlo con 0x4063.
 F 0x7642 2
-D 0x7690 0x76A6 tabla_de_filas_del_marcador  Once palabras con direcciones de VRAM (fila de nombres), de 0x39E4 a 0x3AA6. 0x7186 la indexa con (0xE1D8) doblado; el mismo bloque, desde su quinta entrada (0x769A), lo vuelve a indexar 0x7320 con (0xE32A) doblado.
+D 0x7690 0x76A6 filas_de_las_figuras_del_recuento  Once palabras con direcciones de VRAM (fila de nombres), de 0x39E4 a 0x3AA6. 0x7186 la indexa con (0xE1D8) doblado para saber en que fila pinta cada figura del recuento; el mismo bloque, desde su quinta entrada (0x769A), lo vuelve a indexar 0x7320 con (0xE32A) doblado para escribir los fu de cada una.
 F 0x7690 2
 
 # ---------------------------------------------------------------------------
@@ -648,8 +654,8 @@ C 0x5df9 el primer pendiente
 C 0x5dfd si esta a cero, no hay nada que mover por aqui
 C 0x5e00 cien puntos, en BCD
 C 0x5e06 bit 2 de 0xE302: quien tiene el turno
-C 0x5e1d cobra el jugador de 0xE044
-C 0x5e22 cobra el jugador de 0xE047
+C 0x5e1d paga el jugador 2, el de 0xE044
+C 0x5e22 paga el jugador 1, el de 0xE047
 C 0x5e28 y el pendiente baja un paso, o sea cien puntos
 C 0x5e2e el segundo pendiente, con el mismo mecanismo
 C 0x5e38 uno de cada cuatro fotogramas
@@ -821,11 +827,11 @@ C 0x46f1 hacia ATRAS por la memoria
 
 L 0x46F9 limpia_y_pinta_los_ceros
 B 0x46F9 Borra 48 bytes de la VRAM en 0x6000 y suelta encima la lista de 0x4708. Cae en el interprete con un `jr`, sin gastar un `call`.
-C 0x46fa 0x6000, que en la VRAM de 16 KB es 0x2000: los colores
+C 0x46fa 0x6000, que en la VRAM de 16 KB es 0x2000: los patrones
 C 0x4703 y encima, la lista de siete bytes de aqui al lado
 
-L 0x472B saca_una_posicion
-B 0x472B Devuelve en A un byte de la tabla de 0x4735, indexando con el A de entrada. Son cuatro filas de diez posiciones que bajan de seis en seis, una por orientacion de la mesa.
+L 0x472B primer_tile_de_la_ficha
+B 0x472B Devuelve en A el primer tile del dibujo de la ficha cuyo codigo entra en A, leyendo la tabla de 0x4735: una fila por palo y otra para los honores, todas bajando de seis en seis porque cada ficha son seis tiles. Quien pinta fichas (0x6F74, 0x7053) pasa por aqui.
 C 0x472f indexa la tabla con A
 
 L 0x476F pinta_uno_de_los_tres_dibujos
@@ -1037,11 +1043,11 @@ C 0x4df3 bit 0 de 0xE1A9: el reparto ya esta hecho
 # ---------------------------------------------------------------------------
 
 L 0x4B50 monta_el_rotulo_que_baja
-B 0x4B50 Prepara la caida del rotulo del principio: diecisiete pasos en 0xE00A, la altura a cero en 0xE00E, los colores del bloque de 0x4BB0 descomprimidos en 0x2200 y los patrones de al lado rellenos a 0xF0. Cada paso lo da 0x4B75.
+B 0x4B50 Prepara la caida del rotulo del principio: diecisiete pasos en 0xE00A, la altura a cero en 0xE00E, los patrones del bloque de 0x4BB0 descomprimidos en 0x2200 y los colores de al lado rellenos a 0xF0. Cada paso lo da 0x4B75.
 C 0x4b50 diecisiete pasos de caida
 C 0x4b55 y empieza arriba del todo
-C 0x4b5b los colores, en formato B sin cabecera de destino
-C 0x4b64 y los patrones del mismo tercio, con el byte fijo 0xF0
+C 0x4b5b los patrones, en formato B sin cabecera de destino
+C 0x4b64 y los colores del mismo tercio, con el byte fijo 0xF0
 
 L 0x4B75 baja_el_rotulo_un_paso
 B 0x4B75 Baja el rotulo una fila: sube 0x20 la altura de 0xE00E, la resta de 0x3AAA para saber donde toca pintar -o sea que cuanto mas ha bajado, mas arriba empieza- y suelta tres tiras de tiles consecutivos con 0x4BA1. Detras borra lo que dejo la fila anterior. Devuelve el paso que queda en 0xE00A, y el estado 1 lo mira para saber cuando parar.
@@ -1311,3 +1317,1811 @@ C 0x514c 118 bytes de trabajo a cero
 # dura o mas blanda. Para eso hay que trazar quien lo lee. NO se publica hasta
 # entonces.
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 11: EL MOTOR DE DESCOMPOSICION. 0x5F3E-0x656D.
+#
+# Aqui es donde el cartucho decide si una mano ESTA COMPLETA: cuatro figuras
+# (trio o escalera) y una pareja, o las dos manos especiales, siete parejas y
+# trece huerfanos. No hay tabla de manos ni busqueda generica: es un arbol de
+# casos escrito a mano sobre la mano ORDENADA de 0xE2F1, que en cada paso mira
+# la ficha del cursor (0xE304) y las tres o cuatro siguientes, y de lo que
+# encuentra (iguales, seguidas, sueltas) cuelga una rama distinta. Cada rama
+# apunta lo que decide en tres listas de registros: escaleras en 0xE2B7 (4 x
+# [ficha, +1, +2, marca], cuenta en 0xE2C8), trios en 0xE2C9 (4 x [ficha x3,
+# marca], cuenta en 0xE2DA), cuartetos en 0xE2DB (4 x [ficha x4, marca], cuenta
+# en 0xE2F0) y la pareja en 0xE300/0xE301. La MARCA del cuarto byte vale 1 en
+# las figuras declaradas (chi, pon, kan) y en el trio cerrado con la ficha de
+# ron; 0xE2C7 y 0xE2D9 cuentan esas figuras abiertas por separado.
+#
+# Cuando una rama no cuadra se vuelve atras por 0x60E0. La vuelta atras no es
+# recursiva: 0x62A5 guarda una copia de la mano y de las figuras en uno de dos
+# huecos (0xE36E/0xE101 y 0xE094/0xE06E), 0xE237 dice cuantas hay y 0xE239 que
+# rama probar al restaurar. Dos niveles y no mas. Si se agotan, 0xE302 = 1 es
+# "no hay descomposicion". Si el cursor llega al final, 0x60B4 da la mano por
+# completa y 0xE205 dice de que clase: 0 normal, 1 siete parejas, 2 trece
+# huerfanos.
+#
+# Los codigos de ficha hacen el trabajo sucio: como el numero va en el nibble
+# bajo, "la siguiente es la ficha mas uno" es una resta que da 0xFF, y los
+# honores (0x31 en adelante) nunca cuadran con ninguna escalera.
+# ---------------------------------------------------------------------------
+
+L 0x5F3E analiza_la_mano
+B 0x5F3E LA PUERTA DEL ANALISIS. Monta la copia ordenada de la mano en 0xE2F1 (0x5F4C), limpia las marcas y cae en el motor (0x6038 sigue en 0x6042). Al volver, el bit 0 de 0xE302 puesto significa que la mano NO esta completa; si esta limpio, 0x656D la reagrupa por figuras para el recuento. La llaman 0x505B (el jugador ha pedido agari en el menu) y 0x575A (la maquina se pregunta si ha ganado).
+C 0x5f3e la copia de trabajo, ordenada, en 0xE2F1
+C 0x5f41 limpia las marcas y cae en el motor de 0x6042
+C 0x5f47 bit 0 de 0xE302 puesto: no hay descomposicion, la mano no esta completa
+C 0x5f49 completa: se reagrupa por figuras
+
+L 0x5F4C monta_la_copia_para_el_analisis
+B 0x5F4C Prepara la copia con la que trabaja el motor. Elige las variables del jugador que toca (bit 0 de 0xE206: 0 el jugador 1, 1 el 2), copia las figuras ya declaradas, limpia 0xE2F1-0xE32A, y decide de donde sale la ficha que cierra la mano: si 0xE22C esta a cero es RON y la ficha es el ultimo descarte del rival, que se mete en el hueco de la mano y se apunta en 0xE347; si no, es propia (TSUMO) y ya esta en la mano. Luego ordena las 0xE20A+1 fichas.
+C 0x5f4c bit 0 de 0xE206: de quien es la mano
+C 0x5f50 0xE1D1 o 0xE22A: la ficha que cierra es propia (tsumo) o del rival (ron)
+C 0x5f56 0xE1C3 o 0xE208: el hueco de la ficha que cierra
+C 0x5f5c bit 0 a cero: las del jugador 1; si no, las del 2
+C 0x5f6a las figuras declaradas, tres fichas cada una, se copian a 0xE2FE hacia atras
+C 0x5f70 cuatro registros de cuatro bytes
+C 0x5f7f y los registros de cuarteto que sobren, a cero
+C 0x5f82 limpia 0xE2F1-0xE32A, la copia de trabajo, de un tiron
+C 0x5f8f 0xE347 = 0: de momento no hay ficha de ron
+C 0x5f93 el hueco de la ficha que cierra, en la mano de 0xE32B
+C 0x5f9d 0xE22C distinto de cero: la ficha es propia y ya esta en la mano
+C 0x5fa3 RON: la ficha es el ultimo descarte del rival
+C 0x5fa7 los descartes del rival y cuantos lleva (0xE172/0xE1BF o 0xE15E/0xE1BE)
+C 0x5fb8 el ultimo descarte del rival
+C 0x5fc2 se mete en el hueco de la mano
+C 0x5fc4 y se apunta en 0xE347 como la ficha de ron
+C 0x5fc7 0xE1E8 = la ficha que cierra, que es la que mira el tipo de espera (0x5BDB)
+C 0x5fcb copia las 0xE20A+1 fichas a 0xE2F1
+C 0x5fe2 y las ordena de menor a mayor
+C 0x5fee busca cuatro iguales seguidas (vuelve con C=3 si las hay)
+C 0x5ff2 con cuatro iguales en la mano se borra la marca de ficha de ron
+
+L 0x5FFA copia_o_borra_los_registros
+B 0x5FFA Recorre B registros de C+1 bytes empezando por HL, que apunta a la MARCA (el ultimo byte de cada uno): con la marca a cero borra las C fichas del registro; con la marca puesta las copia a DE hacia atras. Es lo que separa las figuras DECLARADAS, que se conservan, de las que el motor apunto por su cuenta en el analisis anterior.
+C 0x5ffd la marca del registro
+C 0x5ffe puesta: figura declarada, se conserva y se copia
+C 0x6002 a cero: sus C fichas se borran
+C 0x600a la copia va hacia atras, ficha a ficha
+C 0x6012 al registro siguiente, C+1 bytes mas alla
+
+L 0x6019 borra_los_cuartetos_sobrantes
+B 0x6019 Deja a cero los registros de cuarteto que no esten en uso: 0xE2F0 dice cuantos hay, cada uno son cinco bytes desde 0xE2DB, y se borran los que faltan hasta cuatro.
+C 0x6019 cuantos cuartetos hay
+C 0x601d por cinco: cuatro fichas y la marca
+C 0x6026 los que faltan hasta cuatro
+C 0x602d cinco bytes a cero cada uno
+
+L 0x6038 limpia_y_descompone
+B 0x6038 LA ENTRADA NORMAL DEL MOTOR: pone a cero la pila de alternativas (0xE237), sus banderas (0xE239) y la clase de mano (0xE205) y CAE en 0x6042. La usan 0x5F3E y el calculo de esperas (0x6754): "call 0x6038 y mirar el bit 0 de 0xE302" es la pregunta "esta completa esta mano?".
+C 0x6039 0xE237: cuantas copias hay guardadas para volver atras
+C 0x603c 0xE239: que rama probar al volver
+C 0x603f 0xE205: 0 normal, 1 siete parejas, 2 trece huerfanos
+
+L 0x6042 motor_de_descomposicion
+B 0x6042 EL MOTOR. Mira la ficha del cursor (DE) y la siguiente (HL) y reparte: iguales -> 0x6072 (trio o pareja); la siguiente es la ficha mas uno -> escalera si la tercera es la ficha mas dos (0x6159), y si la tercera es otra copia de la mas uno, el caso enredado de 0x6216; ni igual ni seguida -> la ficha esta suelta y solo puede ser trece huerfanos (0x651D). Cada rama apunta su figura y vuelve a 0x6091, que decide si sigue.
+C 0x6042 DE = la ficha del cursor
+C 0x604e HL = la siguiente
+C 0x6051 iguales: trio o pareja, por 0x6072
+C 0x6056 0xFF: la siguiente es la ficha mas uno, candidata a escalera
+C 0x6058 ni igual ni seguida: ficha suelta, solo vale para trece huerfanos
+C 0x605a la tercera es la ficha mas dos: escalera hecha
+C 0x605f se apunta
+C 0x6064 0xFF: x, x+1, x+1: hay que mirar mas lejos
+C 0x6066 cualquier otra cosa no cuadra: vuelta atras
+C 0x6072 la tercera ficha
+C 0x6074 dos iguales y la tercera distinta: pareja mas algo
+C 0x6077 tres iguales: si la cuarta tambien, por 0x62D7
+C 0x607a tres iguales y la cuarta distinta: trio, con sus dudas
+C 0x6085 pareja y luego la ficha mas uno: por 0x6376
+C 0x6089 pareja y luego otra cosa: candidata a siete parejas
+
+L 0x6091 sigue_o_termina
+B 0x6091 Lo que pasa despues de colocar una figura. Si el motor ya dijo que no (0xE302 = 1), vuelta atras. Si el cursor no ha llegado a la penultima ficha, otra vuelta por 0x6042; si quedan exactamente dos, tienen que ser la pareja (0x61DA); y si no queda ninguna, la mano esta completa (0x60B4).
+C 0x6091 0xE20A+1 fichas en total
+C 0x609b 0xE302 = 1: el motor ya ha dicho que no hay descomposicion
+C 0x60a2 el cursor aun no llega al final: sigue descomponiendo
+C 0x60a5 el cursor esta en el final: mano completa
+C 0x60b1 quedan dos fichas y tienen que ser la pareja
+
+L 0x60B4 mano_completa
+B 0x60B4 LA SALIDA BUENA. 0xE303 cuenta las parejas de escaleras iguales apuntadas por 0x6386: con dos (ryanpeikou) el acarreo lo saca a 0xE205; pero si la mano ya era siete parejas (bit 0 de 0xE205) se olvidan las escaleras dobles. Copia el turno de 0xE206 al bit 1 de 0xE302 y deja el cursor al final.
+C 0x60b4 0xE303: cuantas parejas de escaleras iguales
+C 0x60b8 el segundo rra saca al acarreo si van dos o mas
+C 0x60c1 bit 0 de 0xE205: siete parejas
+C 0x60c5 siete parejas manda: fuera las escaleras dobles
+C 0x60cb bit 1 de 0xE302 = de quien es la mano, copiado de 0xE206
+C 0x60d5 el cursor, al final
+
+L 0x60E0 vuelta_atras
+B 0x60E0 LA VUELTA ATRAS. Si ya se vio que la mano son siete parejas, vale como completa. Si no hay copia guardada (0xE237 a cero), NO HAY DESCOMPOSICION: 0xE302 = 1 y se limpia por 0x67AE. Si la hay, se restaura y se prueba la rama que dejo apuntada 0xE239: bit 0 la de 0x63C1 (dos escaleras dobles), bit 1 la de 0x6386 mas uno, y sin bits, tomar el grupo como trio (0x6185).
+C 0x60e3 bit 0 de 0xE205: la mano son siete parejas y vale
+C 0x60ea sin copia que restaurar
+C 0x60ed 0xE302 = 1: NO HAY DESCOMPOSICION, la mano no esta completa
+C 0x60f5 una copia menos
+C 0x60f9 bit 0: la rama de las dos escaleras dobles
+C 0x60ff restaura la copia y deja DE en el cursor
+C 0x6108 bit 1: la rama de 0x6386
+C 0x6116 seis fichas mas alla
+C 0x611d se le suma uno a esa ficha, y otra vuelta
+C 0x6121 sin bits: el grupo va de trio
+
+L 0x612A restaura_la_copia
+B 0x612A Vuelve a cargar la copia guardada por 0x62A5: la mano con su cursor (20 bytes a 0xE2F1) y las figuras (38 bytes a 0xE2B6). Del hueco 0 (0xE36E/0xE101) si ya no queda profundidad, del hueco 1 (0xE094/0xE06E) si aun queda una. Sale con DE en el cursor.
+C 0x612d la profundidad que queda
+C 0x6134 el hueco 1
+C 0x613a veinte bytes: la mano y 0xE300-0xE304
+C 0x6145 el hueco 1, para las figuras
+C 0x614b treinta y ocho bytes: los registros de figuras
+C 0x6150 DE = el cursor
+
+L 0x6159 apunta_una_escalera
+B 0x6159 Apunta la escalera que empieza en la ficha de DE: la ficha, la ficha mas uno y la ficha mas dos en el registro siguiente de 0xE2B7, sube 0xE2C8 y adelanta el cursor tres. Un honor (0x31 en adelante) no forma escalera: vuelta atras. Con el cursor ya en 14 no hay nada que apuntar.
+C 0x615c cursor en el final: nada que apuntar
+C 0x6160 un honor no forma escalera
+C 0x6165 una escalera mas
+C 0x616c el cursor salta tres fichas
+C 0x6178 cuatro bytes por registro
+C 0x617f la ficha, la ficha mas uno y la ficha mas dos
+
+L 0x6185 apunta_un_trio
+B 0x6185 Apunta el trio de la ficha de DE en el registro siguiente de 0xE2C9, sube 0xE2DA y adelanta el cursor tres. Y UNA REGLA DEL MAHJONG DE VERDAD: si el trio se cierra con la ficha de RON (0xE347) se marca como ABIERTO (marca 1 y 0xE2D9++), que es lo que despues le quita fu (0x71BC) y lo deja fuera de los trios ocultos (0x7DD9).
+C 0x6188 cursor en el final: nada que apuntar
+C 0x618e un trio mas
+C 0x6192 el cursor salta tres fichas
+C 0x61a5 las tres copias
+C 0x61ae es la ficha de ron?
+C 0x61b1 marca 1: un trio cerrado con la ficha del rival cuenta como ABIERTO
+C 0x61b7 y uno mas entre los trios abiertos
+
+L 0x61B9 apunta_un_cuarteto
+B 0x61B9 Apunta cuatro copias de la ficha de DE como cuarteto en 0xE2DB (cinco bytes por registro), sube 0xE2F0 y adelanta el cursor cuatro. Solo lo llama el kan (0x6D97). La entrada de 0x61C5 escribe sin tocar el cursor, y 0x6EEC la usa para deshacer un kan.
+C 0x61c0 el cursor salta cuatro fichas
+C 0x61cd por cinco: cuatro fichas y la marca
+C 0x61d5 las cuatro copias
+
+L 0x61DA apunta_la_pareja
+B 0x61DA Toma las dos fichas de DE como LA PAREJA (0xE300 y 0xE301) si son iguales y aun no habia pareja. Si ya la habia o no son iguales, vuelta atras. Adelanta el cursor dos.
+C 0x61e0 ya hay pareja: dos no caben
+C 0x61eb la siguiente tiene que ser igual
+C 0x61ef la pareja, en 0xE300 y 0xE301
+C 0x61fa el cursor salta dos fichas
+
+L 0x6200 resta_la_siguiente
+B 0x6200 Adelanta HL y devuelve la ficha de DE menos la de HL. Las tres entradas de abajo comparan el resultado con -1, -2 y -3: "la que sigue es la ficha mas uno, mas dos o mas tres". Todo el arbol del motor esta escrito con estas tres preguntas encadenadas.
+C 0x6207 0xFF: la que sigue es la ficha mas uno
+C 0x620d 0xFE: la ficha mas dos
+C 0x6213 0xFD: la ficha mas tres
+
+L 0x6204 es_la_ficha_mas_uno
+L 0x620A es_la_ficha_mas_dos
+L 0x6210 es_la_ficha_mas_tres
+
+L 0x6216 caso_x_x1_x1
+B 0x6216 El caso x, x+1, x+1: dos copias de la ficha siguiente. Mira hasta ocho fichas mas alla para separar las lecturas posibles: tres escaleras encadenadas (x, x+1 y otra vez x+1, en 0x623E), escalera y pareja (0x628E), escalera y trio (0x6287), escalera y luego un grupo que puede ir de pareja o de trio (0x6295) y las mezclas de en medio. Cada rama apunta sus figuras y vuelve a 0x6091.
+C 0x6219 la cuarta es x+2: por 0x624D
+C 0x621d si tampoco es x+1, nada cuadra
+C 0x6220 tres copias de x+1: la quinta decide
+C 0x6223 cuatro copias de x+1: por 0x626D
+C 0x622a x+2, x+2, x+3, x+3 detras: tres escaleras
+C 0x623e la escalera de x
+C 0x6242 y dos veces la de x+1
+C 0x624b una pareja de escaleras iguales mas
+C 0x6250 x, x+1, x+1, x+2: la quinta tiene que ser otro x+2
+C 0x6256 con x+3 detras son dos escaleras, x y x+1
+C 0x6261 y si no, escalera de x y se reescribe el resto para seguir ordenado
+C 0x6270 cuatro copias de x+1: detras tiene que venir x+2
+C 0x6278 se reescribe la ficha para que la escalera salga de x
+C 0x627d escalera, y el resto puede ir de pareja o de trio
+C 0x6287 escalera de x y trio de x+1
+C 0x628e escalera de x y pareja de x+1
+
+L 0x6295 prueba_pareja_o_trio
+B 0x6295 El grupo de DE puede ir de pareja o de trio. Si ya hay pareja, no hay duda: trio. Si no, GUARDA COPIA y lo prueba como pareja, dejando el trio como la rama que 0x60E0 probara si esta falla.
+C 0x6298 ya hay pareja: el grupo va de trio
+C 0x629c guarda copia para poder volver atras
+C 0x629f y lo prueba como pareja
+
+L 0x62A5 guarda_una_copia
+B 0x62A5 Guarda el estado del analisis para poder volver atras: sube 0xE237 y copia la mano con su cursor (20 bytes desde 0xE2F1) y las figuras (38 desde 0xE2B6) al hueco 0 (0xE36E/0xE101) si la profundidad es 1 o al hueco 1 (0xE094/0xE06E) si es 2. Sale con DE en el cursor.
+C 0x62a8 un nivel mas de profundidad
+C 0x62b0 el primer nivel va al hueco 0
+C 0x62b4 el segundo, al hueco 1
+C 0x62b7 veinte bytes: la mano y 0xE300-0xE304
+C 0x62c9 treinta y ocho: las figuras
+C 0x62ce DE = el cursor
+
+L 0x62D7 caso_cuatro_iguales
+B 0x62D7 Cuatro copias seguidas de la misma ficha. En la mano cerrada un cuarteto no existe (los kan se declaran), asi que es trio mas pareja o trio mas escalera segun lo que venga detras: x+1 y x+2 dan trio y escalera (0x62E7); mas copias de x+1 y x+2 abren las ramas de 0x62F4.
+C 0x62da detras tiene que venir x+1
+C 0x62e0 dos x+1: por 0x62ED
+C 0x62e4 un x+1 y luego tiene que venir x+2
+C 0x62e7 trio de x y escalera de x
+C 0x62f0 tres x+1: por 0x62F4
+C 0x62f2 dos x+1 y otra cosa: trio, y el resto de pareja o trio
+C 0x62f7 cuatro x+1: por 0x6332
+C 0x62fb tres x+1 y luego tiene que venir x+2
+C 0x6301 dos x+2: por 0x630A
+C 0x6303 trio, escalera, y la pareja detras
+C 0x630d la ficha mas dos otra vez, o por 0x635B
+C 0x6314 pareja de x, y tres escaleras
+C 0x6325 una pareja de escaleras iguales mas
+C 0x6329 y si no es x+3, tiene que ser otro x+2
+C 0x632c trio, escalera, pareja, y un trio mas
+C 0x6335 cuatro x y cuatro x+1: tiene que venir x+2
+C 0x633b dos x+2: por 0x6344
+C 0x633d trio, escalera, y otro trio
+C 0x6347 solo dos x+2: trio de x y a seguir
+C 0x6350 trio, escalera, y dos trios mas
+C 0x635d aqui tiene que venir x+3
+C 0x6363 y x+4 detras
+C 0x636d trio de x, escalera de x, y pareja
+
+L 0x6376 caso_pareja_y_siguiente
+B 0x6376 El caso x, x, x+1: pareja seguida de la ficha mas uno. Con x+1 y x+2 dobles son DOS ESCALERAS IGUALES (0x6386, el iipeikou); con una sola copia de cada, pareja y escalera; y con mas copias de x+1 se abren las dudas de 0x63A2, que son las que dejan una rama apuntada en 0xE239 para la vuelta atras.
+C 0x6379 una sola x+1: por 0x6391
+C 0x637e x+1 doble y luego no viene x+2: por 0x63A2
+C 0x6383 y tiene que venir x+2 doble
+
+L 0x6386 apunta_dos_escaleras_iguales
+B 0x6386 Apunta DOS veces la misma escalera desde DE y sube 0xE303. Es la figura del iipeikou: dos escaleras identicas; dos de estas son el ryanpeikou.
+C 0x638c una pareja de escaleras iguales mas
+C 0x6393 tras x, x, x+1 tiene que venir x+2
+C 0x6399 sin x+3 detras: pareja de x y escalera
+C 0x639c pareja de x, y escalera de x+1
+
+L 0x63A2 caso_pareja_y_dos_siguientes
+B 0x63A2 El caso x, x, x+1, x+1: aqui el motor no puede saber a ciegas si va de pareja mas escalera o de dos escaleras, asi que mira mas lejos y, en los casos que siguen siendo ambiguos, GUARDA COPIA y apunta en 0xE239 la rama alternativa antes de tirar por una.
+C 0x63a4 si la quinta no es otro x+1, candidata a siete parejas
+C 0x63aa sin un cuarto x+1: por 0x63DD
+C 0x63b8 tres x+2, o x+3 detras: ambiguo, por 0x63C9
+C 0x63bf x+3 detras: tambien ambiguo
+C 0x63c1 dos escaleras iguales y detras la pareja
+C 0x63cc bit 0 de 0xE239: si falla, se probaran las dos escaleras iguales
+C 0x63ce guarda copia y va de pareja mas trio
+C 0x63d7 pareja de x y trio de x+1
+C 0x63df sin x+2 detras: pareja y trio
+C 0x63e4 un solo x+2: pareja y trio
+C 0x63ee bit 1 de 0xE239: la rama alternativa de 0x6386
+
+L 0x63F2 caso_trio
+B 0x63F2 El caso x, x, x, y con y distinta: tres iguales. Si y no es x+1 va de trio sin mas. Si lo es, la ambiguedad clasica: trio de x o pareja de x mas escalera de x, y el motor la resuelve mirando cuantas copias de x+1, x+2, x+3... siguen; en la tira mas larga (0x6403-0x6424, hasta x+6) distingue trio mas escaleras de pareja mas escaleras.
+C 0x63f3 la cuarta no es x+1: trio y punto
+C 0x63fb sin x+2 en la quinta: por 0x647D
+C 0x6401 sin x+3 en la sexta: por 0x6441
+C 0x6406 x+1, x+2, x+3 seguidos: la tira larga
+C 0x6416 sin x+6: pareja y dos escaleras
+C 0x641d sin x+7: trio y dos escaleras
+C 0x6426 hasta x+8 seguidos: pareja de x y tres escaleras
+C 0x642b trio y dos escaleras
+C 0x6430 pareja de x y escalera de x
+C 0x6436 y una escalera mas, tres fichas mas alla
+C 0x643b trio de x
+C 0x643e y escalera detras
+C 0x6443 la sexta no es x+2: pareja y escalera, por 0x6477
+C 0x6448 sin un tercer x+2: por 0x646F
+C 0x644d x+3 en la octava: trio de x, escalera de x+1 y pareja de x+2
+C 0x6452 pareja de x+3 detras
+C 0x6457 si la octava no es otro x+2: por 0x646F
+C 0x645c sin x+3 detras: pareja de x, escalera de x y trio de x+2
+C 0x645e con x+3: trio de x
+C 0x6461 escalera de x+1 y trio de x+2
+C 0x6464 pareja de x, escalera de x y trio de x+2
+C 0x6471 aqui tiene que venir x+3
+C 0x6474 y el grupo de x puede ir de pareja o de trio
+C 0x6477 pareja de x y escalera de x
+C 0x647f la quinta tiene que ser otro x+1
+C 0x6485 sin un tercer x+1: por 0x6496
+C 0x648a cuatro x+1: por 0x64A1
+C 0x648e tres x+1 y luego x+2: por 0x64B8
+C 0x6490 dos trios seguidos, x y x+1
+C 0x6498 dos x+1 y luego x+2: el grupo de x va de pareja o de trio
+C 0x649b trio de x y pareja de x+1
+C 0x64a4 aqui tiene que venir x+2
+C 0x64aa con x+3 detras: por 0x64C5
+C 0x64ae x+2 doble: pareja o trio
+C 0x64b1 pareja de x, escalera de x, y trio
+C 0x64bb sin x+3: trio de x
+C 0x64c0 si no viene x+3, pareja o trio
+C 0x64c8 con x+4 detras: por 0x64D2
+C 0x64cc trio de x, trio de x+1 y escalera de x+2
+C 0x64d5 sin x+5: por 0x64E6
+C 0x64dc con x+6: por 0x64ED
+C 0x64e0 pareja, escalera, trio y otra escalera
+C 0x64e8 sin otro x+4, nada cuadra
+C 0x64ed trio de x, trio y dos escaleras
+C 0x64f3 DE salta tres fichas
+
+L 0x64F8 prueba_siete_parejas
+B 0x64F8 SIETE PAREJAS (chiitoitsu). Con la mano cerrada (0xE2B6 a cero) comprueba que las catorce fichas de 0xE2F1 vayan de dos en dos y que ninguna pareja se repita: cuatro iguales NO valen como dos parejas. Si cuadra, 0xE205 = 1. Luego sigue por la pareja como si nada: la descomposicion normal fallara, y 0x60E0 dara la mano por buena gracias a esa marca.
+C 0x64f9 con figuras declaradas no hay siete parejas
+C 0x6505 siete parejas que mirar
+C 0x6508 las dos de cada pareja iguales
+C 0x650d y distintas de la pareja siguiente: cuatro iguales no valen
+C 0x6514 0xE205 = 1: SIETE PAREJAS
+C 0x651a y a seguir por la pareja, que es lo que toca en cualquier caso
+
+L 0x651D prueba_trece_huerfanos
+B 0x651D TRECE HUERFANOS (kokushi musou), y el unico sitio donde una ficha suelta no es un fallo. Con la mano cerrada busca la unica pareja, la apunta en 0xE300, quita una de las dos (0x39), reordena para que el hueco caiga al final, y compara las trece que quedan una a una con la tabla de 0x6560: el uno y el nueve de cada palo y los siete honores. Si cuadra, 0xE205 = 2 y a 0x60B4 directo.
+C 0x651d con figuras declaradas no hay trece huerfanos
+C 0x652a trece comparaciones con la siguiente
+C 0x652e dos iguales seguidas: la pareja
+C 0x6534 sin pareja no es kokushi
+C 0x6538 la pareja
+C 0x653e una de las dos se quita de la mano
+C 0x6544 y se reordena para que el hueco caiga al final
+C 0x6549 la tabla de los trece
+C 0x6551 una que no cuadre y no es kokushi
+C 0x6558 0xE205 = 2: TRECE HUERFANOS
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 12: EL MENU DE LLAMADAS, RIICHI, PON Y CHI. 0x656D-0x6C12.
+#
+# El menu de la derecha se recorre con arriba y abajo (0x65BD) y se elige con
+# SELECT (0x660A), que deja UN BIT en 0xE1C7: 1 agari, 2 riichi, 4 pon, 8 chi,
+# 0x10 kan, en ese orden de arriba abajo. 0x663C despacha los cuatro ultimos.
+#
+# Las llamadas trabajan sobre la mano de 0xE32B, de 18 huecos: 0xE20A es el
+# ultimo hueco de la parte cerrada y 0xE20B el ultimo antes de las figuras
+# declaradas, que se van apilando al final de tres en tres. Cada llamada quita
+# de la mano las fichas que gasta (0x39), quita el descarte del rio del rival
+# (tambien 0x39, y por eso 0x6917 lo apunta aparte, en 0xE22D/0xE232), reordena,
+# apunta la figura con MARCA 1 y sube 0xE2B6, la cuenta de llamadas: la mano
+# deja de estar cerrada, y eso es lo que quita el riichi, el pinfu y el han de
+# mas de varias jugadas.
+#
+# LO QUE EXIGE EL RIICHI (0x6653): mano cerrada, acabar de robar, no estar ya
+# en riichi y no ir por el ultimo descarte. Coincide con el riichi de cuatro
+# jugadores salvo en el limite de fichas, que aqui es el descarte 18.
+# ---------------------------------------------------------------------------
+
+L 0x656D reagrupa_la_mano_por_figuras
+B 0x656D Deja en 0xE2F1 la mano ordenada POR FIGURAS para el recuento: las escaleras (0xE2B7), los trios (0xE2C9), tres de las cuatro fichas de cada cuarteto (0xE2DB) y la pareja (0xE300), y la vuelve a ordenar de menor a mayor. Solo si 0xE305 esta a cero, o sea si aun no hay jugadas apuntadas.
+C 0x656d con jugadas ya apuntadas no se toca
+C 0x6575 las escaleras, tres fichas cada una
+C 0x6582 los trios
+C 0x658f los cuartetos, tres de sus cuatro fichas
+C 0x659f saltando la cuarta y la marca
+C 0x65a4 y la pareja
+C 0x65af otra vez ordenada de menor a mayor
+
+L 0x65B2 copia_tres_de_cada_registro
+C 0x65b3 tres fichas
+C 0x65b8 y se salta la marca
+
+L 0x65BD mueve_el_cursor_del_menu
+B 0x65BD El cursor del menu de llamadas: un tile 0xEA en la columna de la derecha, cuya direccion de VRAM vive en 0xE1C5. Arriba o abajo (bits 0 y 1 de 0xE009, solo en el flanco) suenan el 4, borran el tile viejo con el blanco (0x01) y lo pintan una fila mas arriba o mas abajo, 0x20 bytes de VRAM. Da la vuelta entre las filas de byte bajo 0x39 y 0xF9 saltando 0xA0, o sea cinco entradas.
+C 0x65c0 bits 0 y 1: arriba y abajo
+C 0x65c9 solo el flanco: si ya estaba pulsada, nada
+C 0x65cc sonido 4
+C 0x65d1 donde esta el cursor
+C 0x65d8 tile 1, el blanco, borra el viejo
+C 0x65dd bit 0: arriba
+C 0x65e0 abajo: una fila mas
+C 0x65e6 pasada la ultima entrada, cinco filas arriba
+C 0x65f1 la posicion nueva
+C 0x65f4 tile 0xEA: el cursor
+C 0x65f9 arriba: una fila menos
+C 0x65ff pasada la primera, cinco filas abajo
+
+L 0x660A elige_en_el_menu
+B 0x660A SELECT (bit 5 de 0xE009, en el flanco) elige la entrada donde esta el cursor, y la entrada se codifica por bits en 0xE1C7 segun la fila: 0x5x = 1 (agari), 0x7x = 2 (riichi), 0x9x = 4 (pon, 0x680B), 0xBx = 8 (chi, 0x692F) y la de abajo del todo 0x10 (kan). 0x663C despacha los cuatro ultimos; el agari lo mira 0x5036 dentro del turno.
+C 0x660d la fila del cursor, por la parte alta del byte bajo
+C 0x6610 fila 0x5x: 1, agari
+C 0x6616 0x7x: 2, riichi
+C 0x661c 0x9x: 4, pon
+C 0x6622 0xBx: 8, chi
+C 0x6628 y la ultima, 0x10, kan
+C 0x662d bit 5: SELECT
+C 0x6634 solo el flanco
+C 0x6638 la llamada elegida, en 0xE1C7
+
+L 0x663C despacha_la_llamada
+B 0x663C Reparte la llamada de 0xE1C7 por bits: 2 riichi (0x6653), 4 pon (0x680B), 8 chi (0x692F), 0x10 kan (0x6C12). El bit 0, agari, no pasa por aqui. Lo llaman tres sitios del turno: 0x5284, 0x55D0 y 0x5831.
+C 0x663f bit 1: riichi
+C 0x6643 bit 2: pon
+C 0x6648 bit 3: chi
+C 0x664d bit 4: kan
+
+L 0x6653 declara_riichi
+B 0x6653 RIICHI, y lo que le pide el cartucho. Al jugador 1 (bit 0 de 0xE206 a cero): que no vaya por el descarte 18 (0xE1BE = 0x12) y que no este ya en riichi (bit 0 de 0xE33E). A los dos: que la mano este CERRADA (0xE2B6 a cero, ninguna llamada) y que acabe de robar (bit 0 de 0xE22C). Si algo falla, el dibujo 2 del rincon y nada mas. Si pasa: bit 0 de 0xE33E, el palo de riichi como sprite (patrones 0x78/0x88/0x98/0x88 en 0xE0B8 para el 1, 0x18/0x28/0x38/0x28 en 0xE0C8 para el 2), 0xE1CC apunta CON QUE DESCARTE se declara (de ahi salen el doble riichi y el ippatsu de 0x7BAF) y suena el 10. Los mil puntos del palo no se cobran aqui (la cuenta de palos, 0xE04A, la tocan 0x53B8 y 0x579A).
+C 0x6656 bit 0 de 0xE206: la maquina se salta las dos primeras comprobaciones
+C 0x665c descarte 18: ya no se puede declarar
+C 0x6663 bit 0 de 0xE33E: ya esta en riichi
+C 0x6669 con alguna llamada hecha la mano no esta cerrada: no hay riichi
+C 0x666f y hay que acabar de robar
+C 0x6675 EN RIICHI: bit 0 de 0xE33E
+C 0x6677 el palo de riichi del jugador 1, cuatro patrones de sprite
+C 0x6694 y el del jugador 2
+C 0x66b4 0xE1CC = el numero del descarte con el que se declara
+C 0x66ba sonido 10
+C 0x66c0 los atributos del sprite, a 0x3B10 o 0x3B20
+C 0x66d6 la llamada queda atendida
+
+L 0x66DA rechaza_la_llamada
+B 0x66DA La llamada no vale: el dibujo 2 del rincon (el unico que suena) y 0xE1C7 a cero.
+
+L 0x66E1 calcula_las_esperas
+B 0x66E1 LAS ESPERAS: que fichas completan la mano. Para cada uno de los 34 tipos (o para una sola, la de (0xE382), si entra con C = 0xFF) mete la ficha en el hueco 0xE209 de una copia de la mano, la ordena y pregunta al motor (0x6038). Si la mano queda completa, el tipo se apunta en la lista de esperas del jugador: 0xE1F5 para el 1, 0xE20E para el 2, terminada en cero, con la cuenta en 0xE128. Si el jugador 1 tiene alguna, bit 7 de 0xE1CD: esta en tenpai. Las tres entradas: 0x66E1 fija el hueco en la ficha robada (0xE20A), 0x66E7 recorre los 34 tipos, 0x66EB entra con B y C puestos desde fuera.
+C 0x66e1 el hueco donde se prueba cada ficha: el de la robada
+C 0x66e9 los 34 tipos de ficha, B cuenta hacia abajo
+C 0x66ec ninguna espera todavia
+C 0x66ef y sin ficha de ron
+C 0x66f3 la lista de esperas del jugador 1
+C 0x66ff o la del 2
+C 0x6705 se vacia: un cero y trece detras
+C 0x670e las figuras que apunto el analisis anterior, fuera
+C 0x671a la copia de trabajo, limpia
+C 0x6727 la mano, 0xE20A+1 fichas
+C 0x6740 el hueco donde va la ficha a probar
+C 0x6743 con C = 0xFF se prueba una sola ficha, la de (0xE382)
+C 0x674e si no, el tipo B-1 de la tabla de los 34
+C 0x6754 la ficha a probar, al hueco
+C 0x6761 ordenada
+C 0x6764 y al motor: esta completa?
+C 0x676b bit 0 de 0xE302: no lo esta
+C 0x6772 la lista de esperas que toca
+C 0x6783 una espera mas
+C 0x678b el tipo siguiente
+C 0x6791 sin esperas no hay tenpai
+C 0x679c bit 7 de 0xE1CD: el jugador 1 esta en tenpai
+C 0x679f con C distinto de cero se sale sin limpiar
+
+L 0x67A1 limpia_el_analisis
+B 0x67A1 Deja la copia de trabajo (0xE2F1) a cero y sigue en 0x67AE.
+
+L 0x67AE limpia_las_figuras
+B 0x67AE Borra las figuras que el motor apunto por su cuenta (marca 0) y deja las declaradas (marca 1); repone las cuentas de 0xE2C8 y 0xE2DA a lo declarado (0xE2C7 y 0xE2D9), y si habia un trio marcado con la ficha de ron, 0x67E6 lo quita tambien. Es lo que se hace tras cada pregunta al motor, y a donde salta 0x60E0 cuando no hay descomposicion.
+C 0x67ae las escaleras
+C 0x67b4 los trios
+C 0x67ba y el trio de la ficha de ron, si lo hubo
+C 0x67be sin ficha de ron
+
+L 0x67C2 borra_las_figuras_sueltas
+C 0x67c2 cuatro registros de tres fichas y marca
+C 0x67c8 la marca
+C 0x67c9 puesta: figura declarada, se queda
+C 0x67cd a cero: se borran sus fichas
+C 0x67d9 escaleras: quedan las declaradas
+C 0x67df y trios igual
+
+L 0x67E6 quita_el_trio_del_ron
+B 0x67E6 Busca en 0xE2C9 el trio hecho con la ficha de ron (0xE347) y lo borra, restando uno a los trios abiertos (0xE2D9) y al total (0xE2DA). Ese trio lleva marca 1 y 0x67C2 no lo tocaria.
+C 0x67e8 la ficha de ron
+C 0x67eb sin ella no hay nada que quitar
+C 0x67f0 el trio de esa ficha
+C 0x67ff cuatro bytes a cero
+C 0x6807 un trio abierto menos
+C 0x6809 y uno menos en total
+
+L 0x680B hace_pon
+B 0x680B PON: robar el ultimo descarte del rival para hacer trio con dos copias de la mano. No vale en riichi (bit 0 de 0xE33E), ni en la fase 1 de la mano (0xE1AA = 1), ni sin descarte (0x39). Al jugador 1 le basta con las dos copias; a la maquina (bit 0 de 0xE206) el codigo le pide mas: que no tenga delante la ficha menos uno (0x684A), que tenga TRES copias (0x6868) y que detras no venga la ficha mas uno (0x686E). Las copias se cambian por 0x39, el descarte robado tambien, se reordena, y el trio va detras de la parte cerrada (0xE20B baja cuatro) y a 0xE2C9 con marca 1: figura ABIERTA (0xE2D9++ y 0xE2B6++). Sonido 11, y la fase vuelve a 1: toca descartar.
+C 0x680e en riichi no se puede hacer pon
+C 0x6815 fase 1 de la mano: tampoco
+C 0x681c los descartes del rival
+C 0x682f 0x39: no hay descarte
+C 0x6834 la ficha del pon
+C 0x683e la primera copia en la mano
+C 0x6844 la maquina mira ademas la ficha de delante
+C 0x684d si es la ficha menos uno, no hace pon
+C 0x6855 hacen falta dos copias en la mano
+C 0x6860 la maquina pide una tercera
+C 0x6868 sin tercera copia, se cancela sin ruido
+C 0x686e y si detras viene la ficha mas uno, tampoco
+C 0x6872 la tercera copia sale de la mano
+C 0x6875 0x39 en las dos copias
+C 0x687b y en el descarte robado, que desaparece del rio
+C 0x687c repinta el rio del rival
+C 0x6885 y el propio, si es la maquina
+C 0x6890 reordena la mano
+C 0x6896 el limite de la parte cerrada baja cuatro
+C 0x689d 0xE20B: el ultimo hueco antes de las figuras
+C 0x68a7 las tres copias, justo detras
+C 0x68b0 y a la lista de trios
+C 0x68b3 con marca 1: ABIERTO
+C 0x68b7 un trio abierto mas
+C 0x68bb y una llamada mas: la mano ya no esta cerrada
+C 0x68bc la ficha robada, a la lista del jugador
+C 0x68c5 la mano vuelve al jugador 2
+C 0x68ca o al 1, y se repinta
+
+L 0x68D0 cierra_la_llamada
+B 0x68D0 Remate del pon y del kan: la parte cerrada tiene tres fichas menos (0xE209 y 0xE20A bajan tres), el jugador 1 pasa a la fase 1 (0xE1AA = 1: descartar), sonido 11 y C = 0: la llamada se ha hecho.
+C 0x68d3 tres fichas menos en la parte cerrada
+C 0x68df la maquina no toca la fase
+C 0x68e3 fase 1: toca descartar
+C 0x68e8 sonido 11
+C 0x68eb C = 0: hecha
+
+L 0x68EF rechaza_pon
+C 0x68ef C = 1: no se ha hecho
+C 0x68f5 a la maquina no se le pinta el aviso
+C 0x68f9 el dibujo 2, que suena
+
+L 0x68FF devuelve_la_mano_al_jugador_1
+B 0x68FF Copia los 18 bytes de la mano de trabajo (0xE32B) a la del jugador 1 (0xE13A).
+
+L 0x690B devuelve_la_mano_al_jugador_2
+B 0x690B La gemela para el jugador 2: 0xE32B a 0xE14C.
+
+L 0x6917 apunta_la_ficha_robada
+B 0x6917 Apunta la ficha que se acaba de robar al rival (0xE128) en la lista del jugador: 0xE22D para el 1 y 0xE232 para el 2, una cuenta y hasta cuatro fichas. La del 2 (0xE233) es la que 0x4833 cruza con las esperas del 1 para el furiten: son descartes del 1 que ya no estan en su rio.
+C 0x691d bit 0 de 0xE206: la lista del 2
+C 0x6925 una mas
+C 0x692d la ficha
+
+L 0x692F hace_chi
+B 0x692F CHI: robar el ultimo descarte del rival para hacer escalera. No en la fase 1 ni en riichi. La primera vez (bit 0 de 0xE1AB a cero) busca en la mano las tres escaleras posibles -ficha-2 con ficha-1, ficha-1 con ficha+1, ficha+1 con ficha+2- y apunta cada una que encuentra: los dos huecos de la mano en 0xE1E9 (0x6C02) y la ficha por la que empieza en 0xE1F1 (0x6BF5). Un honor (0x31 o mas) no se puede chi. Sin ninguna, se rechaza; con una, se ejecuta (0x6AA2); con dos o tres, el jugador elige (0x69F9).
+C 0x6932 fase 1: no
+C 0x6939 en riichi tampoco
+C 0x6940 bit 0 de 0xE1AB: las opciones ya estan buscadas
+C 0x6945 bit 1: el jugador esta eligiendo
+C 0x694b 0xFF: ninguna opcion aun
+C 0x6953 los descartes del rival
+C 0x6966 un honor no forma escalera
+C 0x696b la ficha del chi
+C 0x696e y donde esta en el rio
+C 0x6976 la ficha menos uno
+C 0x697a la busca en la mano
+C 0x697d no esta
+C 0x6985 y la ficha menos dos
+C 0x698f primera opcion: menos dos, menos uno, ficha
+C 0x69a4 la ficha mas uno
+C 0x69b6 segunda: menos uno, ficha, mas uno
+C 0x69cb la ficha mas dos
+C 0x69d5 tercera: ficha, mas uno, mas dos
+C 0x69e8 sin opciones: se rechaza
+C 0x69ed 0xE1EF pasa de 2n-1 a n-1: opciones menos una
+C 0x69f4 con dos o mas, a elegir
+C 0x69f6 con una, se ejecuta
+
+L 0x69F9 elige_la_escalera
+B 0x69F9 El jugador elige entre las dos o tres escaleras posibles: bit 1 de 0xE1AB mientras dura, la elegida en 0xE1F0; izquierda y derecha (bits 2 y 3 de 0xE009) la cambian cada 16 fotogramas con sonido 5, y los dos huecos de la mano se marcan con un par de sprites (0xE0A8, X de la tabla de 0x5350). Espacio (bit 4, en el flanco) la confirma y ejecuta. La maquina no elige: con mas de una opcion cancela la llamada.
+C 0x69fd la maquina no elige: cancela
+C 0x6a03 bit 1: eligiendo
+C 0x6a0b bit 4: espacio
+C 0x6a17 el flanco del espacio, en 0xE1C4
+C 0x6a1b sonido 6
+C 0x6a1e y se ejecuta la elegida
+C 0x6a24 cada 16 fotogramas
+C 0x6a2a bit 2: izquierda
+C 0x6a30 sonido 5
+C 0x6a3b la anterior, o la ultima si se pasa
+C 0x6a49 bit 3: derecha
+C 0x6a5c la siguiente, o la primera si se pasa
+C 0x6a68 dos huecos por opcion
+C 0x6a7b la X de cada hueco, de la tabla de 0x5350
+C 0x6a99 los atributos de los sprites, a 0x3B00
+
+L 0x6AA2 ejecuta_el_chi
+B 0x6AA2 Ejecuta la escalera elegida (0xE1F0): quita de la mano los dos huecos apuntados en 0xE1E9 y el descarte del rio del rival (0x39 en los tres), reordena, y pone la escalera entera -tres seguidas desde la ficha de 0xE1F1- detras de la parte cerrada (0xE20B baja cuatro). La apunta en 0xE2B7 con marca 1 (0xE2C7++, 0xE2B6++), marca la ficha robada con un sprite (0xE0E0 para el 1, 0xE0F0 para el 2) y cierra por 0x6BA7 igual que el pon.
+C 0x6aa5 la maquina quita ademas la ficha de su mano de trabajo
+C 0x6ab2 si no la tiene, cancela
+C 0x6aba dos huecos por opcion
+C 0x6ac9 0x39 en los dos huecos
+C 0x6ad4 y en el descarte robado
+C 0x6ad5 repinta el rio del rival
+C 0x6ae9 reordena
+C 0x6aef el limite de la parte cerrada baja cuatro
+C 0x6b00 la ficha por la que empieza la escalera
+C 0x6b0a las tres seguidas, detras de la parte cerrada
+C 0x6b12 la ficha robada, a la lista del jugador
+C 0x6b25 busca la robada dentro de la escalera
+C 0x6b30 bit 0: los sprites del 2 (0xE0F0) o del 1 (0xE0E0)
+C 0x6b3d patron 0xBC: la marca de ficha robada del jugador 1
+C 0x6b40 de la ficha 14 en adelante es la segunda fila de figuras
+C 0x6b46 patron 0xA8 para la segunda fila
+C 0x6b4b la X, de la tabla de 0x5350
+C 0x6b5f patron 0xFF para el jugador 2
+C 0x6b68 y 0x17 para su segunda fila
+C 0x6b6e la X, contada desde el otro lado
+C 0x6b80 los atributos, a 0x3B38
+C 0x6b8a la escalera, a la lista
+C 0x6b8d con marca 1: ABIERTA
+C 0x6b91 una escalera abierta mas
+C 0x6b95 y una llamada mas: la mano ya no esta cerrada
+C 0x6b9c la mano vuelve al jugador 1, y se repinta
+C 0x6ba4 o al 2
+
+L 0x6BA7 cierra_el_chi
+C 0x6baa tres fichas menos en la parte cerrada
+C 0x6bba fase 1: toca descartar
+C 0x6bbf sonido 11
+
+L 0x6BC6 rechaza_chi
+C 0x6bc6 C = 1: no se ha hecho
+C 0x6bd0 el dibujo 2
+
+L 0x6BD3 cancela_la_eleccion
+B 0x6BD3 Deja la eleccion de chi a cero: 0xE1AB, 0xE1C7, los once bytes de opciones (0xE1E9-0xE1F3) y los cuatro sprites de 0x3B00, que se mandan a Y=0xE0, fuera de la pantalla.
+C 0x6bdb once bytes: las opciones
+C 0x6be6 Y=0xE0: el sprite desaparece
+
+L 0x6BF5 apunta_la_primera_ficha_de_la_opcion
+C 0x6bf8 la mitad de 0xE1EF: el numero de opcion
+
+L 0x6C02 apunta_un_hueco_de_la_opcion
+C 0x6c06 dos huecos por opcion
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 13: EL KAN, y el pintado de manos, rios e indicadores.
+# 0x6C12-0x70BF.
+#
+# EL KAN EN SUS TRES FORMAS, todas en 0x6C12: con el descarte del rival y tres
+# copias en la mano (daiminkan, abierto), con la ficha recien robada y tres
+# copias (ankan, cerrado, y se pintan las dos de fuera boca abajo con el codigo
+# 0x38), o anadiendo la robada a un pon ya declarado (shouminkan, 0xE12B = 1).
+# Y la regla de riichi que trae de serie: en riichi, el kan cerrado solo vale
+# si NO CAMBIA LAS ESPERAS (0x6E87 las recalcula y compara, y si no cuadran lo
+# deshace). La maquina pasa por esa comprobacion siempre, este o no en riichi.
+# Tras el kan, 0xE1CF = 1: la ficha siguiente es la de reposicion, y de ahi
+# sale el rinshan kaihou de 0x7EB1.
+#
+# EL DIBUJO DE UNA FICHA son seis tiles seguidos, dos de ancho por tres de
+# alto, y la tabla de 0x4735 da el primero de los seis a partir del CODIGO de
+# ficha: una fila por palo y otra para los honores, todas bajando de seis en
+# seis. El codigo 0x38 dibuja el dorso y el 0x39 el hueco vacio.
+# ---------------------------------------------------------------------------
+
+L 0x6C12 hace_kan
+B 0x6C12 KAN, en sus tres formas. Guarda copia de la mano en 0xE348 por si hay que deshacer. Con 0xE22C a cero la ficha es el ultimo descarte del rival (DAIMINKAN, abierto; no vale en riichi); si no, es la recien robada, la de 0xE209. Con tres copias en la mano (0x6C5F) se quitan esas tres -y la robada, o el descarte-; sin ellas (0x6CCA) se buscan cuatro iguales seguidas en la parte cerrada (0x6E69, ankan) o un pon ya declarado de esa ficha (0x6CE7, SHOUMINKAN, 0xE12B = 1). Luego 0x6D64 apunta el cuarteto, 0x6DB9 reordena y pinta, y 0x6DED decide si hay que comprobar las esperas.
+C 0x6c12 copia de la mano, por si hay que deshacer
+C 0x6c20 0xE22C a cero: la ficha es el descarte del rival
+C 0x6c27 en riichi no se roba para kan
+C 0x6c2e los descartes del rival
+C 0x6c41 con ficha propia es la recien robada, en 0xE209
+C 0x6c4b 0x39: no hay ficha
+C 0x6c50 la ficha del kan
+C 0x6c5c su primera copia en la mano
+C 0x6c63 tres copias seguidas, o por 0x6CCA
+C 0x6c77 si las tres empiezan en el hueco de la robada, por 0x6CCA
+C 0x6c7e 0xE12B = 0: kan normal
+C 0x6c85 con el descarte del rival, las tres se quitan y listo
+C 0x6c8e la robada es una de las tres
+C 0x6c95 una cuarta copia detras: se quitan las cuatro
+C 0x6ca6 la robada del final de la mano tiene que ser la misma ficha
+C 0x6ca9 y es la que se quita aparte
+C 0x6cb7 la cuarta copia es la robada
+C 0x6cbd C = 1: cuatro huecos que quitar
+C 0x6ccd sin ficha propia no hay mas kan que probar
+C 0x6cd1 busca cuatro iguales seguidas en la parte cerrada
+C 0x6cd5 C = 3: las hay
+C 0x6ce2 0xE12B = 2: kan cerrado con cuatro de la mano
+C 0x6ceb con la ficha del rival no hay kan anadido
+C 0x6cf1 las figuras declaradas van de 0xE20B a 18
+C 0x6cf5 ninguna declarada
+C 0x6d05 busca la ficha entre las figuras
+C 0x6d0b no esta
+C 0x6d10 y tiene que ser un trio: dos copias mas
+C 0x6d1b la ficha, delante del trio: ya son cuatro
+C 0x6d21 el trio, en la lista de 0xE2C9
+C 0x6d2e el primer registro libre
+C 0x6d39 copia el trio al hueco libre y luego lo borra: solo lo quita si era el ultimo
+C 0x6d47 un trio abierto menos
+C 0x6d4b el cursor, uno menos
+C 0x6d4f y un trio menos
+C 0x6d52 0xE12B = 1: KAN ANADIDO sobre un pon
+
+L 0x6D57 quita_las_copias
+B 0x6D57 Cambia por 0x39 las tres copias que acaban en HL, o cuatro si C no es cero.
+
+L 0x6D64 apunta_el_cuarteto
+B 0x6D64 Quita la ficha que cierra el kan (del rio del rival si viene de fuera, de la mano si es propia), baja el limite de la parte cerrada (salvo en el kan anadido) y apunta el cuarteto en 0xE2DB por 0x61B9. La marca: ABIERTO (1) con el descarte del rival o en el kan anadido, CERRADO (0) con cuatro de la mano. El abierto cuenta como llamada (0xE2B6++, salvo el anadido, que ya contaba) y sube 0xE2EF, los kan abiertos.
+C 0x6d67 con ficha propia no hay rio que tocar
+C 0x6d6d el descarte robado desaparece del rio
+C 0x6d6f y se repinta
+C 0x6d7d la ficha robada, fuera de la mano
+C 0x6d82 el kan anadido no mueve la parte cerrada
+C 0x6d89 los demas: el limite baja cuatro
+C 0x6d97 el cuarteto, a la lista de 0xE2DB
+C 0x6d9d con el descarte del rival siempre es abierto
+C 0x6da4 0xE12B = 2, cuatro de la mano: CERRADO, sin marca
+C 0x6da6 marca 1: ABIERTO
+C 0x6daa el kan anadido ya contaba como llamada
+C 0x6db1 una llamada mas
+C 0x6db5 y un kan abierto mas, 0xE2EF
+C 0x6db6 la ficha robada, a la lista del jugador
+
+L 0x6DB9 coloca_el_cuarteto
+B 0x6DB9 Reordena la mano y escribe las cuatro fichas del kan detras de la parte cerrada, salvo en el kan anadido, que ya estaba escrito. Si el kan es cerrado, las dos de fuera se escriben como 0x38, el DORSO: asi es como se ve un ankan.
+C 0x6dc3 con ficha propia hay una mas que ordenar
+C 0x6dc7 reordena
+C 0x6dce el kan anadido no se vuelve a escribir
+C 0x6dd6 las cuatro, detras de la parte cerrada
+C 0x6de4 0x38: las dos de fuera BOCA ABAJO si el kan es cerrado
+
+L 0x6DED remata_el_kan
+B 0x6DED Guarda 0xE209/0xE20A por si hay que deshacer, quita tres fichas de la parte cerrada (cuatro fuera y una de reposicion que vendra) y, si es la maquina o el jugador esta en riichi, comprueba que las esperas no cambien (0x6E87); si cambian, se rechaza. Al final la mano vuelve al jugador, la fase pasa a 0xFF (robar la ficha de reposicion), suena el 11 y 0xE1CF = 1 marca esa ficha para el rinshan kaihou.
+C 0x6ded guarda hueco e indice por si hay que deshacer
+C 0x6dfc el kan anadido no cambia la parte cerrada
+C 0x6e02 los demas: tres fichas menos, cuatro fuera y una de reposicion
+C 0x6e0f la maquina siempre comprueba las esperas
+C 0x6e15 el jugador solo en riichi
+C 0x6e18 comprueba que las esperas no cambien
+C 0x6e1d han cambiado: se rechaza
+C 0x6e26 la mano vuelve al jugador 1
+C 0x6e2e o al 2
+C 0x6e3b fase 0xFF: hay que robar la ficha de reposicion
+C 0x6e40 sonido 11
+C 0x6e45 0xE1CF = 1: la ficha siguiente es la de reposicion, el rinshan
+C 0x6e48 y una pausa a pelo
+
+L 0x6E4D rechaza_kan
+C 0x6e4d C = 1: no se ha hecho
+C 0x6e57 el dibujo 2
+
+L 0x6E5D busca_en_la_mano
+B 0x6E5D Devuelve en HL el primer hueco de la mano (desde HL, 0xE20A fichas) que tiene la ficha A; si no esta, HL se queda en el ultimo. La usan pon, chi, kan y la IA (0x53A8).
+C 0x6e61 cuantas fichas mirar
+C 0x6e64 encontrada
+
+L 0x6E69 busca_cuatro_iguales
+B 0x6E69 Cuenta iguales seguidas en la mano de 0xE32B (o, por 0x6E6F, en la que digan DE y HL): C sube con cada ficha igual a la anterior y vuelve a cero al cambiar. En cuanto llega a 3 -cuatro fichas iguales- vuelve con HL en la cuarta; si no las hay, C queda por debajo de 3.
+C 0x6e6f C cuenta las iguales seguidas
+C 0x6e76 igual que la anterior
+C 0x6e7c distinta: la cuenta vuelve a cero
+C 0x6e7f tres iguales seguidas son cuatro fichas
+
+L 0x6E87 comprueba_que_las_esperas_no_cambien
+B 0x6E87 LA REGLA DEL KAN EN RIICHI. Guarda las esperas de antes (12 bytes a 0xE12E), las recalcula con la mano ya sin el kan (0x66E7) y las compara. Iguales: B = 0 y el kan vale. Distintas: lo DESHACE -repone las esperas, la mano de 0xE348, 0xE209/0xE20A, quita el cuarteto (0xE2F0--, registro a cero)- y vuelve con B = 1 para que 0x6E1B lo rechace.
+C 0x6e8c las esperas del jugador 1
+C 0x6e91 o del 2
+C 0x6e97 doce bytes
+C 0x6e9c y se recalculan con la mano de despues del kan
+C 0x6eab doce esperas que comparar
+C 0x6eaf una distinta: a deshacer
+C 0x6eb5 iguales: el kan vale
+C 0x6ec5 las esperas de antes, de vuelta
+C 0x6ecd la mano de antes
+C 0x6ee4 un cuarteto menos
+C 0x6eec y su registro a cero
+C 0x6ef1 B = 1: el kan no vale
+
+L 0x6EF4 pinta_la_mano_ganadora_abajo
+B 0x6EF4 Para el recuento, la mano ganadora se pinta en el sitio del jugador 1: si gano el 2 (bit 1 de 0xE302), 0x5754 la destapa y se copia entera sobre 0xE13A; si gano el 1, se le mete la ficha que cierra (0xE1E8) en el hueco de la robada (0xE1C3). Y a pintarla.
+C 0x6ef8 bit 1 de 0xE302: gano el jugador 2
+C 0x6efe su mano, copiada sobre la del 1
+C 0x6f0c la ficha que cierra
+C 0x6f0f al hueco de la robada del jugador 1
+
+L 0x6F1C pinta_el_tile_de_0x3971
+B 0x6F1C Tres entradas que pintan un tile suelto en la fila 11: 0x6F1C el 0x0A en 0x3971, 0x6F23 el 0x22 en 0x3974 y 0x6F27 el 0x1A en el mismo sitio. 0x7018 y 0x701E las combinan de dos en dos para el recuento.
+L 0x6F23 pinta_el_tile_0x22_en_0x3974
+L 0x6F27 pinta_el_tile_0x1a_en_0x3974
+
+L 0x6F2E pinta_la_mano_del_jugador_1
+B 0x6F2E La mano del jugador 1, abajo: catorce fichas desde 0xE13A en la fila 21 (0x3AA2), y los cuatro huecos de figuras declaradas en la fila 18 (0x3A56).
+C 0x6f31 fila 21, columna 2: la mano
+C 0x6f37 fila 18: las figuras declaradas, cuatro huecos
+
+L 0x6F3E pinta_la_mano_del_jugador_2
+B 0x6F3E La mano del jugador 2, arriba: catorce desde 0xE14C en la fila 0 (0x381C) y de derecha a izquierda, mas sus figuras en la fila 3 (0x3868).
+C 0x6f41 fila 0, columna 28, y de derecha a izquierda
+C 0x6f47 fila 3: las figuras
+
+L 0x6F4E pinta_el_rio_del_jugador_1
+B 0x6F4E Los descartes del jugador 1 (0xE15E): dos filas de diez, la primera en 0x39E2 (fila 15) y la segunda en 0x3A42 (fila 18).
+C 0x6f54 diez por fila
+C 0x6f59 la segunda fila
+
+L 0x6F60 pinta_el_rio_del_jugador_2
+B 0x6F60 Los descartes del jugador 2 (0xE172): dos filas de diez en 0x38DC (fila 6) y 0x387C (fila 3), de derecha a izquierda.
+C 0x6f66 diez por fila
+C 0x6f6b la segunda fila
+
+L 0x6F72 pinta_una_ficha
+B 0x6F72 Pinta una ficha: entra por 0x6F72 con HL en el codigo, por 0x6F74 con A = codigo (lo pasa por la tabla de 0x4735 para sacar el tile) o por 0x6F78 con el tile ya en A. Son tres filas de dos tiles seguidos -A y A+1, luego A+2 y A+3, luego A+4 y A+5-, bajando 0x20 por fila; el tile 0 se queda en 0. Escribe al puerto con las interrupciones quitadas.
+C 0x6f75 del codigo de ficha al primer tile de su dibujo
+C 0x6f7c tres filas de dos tiles
+C 0x6f85 el tile de la izquierda
+C 0x6f88 el 0 se queda en 0
+C 0x6f8b el de la derecha es el siguiente
+C 0x6f9a una fila mas abajo
+
+L 0x6FA3 pinta_una_fila_de_fichas
+B 0x6FA3 Pinta C fichas seguidas desde HL (catorce por 0x6FA3), cada una con su dibujo de 2x3 tiles y avanzando dos columnas: la resta de 0x5E deshace las tres filas de 0x20 y suma dos. Es la mano del jugador 1 y los dos rios.
+C 0x6fa3 catorce fichas: una mano entera
+C 0x6fa8 0x5E: tres filas arriba y dos columnas a la derecha
+
+L 0x6FB2 pinta_una_fila_de_fichas_hacia_la_izquierda
+B 0x6FB2 La gemela de 0x6FA3 para la mano de arriba: resta 0x62, tres filas arriba y dos columnas a la IZQUIERDA. La mano del jugador 2 se pinta de derecha a izquierda.
+C 0x6fb2 catorce fichas
+C 0x6fb7 0x62: tres filas arriba y dos columnas a la izquierda
+
+L 0x6FC1 pinta_el_tablero
+B 0x6FC1 Los bloques del tablero: 0x8AD7 y 0x90D4 en formato B, los 56 bytes de 0x8A9F tal cual a 0x2818 y el bloque de 0x90CF. Lo llama 0x4C66 al montar la mano.
+C 0x6fc1 el primer bloque del tablero
+C 0x6fd0 56 bytes sin comprimir a 0x2818
+
+L 0x6FDF pinta_las_dos_manos_del_tablero
+B 0x6FDF Monta las dos manos dibujadas del tablero: la de enfrente GIRADA (0x46B1 leyendo desde 0x93AA) a 0x2140 y la de este lado (0x46DC desde 0x9A05) a 0x0140, mas los bloques 0x92E3, 0x9343, 0x99F4 y 0x99F9.
+C 0x6fdf el bloque de 0x9343, entrando por 0x93AA
+C 0x6fe5 0x2140: la mano de enfrente, girada
+C 0x6fee 0x0140: la de este lado
+
+L 0x7015 pinta_los_indicadores_y_la_marca_a
+B 0x7015 Pinta los dos indicadores (0x7024) y cae en 0x7018.
+L 0x7018 pinta_la_marca_a
+L 0x701E pinta_la_marca_b
+
+L 0x7024 pinta_los_dos_indicadores
+B 0x7024 Pinta en grande las dos fichas de 0xE1D3 y 0xE1D4: 48 bytes cada una, los patrones a 0x2850 y 0x28D0 por 0x461C y los colores a 0x0850 y 0x08D0 por 0x462F. 0xE1D3 es el INDICADOR DE DORA y 0xE1D4 el del URA-DORA: lo dice 0x81A9, que es quien los cuenta (el ura solo con riichi). Las dos se pintan igual.
+C 0x7024 el indicador de dora
+C 0x7030 y el de ura-dora
+C 0x7053 el primer tile del dibujo de la ficha
+C 0x705b por ocho: donde estan sus patrones
+C 0x7060 48 bytes: seis tiles de ocho
+C 0x706c lo mismo para los colores
+
+L 0x708B pinta_la_fuente_katakana
+B 0x708B Los dos bloques de 0x8832 y 0x8A78: los patrones de la fuente katakana (tiles 0x30-0x7F, a 0x2180) y sus colores (0x0180). Lo llama 0x5A46 al montar el recuento, que es donde se escriben los nombres de las jugadas.
+
+L 0x7097 monta_la_cabecera_del_recuento
+B 0x7097 La cabecera del recuento: la mano ganadora abajo (0x6EF4), el dibujo de 0x7376, y 0xE04E = si el ganador NO es el que reparte (el bit 1 de 0xE302 contra 0xE04D): 0 si reparte, 1 si no. Es lo que elige entre las dos tablas de pago (0x5B36) y entre los rotulos 0x7404 y 0x7416.
+C 0x709a el dibujo de la cabecera
+C 0x70a0 quien reparte
+C 0x70a7 bit 1 de 0xE302: quien ha ganado
+C 0x70ab 0xE04E = 0: el ganador es el que reparte
+C 0x70b6 0xE04E = 1: el ganador es el otro
+C 0x70b9 y su rotulo
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 14: EL RECUENTO EN PANTALLA. 0x70BF-0x7376.
+#
+# El submodo 5 (0x5AEE) lo despacha por los bits de 0xE1C8, que 0x5B51 va
+# desplazando: primero las figuras y sus fu, una cada 64 fotogramas (0x7176);
+# luego la espera y los fu de base (0x72B8); la suma de los fu (0x7320); el
+# total redondeado (0x7356); y los nombres de las jugadas, uno por llamada
+# (0x70BF), con el pago al final (0x5B01).
+#
+# LOS FU SALEN COMO EN EL RIICHI DE CUATRO: trio 2/4 de fichas de en medio,
+# 4/8 de terminales y honores (abierto/cerrado); cuarteto 8/16 y 16/32; pareja
+# 2 si es de dragon o de viento que cuente, 4 si es de los dos vientos; espera
+# 2 si es kanchan, penchan o tanki; 2 por tsumo; base 20, o 30 con la mano
+# cerrada y ron; y el total se redondea a la decena de arriba. Lo que NO hay
+# es el 25 fijo de las siete parejas: se cuentan como una mano cualquiera.
+#
+# LOS 39 NOMBRES DE 0x747B, leidos con la fuente katakana de 0x8832 (la de
+# work/fuente_katakana.bin era la de colores): ver la nota D de 0x747B. El
+# ultimo tile de cada nombre es el han de la jugada ABIERTA, y 0x70BF lo pisa
+# con el valor cerrado cuando la mano no tiene llamadas.
+# ---------------------------------------------------------------------------
+
+L 0x70BF escribe_una_jugada
+B 0x70BF Escribe UN nombre de jugada por llamada, de la lista de 0xE305 (0xE319 apunta al siguiente y 0xE315 dice cuantos quedan), en la fila de VRAM de 0xE317, que baja 0x20 cada vez. Si la jugada es un yakuman (indice 1-11) y la siguiente no lo es, se corta ahi: con yakuman no se escribe nada mas. Luego, once celdas a la derecha del nombre, pinta el numero que toque con 0x457E: los yakuhai (0x22) llevan su cuenta en 0xE1D6, los dora (0x26) la suya en 0xE1D7, y con la mano CERRADA las jugadas que valen mas cerradas se sobreescriben: chinitsu (0x11) pasa a 6, honitsu y junchan (0x15 y 0x17) a 3, ittsu, sanshoku y chanta (0x1F-0x21) a 2. El han abierto va escrito dentro del nombre, en su ultimo tile.
+C 0x70bf cuantas jugadas quedan por escribir
+C 0x70c3 ninguna: al total
+C 0x70cf indice 12 en adelante: jugada normal
+C 0x70d6 la siguiente es normal: esta se escribe y se sigue
+C 0x70de la siguiente es un yakuman: esta es la ultima
+C 0x70e6 dos bytes por puntero
+C 0x70e7 la tabla de punteros de 0x7642
+C 0x70f1 donde va escrito
+C 0x70f8 pinta el nombre por la puerta de formato A que no borra
+C 0x70fe 0x22, yakuhai: su cuenta
+C 0x7107 0x26, dora: la suya
+C 0x7111 con alguna llamada la mano esta abierta: el han va como esta escrito
+C 0x7118 0x11, chinitsu: 6 cerrado
+C 0x711f el 6
+C 0x7123 0x15 y 0x17, honitsu y junchan
+C 0x712b el 0x16 de en medio, toitoi, se queda como esta
+C 0x7132 3 cerrado
+C 0x7136 0x1F-0x21: ittsu, sanshoku y chanta
+C 0x7141 2 cerrado
+C 0x7143 once celdas a la derecha del nombre
+C 0x7148 y el numero, dos cifras
+C 0x714c la fila siguiente, para el nombre que venga
+
+L 0x7156 escribe_el_total_de_han
+B 0x7156 Cuando no quedan nombres: si la jugada mas alta no es yakuman (0xE305 de 12 en adelante) escribe el total de han de 0xE316 en 0x386C, pasado a BCD con un daa. Y baja el bit 2 de 0xE1A8: la jugada esta cantada y el submodo 5 puede seguir.
+C 0x7159 con yakuman no hay total que escribir
+C 0x7161 a BCD
+C 0x716a 0x386C, donde va el total
+C 0x7173 bit 2 de 0xE1A8 abajo: la jugada esta cantada
+
+L 0x7176 pinta_una_figura_y_sus_fu
+B 0x7176 EL RECUENTO DE FU, figura a figura, una cada 64 fotogramas y con sonido 9. 0xE1D8 cuenta las filas que quedan y la tabla de 0x7690 dice en que fila de VRAM va cada una. Primero los trios (0xE2C9, contados en 0xE1D9): se pinta y su fu va a la lista de 0xE322: 2 si es de fichas de en medio y abierto, 4 cerrado; 4 si es de terminales u honores y abierto, 8 cerrado. Luego los cuartetos (0x71DD): 8/16 y 16/32, con los dos dorsos pintados encima si es cerrado. Luego las escaleras (0x724C): 0 fu. Y al final la pareja (0x727A): 2 fu si es de dragon, de viento de la ronda (0x31 + 0xE04C) o de viento del asiento (0x31 + 0xE04D, el del que reparte, sea quien sea el ganador), y 4 si es los dos vientos. Todo en BCD, que es lo que suma 0x7320.
+C 0x7179 una figura cada 64 fotogramas
+C 0x717c sonido 9
+C 0x7184 una fila menos
+C 0x7186 la fila de VRAM de esta figura
+C 0x7193 sin filas: la pareja
+C 0x7197 cuantos trios
+C 0x71a1 todos pintados: a los cuartetos
+C 0x71a8 el registro del trio
+C 0x71b4 sus tres fichas
+C 0x71b7 la marca: abierto o cerrado
+C 0x71bd un honor
+C 0x71c3 o un uno
+C 0x71c7 o un nueve: por 0x71D3
+C 0x71cc abierto: 2 fu
+C 0x71cf cerrado: 4
+C 0x71d3 terminal u honor: 4 abierto
+C 0x71d9 8 cerrado
+C 0x71dd cuantos cuartetos
+C 0x71e7 todos pintados: a las escaleras
+C 0x71f2 por cinco
+C 0x71fa cuatro fichas
+C 0x7205 marca a cero: cerrado
+C 0x720a el dorso encima de la primera
+C 0x7215 y de la ultima
+C 0x721d 8 fu: cuarteto abierto de fichas de en medio
+C 0x7232 16 cerrado
+C 0x7236 terminal u honor: 16 abierto
+C 0x723c 32 cerrado
+C 0x723e la lista de fu, 0xE322, con la cuenta en 0xE32A
+C 0x724c cuantas escaleras
+C 0x7257 todas pintadas: a la pareja
+C 0x7269 sus tres fichas
+C 0x7276 0 fu
+C 0x727a la mano de abajo se vacia, 0x39 en los 18 huecos
+C 0x7286 y se repinta
+C 0x728f la pareja, dos fichas
+C 0x7298 0x35 en adelante, un dragon: 2 fu
+C 0x729c el viento de la ronda, 0x31 + 0xE04C
+C 0x72a5 2 fu
+C 0x72a7 el viento del asiento, 0x31 + 0xE04D
+C 0x72b0 2 fu, y 4 si es los dos
+C 0x72b5 y al paso siguiente del recuento
+
+L 0x72B8 pinta_la_espera_y_los_fu_base
+B 0x72B8 El tipo de espera y los fu de base. 0xE1D2 (que calculo 0x5BDB al evaluar la mano) elige el rotulo y sus fu, que van a la sexta entrada de la lista (0xE327): bit 0 ryanmen, 0x7428, 2; bit 1 kanchan, 0x742F, 4; bit 2 penchan, 0x7436, 4; bit 3 tanki, 0x743D, 4; sin bits, shanpon, 0x7444, 2. Esos valores llevan dentro los 2 fu del tsumo: con RON (bit 0 de 0xE1D1 a cero) se restan 2 y sale el rotulo 0x744E en vez del 0x744B. Quedan 0/2/2/2/0, los del riichi de cuatro. Luego los marcos de 0x7451 y la base: 20 fu, o 30 con la mano cerrada y ron.
+C 0x72bd bit 0: ryanmen
+C 0x72c0 bit 1: kanchan
+C 0x72c3 bit 2: penchan
+C 0x72c6 bit 3: tanki
+C 0x72c9 sin bits: shanpon
+C 0x72d1 2 fu, con el tsumo dentro
+C 0x72e2 4 fu
+C 0x72e8 a la sexta entrada de la lista
+C 0x72ec una entrada mas
+C 0x72ee 0x3ACF: donde va el rotulo de la espera
+C 0x72f7 bit 0 de 0xE1D1: tsumo
+C 0x72f8 el rotulo del tsumo
+C 0x7300 ron: los 2 fu del tsumo se quitan
+C 0x7302 y el rotulo del ron
+C 0x7308 los seis marcos
+C 0x7315 20 fu de base
+C 0x7317 con alguna llamada se queda en 20
+C 0x731c con tsumo tambien
+C 0x731d cerrada y ron: 30
+
+L 0x7320 suma_los_fu
+B 0x7320 Suma en BCD, entrada a entrada, la lista de fu de 0xE322 sobre 0xE1E1/0xE1E2, escribiendo cada una en la fila que dice la tabla de 0x769A. Una entrada por llamada; cuando 0xE32A llega a cero, al total (0x7356).
+C 0x7323 cuantas entradas quedan
+C 0x7327 ninguna: al total
+C 0x732e la fila de VRAM de esta entrada
+C 0x733c la entrada, contando desde 0xE322
+C 0x7344 en BCD
+C 0x7348 con acarreo, el byte alto
+C 0x7353 y se escribe
+
+L 0x7356 escribe_el_total_de_fu
+B 0x7356 El total de fu, REDONDEADO HACIA ARRIBA A LA DECENA: si la cifra de las unidades no es cero se suman 10 y se tiran las unidades. Se escribe en 0x382B/0x382C y se pasa al paso siguiente del recuento.
+C 0x7359 el byte alto, en 0x382B
+C 0x7363 las unidades
+C 0x7366 a cero: no hay que redondear
+C 0x7368 diez mas
+C 0x736a y sin unidades: redondeado a la decena de arriba
+C 0x736d el byte bajo, en 0x382C
+
+F 0x7853 2
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 15: EL FINAL DE LA MANO SIN GANADOR, la mano de la maquina y
+# la decision de la jugada. 0x76A6-0x7B3F.
+#
+# LO GORDO: LA MANO DE LA MAQUINA NO SE ROBA, SE CONSTRUYE (0x78CE). Antes de
+# repartir nada, el cartucho arma catorce fichas a medida -trios, escaleras o
+# parejas, del palo que salga, con una pareja al final- y QUITA UNA: la
+# maquina empieza cada mano a una ficha de completarla. Con la tecla 3 la que
+# falta es siempre la de indice 11. Las copias que gasta se descuentan de los
+# contadores de 0xE186, asi que al jugador 1 no le pueden salir despues.
+#
+# EL FURITEN Y SU CASTIGO. En las dificultades 2 y 3, cuando el jugador 1
+# canta ron, 0x4833 cruza sus esperas con su propio rio (y con lo que el rival
+# le ha robado de el, 0xE233) y 0x47FB con lo que el rival ha descartado desde
+# su riichi. Si hay coincidencia, 0x76D9 le cobra la mano limite: 12.000 si
+# reparte, 8.000 si no. Lo mismo si canta sin jugada (0x7B08). En la
+# dificultad 1 el ron en furiten se rechaza sin castigo (0x5045).
+#
+# LOS HONBA (0xE04B) suben con cada mano sin ganador y con cada mano que gana
+# el que reparte, y se ponen a cero cuando cambia el reparto. Y a partir de 5:
+# hacen falta dos han de jugadas (sin dora) para ganar, y para cobrar el tenpai
+# de una mano sin ganador cada espera tiene que valer 3 han.
+# ---------------------------------------------------------------------------
+
+L 0x76A6 cierra_la_mano_sin_ganador
+B 0x76A6 LA MANO ACABA SIN GANADOR (la llama el submodo 2 cuando 0xE302 trae el bit 2). Sube 0xE062 -manos seguidas sin ganar el jugador 1, lo que dispara la siembra de 0x48E1-, pinta el panel de 0x782C y recalcula las esperas del 1. En las dificultades 2 y 3 (bits 1 y 2 de 0xE040), si el 1 estaba en riichi (bit 0 de 0xE1CD) comprueba el furiten (0x47FB y 0x4833) y, si lo hay, 0x76D9 lo castiga. Si no, 0x7713 mira quien esta en tenpai.
+C 0x76a9 una mano mas sin ganar el jugador 1
+C 0x76aa el panel del final
+C 0x76b1 el jugador 1 como jugador actual
+C 0x76b8 sus esperas, de nuevo
+C 0x76c2 solo en las dificultades 2 y 3
+C 0x76c9 y solo si el 1 estaba en riichi
+C 0x76cc furiten tras el riichi
+C 0x76cf y furiten sobre el propio rio
+C 0x76d5 bits 5 y 6 de 0xE1CD: hay furiten
+
+L 0x76D9 penaliza
+B 0x76D9 LA PENALIZACION, y la paga siempre el jugador 1: 0xE302 = 5 (sin ganador y con castigo), bit 7 de 0xE1AC si el 1 es el que reparte o bit 6 si no -que 0x428B convierte en 12.000 u 8.000, la mano limite del que reparte o del otro- y 0xE1AD = 2, como si solo el 2 estuviera en tenpai. Pinta el aviso de la fila 11 que dice 0xE1AC & 7 (tabla de 0x7853) y el rotulo de la fila 12, suena el 0x90 y sigue por 0x77CD. Se llega desde el furiten (0x4279, 0x76D5) y desde cantar sin jugada (0x7B08).
+C 0x76dc 0xE302 = 5: sin ganador, y con castigo
+C 0x76e1 bit 7: paga el que reparte
+C 0x76e6 si reparte el 2
+C 0x76eb bit 6: paga el que no reparte
+C 0x76f0 0xE1AD = 2: como si solo el 2 estuviera en tenpai
+C 0x76f5 los tres bits bajos eligen el aviso
+C 0x76f8 la tabla de punteros de 0x7853
+C 0x7702 el aviso de la fila 11
+C 0x7705 y el rotulo de la fila 12
+C 0x770d sonido 0x90
+
+L 0x7713 mira_quien_esta_en_tenpai
+B 0x7713 QUIEN ESTA EN TENPAI al acabarse la mano, y lo que se le pide. Sonido 0x96. Con menos de 5 honba (0xE04B) al jugador 1 le basta el bit 7 de 0xE1CD, tener esperas. De 5 honba en adelante CADA ESPERA tiene que valer: se copian a 0xE348 y, una a una, se mete en la mano (0x66EB con C = 0xFF), se evaluan las jugadas con 0xE302 = 4 (0x7AF8) y hace falta que vuelva con acarreo, 3 han o mas; una que no llegue y no hay tenpai. El resultado va al bit 0 de 0xE1AD. Luego 0x7761 hace lo mismo con el 2.
+C 0x7713 sonido 0x96
+C 0x771b menos de 5 honba: basta con tener esperas
+C 0x771f las esperas del 1, copiadas a 0xE348
+C 0x7722 el hueco de la robada
+C 0x772c sin esperas no hay tenpai
+C 0x772f la espera que se prueba
+C 0x7733 C = 0xFF: solo esa ficha
+C 0x7738 se mete en la mano y se analiza
+C 0x773d 0xE302 = 4: sin ganador
+C 0x7740 las jugadas de esa mano
+C 0x7744 y se limpia
+C 0x7748 los han a cero para la siguiente
+C 0x774e sin acarreo la espera no vale: no hay tenpai
+C 0x7752 la espera siguiente
+C 0x7759 bit 7 de 0xE1CD: tiene esperas
+C 0x775f bit 0 de 0xE1AD: EL JUGADOR 1 ESTA EN TENPAI
+
+L 0x7761 mira_si_el_2_esta_en_tenpai
+B 0x7761 Lo mismo para el jugador 2: carga sus figuras (59 bytes de 0xE27B a 0xE2B6) y su mano (0xE14C) en la zona de trabajo, calcula sus esperas y, con 5 honba o mas, exige que cada espera valga por 0x7796 (con 0xE302 = 6: el 2, sin ganador). El resultado, al bit 1 de 0xE1AD.
+C 0x7764 el bit 7 se limpia: ahora toca el 2
+C 0x7766 el hueco de la robada del 2
+C 0x776f sus figuras, 59 bytes
+C 0x777a y su mano
+C 0x7785 sus esperas
+C 0x778b menos de 5 honba
+C 0x778f las esperas, copiadas
+C 0x7793 sin esperas
+C 0x77a4 0xE302 = 6: el 2, sin ganador
+C 0x77a7 las jugadas
+C 0x77ba sin acarreo no hay tenpai
+C 0x77c5 bit 7: tiene esperas
+C 0x77cb bit 1 de 0xE1AD: EL 2 ESTA EN TENPAI
+
+L 0x77CD paga_el_tenpai_y_pasa_la_mano
+B 0x77CD EL CIERRE DE LA MANO SIN GANADOR. 0xE302 = 4 y un honba mas (0xE04B, en BCD). Con los dos en tenpai (0xE1AD = 3) no se paga ni se mueve nada. Con uno solo, 0x7814 carga 1.500 puntos y 0x5DF9 los mueve del que no esta al que esta. Y el reparto: si reparte el 1 (0xE04D a cero) y esta en tenpai, sigue; si no, en la ronda del este pasa al 2 (0x77F7) y en la del sur SE QUEDA. Si reparte el 2 y esta en tenpai, sigue; si no, en el este cambian ronda y reparto (0x77EF) y en el sur se queda tambien.
+C 0x77cf 0xE302 = 4: sin ganador
+C 0x77d2 un honba mas
+C 0x77d8 los dos en tenpai: nadie paga y nada cambia
+C 0x77dc uno solo: 1.500 puntos
+C 0x77e3 bit 0 de 0xE04D: reparte el 2
+C 0x77e7 bit 1 de 0xE1AD: el 2 esta en tenpai y sigue repartiendo
+C 0x77ed en la ronda del sur el reparto no cambia
+C 0x77ef del este al sur
+C 0x77f7 y reparte el otro
+C 0x7801 bit 0: el 1 esta en tenpai y sigue repartiendo
+C 0x7806 en el este pasa al 2; en el sur se queda
+
+L 0x77EF cambia_la_ronda
+B 0x77EF Cambia la ronda (0xE04C: 0 este, 1 sur) y cae en 0x77F7, que cambia quien reparte (0xE04D: 0 el jugador 1, 1 el 2). Los dos son bits que se invierten. Ronda y reparto solo avanzan asi: este-1, este-2, sur-1, sur-2, y de ahi no se pasa: la partida se cierra por 0x5F00.
+C 0x77f2 xor 1: la otra ronda
+C 0x77fa xor 1: reparte el otro
+
+L 0x77F7 cambia_el_reparto
+L 0x7800 pasa_el_reparto_si_toca
+
+L 0x780A suma_un_honba
+B 0x780A Un honba mas, en BCD (0xE04B). Sube con cada mano sin ganador y con cada mano que gana el que reparte (0x5F0F), y vuelve a cero cuando cambia el reparto (0x5EEB, 0x5F08). 0x5C7F lo convierte en 300 puntos por honba en el ron y 0x5BB5 en 100 en el tsumo, y a partir de 5 exige jugadas de mas (0x7B11, 0x771B).
+C 0x780f en BCD
+
+L 0x7814 carga_el_pago_del_tenpai
+B 0x7814 0x0015 en pasos de cien, 1.500 puntos, en los dos pendientes de 0x5DF9: lo que paga el que no esta en tenpai al que si lo esta.
+
+L 0x781E copia_las_esperas_a_e348
+B 0x781E Copia las doce esperas del jugador 1 (0xE1F5) a 0xE348 y deja DE apuntando alli.
+
+L 0x7883 descomprime_para_el_volcado_girado
+B 0x7883 El lector de formato B sin destino: desde (0xE05B) saca ordenes a 0xE2B6 hasta juntar 0x30 bytes (0xE05A los cuenta), y deja el puntero donde se quedo para la tanda siguiente. Es lo que alimenta a 0x46B1 y 0x46DC, columna a columna.
+C 0x7889 los siete bits bajos son la cuenta
+C 0x788f byte cero: se acabo
+C 0x7894 con el bit 7 puesto, copia literal
+C 0x7898 sin el, repite un byte
+C 0x789e 0x30 bytes: una columna entera
+C 0x78a6 y el puntero se guarda para la columna siguiente
+
+L 0x78AA copia_literal_al_volcado
+C 0x78ad uno mas en la tanda
+
+L 0x78BA repite_un_byte_al_volcado
+C 0x78c0 uno mas en la tanda
+
+L 0x78CE construye_la_mano_de_la_maquina
+B 0x78CE LA MANO DE LA MAQUINA NO SE ROBA: SE CONSTRUYE. Es lo primero que hace el reparto (0x4DA6) y llena 0xE21C con catorce fichas a medida. En el demo copia la mano fija de 0x7AEA y la ordena. En partida decide un PLAN en 0xE058 -segun si el 2 va en numeros rojos (0xE100), si esta por debajo de 10.000 (0xE046), los honba y un sorteo-, elige un palo (0xE059) y un objetivo 0xE057: cuantas fichas van en TRIOS (0x7992); el resto van en ESCALERAS del mismo palo (0x79D5) o en PAREJAS (0x7A27), y una pareja al final (0x7A69). Cada ficha que coloca la descuenta de los contadores de 0xE186, como si la hubiera robado. Y al final (0x7A93) QUITA UNA: la maquina empieza a una ficha de la mano completa.
+C 0x78d1 bit 6 de 0xE002: hay partida
+C 0x78d8 en el demo el plan es 0x81
+C 0x78dd la mano fija de 0x7AEA
+C 0x78e5 y ordenada
+C 0x78eb 0xE056: fichas colocadas
+C 0x78ee 0xE057: cuantas van en trios
+C 0x78f3 0xE058: el plan
+C 0x78f8 bits 7 y 6 de 0xE100: el 2 va en numeros rojos
+C 0x78fa plan 4
+C 0x78fe 0xE046: el byte alto del marcador del 2
+C 0x7902 a cero, por debajo de 10.000: plan 2
+C 0x7909 con 5 honba o mas
+C 0x7915 y con 8 si reparte el 2
+C 0x7919 un sorteo
+C 0x791c 33: plan 4
+C 0x7925 si no, plan 2
+C 0x7927 de 25 para arriba, a elegir palo
+C 0x792b de 15 a 24, parejas
+C 0x7930 plan 1
+C 0x7932 de 8 a 14, doce fichas en trios
+C 0x7936 por debajo, plan 2
+C 0x793e otro sorteo: 30 o mas, a elegir palo
+C 0x7942 si no, el plan se parte
+C 0x7947 33: plan 9
+C 0x7953 un tipo de ficha al azar
+C 0x795a un honor no vale de palo: otra
+C 0x7960 0xE059: EL PALO de la mano
+C 0x7966 otro sorteo: 33, doce fichas en trios
+C 0x796a 32, nueve
+C 0x796e 31, parejas
+C 0x7973 de 23 a 30, escaleras
+C 0x7977 de 8 a 22, tres
+C 0x797b por debajo, seis
+C 0x798c bit 5 del plan
+C 0x798e 0xE057 = cuantas fichas van en trios
+
+L 0x7992 coloca_trios
+B 0x7992 Trios hasta llegar a 0xE057: una ficha que cuadre con el plan (0x7AB8) y con menos de dos copias gastadas; con el bit 3 del plan, solo terminales y honores. Tres copias, contadas en 0xE186 y escritas seguidas en 0xE21C. Con doce fichas en trios, a la pareja; si no, a las escaleras.
+C 0x7992 una ficha que cuadre con el plan
+C 0x7995 sus copias gastadas
+C 0x7999 con dos o mas, otra
+C 0x79a0 bit 3 del plan: solo terminales y honores
+C 0x79b4 tres copias gastadas
+C 0x79ba las tres, seguidas
+C 0x79c6 tres fichas mas
+C 0x79cd hasta el objetivo
+C 0x79d0 doce en trios: a la pareja
+
+L 0x79D5 coloca_escaleras
+B 0x79D5 Escaleras del palo hasta doce fichas: una ficha de numero 1 a 7 con menos de cuatro copias gastadas en ella y en las dos siguientes; con el bit 3 del plan, solo las que empiezan en 1 o en 7, las que tocan terminal. Las tres, seguidas, y sus copias descontadas.
+C 0x79d9 un honor no vale
+C 0x79df del 8 para arriba no caben dos encima
+C 0x79e9 cuatro copias gastadas: otra
+C 0x79f3 bit 3 del plan: solo 1-2-3 y 7-8-9
+C 0x7a03 una copia mas gastada de cada una de las tres
+C 0x7a0b la ficha y las dos siguientes
+C 0x7a1d doce: a la pareja
+
+L 0x7A27 coloca_parejas
+B 0x7A27 Seis parejas (fichas con menos de dos copias gastadas; con el bit 3, solo terminales y honores) y el bit 7 del plan puesto: la mano va de siete parejas.
+C 0x7a2e con dos o mas copias gastadas, otra
+C 0x7a35 bit 3: solo terminales y honores
+C 0x7a48 dos copias
+C 0x7a5c doce fichas: seis parejas
+C 0x7a67 bit 7 del plan: siete parejas
+
+L 0x7A69 coloca_la_pareja
+B 0x7A69 La pareja del final: una ficha con menos de dos copias gastadas (terminal u honor con el bit 3), dos copias en los huecos 12 y 13. Y cae en 0x7A93.
+C 0x7a70 con dos o mas gastadas, otra
+C 0x7a8b dos copias
+
+L 0x7A93 quita_una_ficha
+B 0x7A93 LA FICHA QUE FALTA. Sortea un hueco por debajo de 14; con la tecla 3 (bit 1 de 0xE040) el hueco es SIEMPRE el 11, y con las otras dos lo es solo si el sorteo da 12 o 13. Escribe 0x39 ahi -la mano se queda a una ficha- y la ordena por 0x7AAF, que ademas apunta 0xE054 al principio.
+C 0x7a96 un hueco por debajo de 14
+C 0x7a9d bit 1 de 0xE040: la tecla 3
+C 0x7aa1 12 o 13 caen en el 11
+C 0x7aa5 el hueco 11
+C 0x7aad 0x39: la ficha que falta
+C 0x7ab2 0xE054 apunta al principio
+C 0x7ab5 y ordenada
+
+L 0x7AB8 saca_una_ficha_del_plan
+B 0x7AB8 Una ficha al azar que cuadre con el plan de 0xE058: con el bit 0 vale cualquiera; con el bit 1 valen los honores; y si no, tiene que ser del palo de 0xE059. Sale con C = indice y B = codigo.
+C 0x7abb el indice
+C 0x7ac2 y el codigo
+C 0x7aca bit 0 del plan: cualquiera vale
+C 0x7acc bit 1: un honor vale
+C 0x7ad6 o del palo elegido
+C 0x7ad8 y si no, otra
+
+L 0x7ADA apunta_al_contador_de_la_ficha
+B 0x7ADA Deja HL y DE en el contador de copias de 0xE186 del indice C, y pasa el codigo de B a C.
+
+L 0x7AE5 numero_al_azar
+B 0x7AE5 Un numero de 0 a 33 en A, de 0x4F2B.
+
+L 0x7AF8 evalua_y_decide_la_jugada
+B 0x7AF8 Evalua las jugadas (0x7B3F) y decide. Con 0xE302 en "sin ganador" (bit 2) devuelve el acarreo puesto si hay 3 han o mas: es la pregunta del tenpai de 0x7740. Si no hay NINGUNA jugada (0xE305 a cero), 0xE1AC = 3 y sale a lo bruto -pop del retorno- hacia 0x4280: cantar sin jugada se castiga. Con 5 honba o mas ordena la lista y, si la mejor no es yakuman y solo hay UN han, castiga tambien: dos han minimo, contados antes de los dora. Luego anade los dora (0x81A9) y ordena la lista de jugadas de menor indice a mayor, que es de mas valor a menos.
+C 0x7af8 todas las jugadas de la mano
+C 0x7afe bit 2 de 0xE302: se pregunta por un tenpai, no por una mano ganada
+C 0x7b05 ninguna jugada
+C 0x7b0b 0xE1AC = 3: sin jugada
+C 0x7b0d se come el retorno
+C 0x7b0e y al castigo
+C 0x7b14 con menos de 5 honba vale con una jugada
+C 0x7b18 ordena para ver la mejor
+C 0x7b1e un yakuman vale siempre
+C 0x7b25 un solo han: no vale, DOS HAN MINIMO
+C 0x7b28 los dora, que no cuentan para el minimo
+C 0x7b2b y el borrador limpio
+C 0x7b2e la lista de jugadas, ordenada por indice
+C 0x7b3b acarreo = 3 han o mas
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 16: EL DETECTOR DE JUGADAS. 0x7B3F-0x8307.
+#
+# Un evaluador (0x7B3F) que pasa por 27 detectores, uno por jugada o grupo de
+# jugadas, y cada uno que cuadra llama a 0x82E6 con B = han y C = indice, el
+# de los nombres de 0x747B. Los indices 1-11 son los yakuman. Trabajan sobre
+# lo que dejo el motor: las escaleras de 0xE2B7, los trios de 0xE2C9 (con su
+# marca de abierto), los cuartetos de 0xE2DB, la pareja de 0xE300, la mano
+# ordenada de 0xE2F1, 0xE2B6 (las llamadas: mano abierta), 0xE303 (escaleras
+# dobles) y 0xE205 (siete parejas, trece huerfanos). Y sobre tres cosas de la
+# mano: 0xE1D1 (tsumo o ron), 0xE1CD/0xE1AE (riichi de cada jugador) y 0xE1CF
+# (la ficha de reposicion del kan).
+#
+# LO QUE COINCIDE CON EL RIICHI DE CUATRO: casi todo, han incluidos, con las
+# rebajas de mano abierta (chinitsu 6/5, honitsu y junchan 3/2, ittsu,
+# sanshoku y chanta 2/1) y el tanyao abierto permitido. LO QUE DIVERGE, leido
+# del codigo: el pinfu no vale con tsumo (0x7C99); el sanshoku doukou vale 3
+# han (0x7E1C); el chuuren solo se detecta en el primer palo (0x7F1A); el
+# chinroutou deja pasar el este como si fuera un uno (0x8197); el renhou es un
+# yakuman con el nombre del chiihou (0x82E3); el haitei con tsumo vale 2 han
+# con el tsumo dentro (0x7C71); las siete parejas no tienen sus 25 fu; y no
+# hay shousuushii, ni nagashi mangan, ni chankan, ni doble yakuman.
+# ---------------------------------------------------------------------------
+
+L 0x7B3F evalua_las_jugadas
+B 0x7B3F EL EVALUADOR DE JUGADAS. Limpia 0xE1D2 y el borrador, saca el tipo de espera (0x5BDB, 0x5C1B, 0x5C42) y pasa por los detectores uno a uno; 0x82F9 limpia el borrador entre grupos. El kokushi (bit 1 de 0xE205) corta en seco: solo el. Lo llaman 0x7AF8 (la decision) y 0x5767 (la maquina, para saber si su mano tiene jugada antes de cantar).
+C 0x7b40 0xE1D2: el tipo de espera, a cero
+C 0x7b46 ryanmen o penchan
+C 0x7b49 kanchan
+C 0x7b4c tanki o shanpon
+C 0x7b52 bit 1 de 0xE205: trece huerfanos
+C 0x7b54 indice 3, yakuman
+C 0x7b57 y nada mas
+C 0x7b5a bit 0: siete parejas
+C 0x7b5b 2 han, indice 20
+C 0x7b61 haitei y houtei
+C 0x7b64 menzen tsumo
+C 0x7b6a toitoi, sanankou, suuankou y sanshoku doukou
+C 0x7b6d tanyao
+C 0x7b70 chinitsu y tsuuiisou
+C 0x7b73 honitsu
+C 0x7b76 el riichi del jugador 1
+C 0x7b79 y el del 2
+C 0x7b7f ittsu, sanshoku doujun y pinfu
+C 0x7b82 iipeikou y ryanpeikou
+C 0x7b85 sankantsu y suukantsu
+C 0x7b88 rinshan kaihou
+C 0x7b8e chuuren poutou
+C 0x7b91 honroutou
+C 0x7b97 chanta y junchan
+C 0x7b9a daisuushii
+C 0x7b9d yakuhai
+C 0x7ba0 ryuuiisou
+C 0x7ba6 shousangen y daisangen
+C 0x7ba9 chinroutou
+C 0x7bac y tenhou, chiihou y renhou
+
+L 0x7BAF riichi_del_jugador_1
+B 0x7BAF Las cuatro jugadas del riichi del jugador 1 (bit 1 de 0xE302 a cero). Con el bit 0 de 0xE1CD (en riichi): si se declaro con el descarte 0 (0xE1CC) es DOBLE RIICHI (bit 1); si el descarte de ahora es el de la declaracion (0xE1BE = 0xE1CC) la mano se ha cerrado en la primera vuelta: IPPATSU (bit 2). De los tres bits sale la jugada: 1 riichi (indice 13, 1 han), 3 doble (12, 2), 5 riichi con ippatsu (14, 2), 7 doble con ippatsu (15, 3).
+C 0x7bb2 bit 1 de 0xE302: esta es del jugador 1
+C 0x7bb9 bit 0 de 0xE1CD: en riichi
+C 0x7bbe declarado con el descarte 0: DOBLE RIICHI
+C 0x7bcb sin descarte despues del riichi
+C 0x7bd2 el descarte de ahora es el de la declaracion: IPPATSU
+C 0x7bd8 los tres bits
+C 0x7be7 doble riichi con ippatsu: 3 han, indice 15
+C 0x7bec riichi: 1 han, indice 13
+C 0x7bf1 doble riichi: 2 han, indice 12
+C 0x7bf6 riichi con ippatsu: 2 han, indice 14
+
+L 0x7BFC riichi_del_jugador_2
+B 0x7BFC Lo mismo para el jugador 2, con 0xE1AE (su riichi), 0xE1BB (el descarte con el que lo declaro), 0xE172 y 0xE1BF.
+C 0x7bff esta es del jugador 2
+C 0x7c06 bit 0 de 0xE1AE: en riichi
+C 0x7c0b 0xE1BB, el descarte de su riichi: 0 es doble
+C 0x7c1f IPPATSU
+C 0x7c34 3 han
+C 0x7c39 1 han
+C 0x7c3e 2 han
+C 0x7c43 2 han
+
+L 0x7C48 haitei_y_houtei
+B 0x7C48 LA ULTIMA FICHA. Cuenta los descartes: los del que reparte (0xE1BE o 0xE1BF, segun 0xE04D) tienen que llegar a 20 -19 con tsumo-, o los del otro a uno menos y ser ron. Con tsumo es HAITEI (indice 35, 2 han: lleva dentro el han del tsumo, y 0xE1D0 = 1 le dice a 0x8290 que no lo sume otra vez); con ron, HOUTEI (indice 36, 1 han).
+C 0x7c4b bit 0 de 0xE04D: reparte el 2
+C 0x7c54 HL = descartes del que reparte, DE = del otro
+C 0x7c59 bit 0 de 0xE1D1: tsumo
+C 0x7c5a 20 descartes, o 19 con tsumo
+C 0x7c61 el que reparte ha llegado: ultima ficha
+C 0x7c66 el otro no llega a uno menos: no es la ultima
+C 0x7c69 con tsumo tampoco
+C 0x7c6b houtei: 1 han, indice 36
+C 0x7c71 haitei: 2 han, indice 35, con el tsumo dentro
+C 0x7c77 0xE1D0 = 1: que 0x8290 no sume el tsumo otra vez
+
+L 0x7C7C ittsu_sanshoku_y_pinfu
+B 0x7C7C Tres jugadas de escaleras. Con tres o mas: ITTSU (0x7CC4: 1-2-3, 4-5-6 y 7-8-9 del mismo palo; indice 31, 1 han abierto y 2 cerrado) y SANSHOKU DOUJUN (0x7D17: la misma escalera en los tres palos; indice 32, 1 y 2). Con las CUATRO y la mano cerrada, PINFU (indice 28, 1 han) si es RON, la pareja no es de dragon ni del viento de la ronda ni del asiento (el del que reparte, invertido para el 2), y la espera es ryanmen (bit 0 de 0xE1D2). El cartucho NO da pinfu con tsumo.
+C 0x7c7f menos de tres escaleras: nada
+C 0x7c82 ittsu
+C 0x7c88 sanshoku doujun
+C 0x7c8e pinfu solo con cuatro escaleras
+C 0x7c94 y mano cerrada
+C 0x7c99 y RON: con tsumo no hay pinfu
+C 0x7c9e pareja de dragon: no
+C 0x7ca1 viento menos 0x31
+C 0x7ca6 el de la ronda: no
+C 0x7cac bit 1 de 0xE302: el jugador
+C 0x7cb4 el asiento del 2 es el contrario del que reparte
+C 0x7cb7 el del asiento: no
+C 0x7cbb bit 0 de 0xE1D2: ryanmen
+C 0x7cbe PINFU: 1 han, indice 28
+
+L 0x7CC4 busca_el_ittsu
+B 0x7CC4 Por cada palo, las tres escaleras de la tabla de 0x7CD5 (1, 4 y 7): 0x7CDE las cuenta en 0xE127 y da la jugada si estan las tres.
+C 0x7cc7 tres palos
+C 0x7ccb la cuenta de escaleras encontradas, a cero
+
+L 0x7CDE cuenta_las_tres_escaleras
+C 0x7cde las tres de un palo
+C 0x7cea menos de tres: no es ittsu
+C 0x7cf1 ITTSU: 1 han abierto, indice 31
+C 0x7cf6 2 cerrado
+C 0x7cfb se come dos retornos: ya no hay que mirar mas palos
+
+L 0x7CFE esta_la_escalera
+B 0x7CFE Busca la escalera que empieza en (HL) entre las de 0xE2B7 y, si esta, sube 0xE127.
+C 0x7d05 no es esta
+C 0x7d0a encontrada: una mas
+
+L 0x7D17 busca_el_sanshoku
+B 0x7D17 SANSHOKU DOUJUN: apunta en 0xE127 las escaleras del palo 0 (nibble alto a cero) y 0x7D4A mira si la misma esta en el palo 1 (+0x10) y en el 2 (+0x20). Indice 32: 1 han abierto, 2 cerrado.
+C 0x7d24 solo las del palo 0
+C 0x7d34 ninguna
+C 0x7d36 con tres del palo 0 no queda sitio para los otros
+C 0x7d40 1 han abierto, indice 32
+C 0x7d45 2 cerrado
+
+L 0x7D4A la_misma_en_los_otros_palos
+C 0x7d4d dos candidatas como mucho
+C 0x7d59 la misma escalera un palo mas arriba
+C 0x7d69 no esta: se come el retorno, no hay sanshoku
+C 0x7d76 y un palo mas
+
+L 0x7D83 iipeikou_y_ryanpeikou
+B 0x7D83 Solo con la mano cerrada: 0xE303, las parejas de escaleras iguales que apunto el motor. Una es IIPEIKOU (indice 30, 1 han); dos, RYANPEIKOU (indice 18, 3 han).
+C 0x7d86 con llamadas no hay
+C 0x7d8b ninguna pareja de escaleras
+C 0x7d8e iipeikou: 1 han, indice 30
+C 0x7d93 ryanpeikou: 3 han, indice 18
+
+L 0x7D98 sankantsu_y_suukantsu
+B 0x7D98 Tres cuartetos, SANKANTSU (indice 25, 2 han); cuatro, SUUKANTSU (indice 11, yakuman).
+C 0x7d9b menos de tres
+C 0x7da0 cuatro: yakuman, indice 11
+C 0x7da5 tres: 2 han, indice 25
+
+L 0x7DAB toitoi_y_los_trios_ocultos
+B 0x7DAB Con tres o mas trios y cuartetos. Primero 0x7DE7 mira el sanshoku doukou. Con cuatro, TOITOI (indice 22, 2 han, y 0xE1E0 = 1 para el daisuushii), y segun cuantos esten abiertos (0xE2D9 mas los kan abiertos de 0xE2EF): ninguno, SUUANKOU (indice 10, yakuman); uno, SANANKOU (indice 24, 2 han). Con tres justos y ninguno abierto, sanankou tambien. El trio cerrado con la ficha de ron cuenta como abierto (0x6185).
+C 0x7dab trios mas cuartetos
+C 0x7db4 menos de tres
+C 0x7db6 el sanshoku doukou, de paso
+C 0x7dba tres justos
+C 0x7dbc TOITOI: 2 han, indice 22
+C 0x7dc2 0xE1E0 = 1, para el daisuushii
+C 0x7dc7 los abiertos: trios mas kan
+C 0x7dce dos o mas abiertos: nada mas
+C 0x7dd2 ninguno abierto: SUUANKOU, yakuman, indice 10
+C 0x7dd9 con tres: ninguno abierto
+C 0x7de1 SANANKOU: 2 han, indice 24
+
+L 0x7DE7 busca_el_sanshoku_doukou
+B 0x7DE7 SANSHOKU DOUKOU: los trios y cuartetos del palo 0 van a 0xE128 (0x7E9F), y 0x7E22 busca el mismo numero en el palo 1 y en el 2, entre trios y cuartetos. Indice 19 y 3 HAN: aqui el cartucho da uno mas que el riichi de cuatro, donde son dos.
+C 0x7dea sin trios
+C 0x7df6 registros de cuatro bytes
+C 0x7e01 sin cuartetos
+C 0x7e0a de cinco
+C 0x7e13 ninguno del palo 0
+C 0x7e15 tres del palo 0: no cabe
+C 0x7e1c 3 han, indice 19
+
+L 0x7E22 el_mismo_trio_en_los_otros_palos
+C 0x7e25 dos candidatos
+C 0x7e32 un palo mas arriba
+C 0x7e64 encontrado en el palo 1: ahora el 2
+C 0x7e9d no esta: se come el retorno
+
+L 0x7E9F apunta_los_del_palo_0
+C 0x7ea0 nibble alto a cero: palo 0
+C 0x7ea8 al registro siguiente
+
+L 0x7EB1 rinshan_kaihou
+B 0x7EB1 RINSHAN KAIHOU: la ficha que cierra es la de reposicion de un kan (0xE1CF, que puso 0x6E45) y es tsumo. Indice 37, 1 han.
+C 0x7eb4 bit 0 de 0xE1CF: la ficha de reposicion
+C 0x7eb9 y tsumo
+C 0x7ebb 1 han, indice 37
+
+L 0x7EC1 tanyao
+B 0x7EC1 TANYAO: ninguna de las catorce fichas es honor, uno ni nueve. Indice 29, 1 han, y 0xE1DD = 1. No mira 0xE2B6: el tanyao abierto vale.
+C 0x7ec7 un honor: no
+C 0x7ecc un uno: no
+C 0x7ecf un nueve: no
+C 0x7ed5 1 han, indice 29
+
+L 0x7EE0 chinitsu_y_tsuuiisou
+B 0x7EE0 Las catorce fichas con el mismo nibble alto. Si es 0x30 es TSUUIISOU, todo honores (indice 4, yakuman); si no, CHINITSU (indice 17, 5 han abierto y 6 cerrado) y 0xE1DE = 1, que es lo que le abre la puerta al chuuren y se la cierra al honitsu.
+C 0x7ee6 el palo de la primera
+C 0x7eed una de otro palo: no
+C 0x7ef2 0x30: todo honores
+C 0x7ef4 yakuman, indice 4
+C 0x7efd 5 han abierto, indice 17
+C 0x7f02 6 cerrado
+C 0x7f07 0xE1DE = 1: un solo palo
+
+L 0x7F0C chuuren_poutou
+B 0x7F0C CHUUREN POUTOU: mano cerrada de un solo palo (0xE1DE) con tres unos, tres nueves y del dos al ocho al menos una. Cuenta las fichas por numero en 0xE128-0xE130 sumando el CODIGO a 0xE127, y eso solo cabe si el palo es el 0: con el palo 1 o el 2 el cp de 0x7F1A la descarta. Solo se detecta en el primer palo. Indice 7, yakuman.
+C 0x7f0f siete parejas: no
+C 0x7f14 sin un solo palo: no
+C 0x7f1a solo el palo 0: los codigos 0x11 y 0x21 no pasan
+C 0x7f20 y cerrada
+C 0x7f2c una ficha mas de ese numero
+C 0x7f35 menos de tres unos
+C 0x7f39 del dos al ocho
+C 0x7f3e uno que falte y no es
+C 0x7f43 menos de tres nueves
+C 0x7f46 yakuman, indice 7
+
+L 0x7F4C chanta_y_junchan
+B 0x7F4C CHANTA y JUNCHAN. Si ya es honroutou (0xE238) no hay nada que mirar. Cuenta los honores en 0xE127: la pareja tiene que ser honor o terminal; cada escalera, 1-2-3 o 7-8-9; cada trio y cuarteto, terminal u honor. Con siete parejas (0x7FF7), las siete de terminal u honor. Con algun honor, CHANTA (indice 33, 1 han abierto y 2 cerrado); sin ninguno, JUNCHAN (indice 23, 2 y 3).
+C 0x7f4f honroutou: no
+C 0x7f52 la cuenta de honores
+C 0x7f59 siete parejas: por 0x7FF7
+C 0x7f5f la pareja, honor
+C 0x7f6b o nueve
+C 0x7f6f o uno, y si no, nada
+C 0x7f75 sin escaleras
+C 0x7f78 dos comprobaciones por escalera
+C 0x7f80 empieza en honor
+C 0x7f87 empieza en nueve
+C 0x7f8b o en uno
+C 0x7f90 si era la segunda comprobacion, no cuadra
+C 0x7f9b la tercera ficha
+C 0x7fa9 registros de cuatro: los trios
+C 0x7fb8 de cinco: los cuartetos
+C 0x7fbe sin honores: junchan
+C 0x7fc5 chanta: 1 han abierto, indice 33
+C 0x7fca 2 cerrado
+C 0x7fd2 junchan: 2 han abierto, indice 23
+C 0x7fd7 3 cerrado
+
+L 0x7FDC todos_de_terminal_u_honor
+C 0x7fdd un honor cuenta
+C 0x7fe6 nueve
+C 0x7fea o uno
+C 0x7fee ni una cosa ni otra: se come el retorno
+
+L 0x7FF7 siete_parejas_de_terminal_u_honor
+C 0x7ffd siete parejas
+C 0x8000 honor
+C 0x8009 nueve
+C 0x800d o uno, y si no, nada
+
+L 0x8016 daisuushii
+B 0x8016 DAISUUSHII: con toitoi (0xE1E0) y todos los trios y cuartetos de VIENTO (honor con numero menor que 5). Indice 5, yakuman.
+C 0x8019 sin toitoi no
+C 0x8039 yakuman, indice 5
+C 0x8040 no es honor: no
+C 0x8046 un dragon: no
+
+L 0x8053 yakuhai
+B 0x8053 YAKUHAI: cuenta en C los trios y cuartetos de dragon, de viento de la ronda (L = 0x31 + 0xE04C) y de viento del asiento (H = 0x31 + el asiento del jugador: el del que reparte, invertido para el 2). El viento que es de la ronda y del asiento cuenta dos. Indice 34 con C han, y la cuenta en 0xE1D6 para escribirla.
+C 0x8056 siete parejas: no
+C 0x805b L = el viento de la ronda
+C 0x8061 bit 1 de 0xE302: el jugador
+C 0x8068 el asiento del 2, el contrario
+C 0x806b H = el viento del asiento
+C 0x806e la cuenta
+C 0x807a de cuatro bytes
+C 0x808c de cinco
+C 0x8098 ninguno
+C 0x809a 0xE1D6 = la cuenta, para escribirla
+C 0x809c tantos han como yakuhai, indice 34
+
+L 0x80A1 cuenta_los_yakuhai
+C 0x80a2 el del asiento
+C 0x80a6 el de la ronda
+C 0x80ac un dragon
+
+L 0x80BC honitsu
+B 0x80BC HONITSU: un palo mas honores. Si ya era chinitsu (0xE1DE) no. Salta los honores del principio, se queda con el palo de la primera ficha que no lo sea, y todas las demas tienen que ser de ese palo u honores. Indice 21, 2 han abierto y 3 cerrado; 0xE1DC = 1.
+C 0x80bf chinitsu ya: no
+C 0x80c9 los honores del principio se saltan
+C 0x80d2 el palo
+C 0x80d9 ni del palo ni honor: no
+C 0x80e3 2 han abierto, indice 21
+C 0x80e8 3 cerrado
+
+L 0x80F2 honroutou
+B 0x80F2 HONROUTOU: sin escaleras, y todas las fichas honor, uno o nueve. Indice 27, 2 han, y 0xE238 = 1 para que el chanta no lo cuente otra vez.
+C 0x80f5 con escaleras no
+C 0x80fd honor
+C 0x8103 uno
+C 0x8107 o nueve
+C 0x8110 0xE238 = 1: honroutou
+C 0x8112 2 han, indice 27
+
+L 0x8118 ryuuiisou
+B 0x8118 RYUUIISOU, todo verde: solo el dragon verde (0x36) y los bambues 2, 3, 4, 6 y 8 (0x22, 0x23, 0x24, 0x26, 0x28). Es lo que dice que el palo 2 son los BAMBUES y el 0x36 el dragon verde. Indice 9, yakuman.
+C 0x811e 0x36, el dragon verde
+C 0x8122 bambu 2
+C 0x8132 y el 8
+C 0x8134 cualquier otra: no
+C 0x8138 yakuman, indice 9
+
+L 0x813E shousangen_y_daisangen
+B 0x813E Cuenta los trios y cuartetos de dragon (0x35-0x37). Tres: DAISANGEN (indice 6, yakuman). Dos y la pareja de dragon: SHOUSANGEN (indice 26, 2 han).
+C 0x8162 menos de dos
+C 0x8167 tres: daisangen, yakuman, indice 6
+C 0x816f la pareja tiene que ser de dragon
+C 0x8175 shousangen: 2 han, indice 26
+
+L 0x817B cuenta_los_dragones
+C 0x817c 0x35 a 0x37
+C 0x8184 uno mas
+
+L 0x818C chinroutou
+B 0x818C CHINROUTOU: sin escaleras y todas las fichas con numero 1 o 9. Pero mira solo el nibble bajo, y el este (0x31) pasa como si fuera un uno: un honroutou con trio del este cuenta tambien como chinroutou. Indice 8, yakuman.
+C 0x818f con escaleras no
+C 0x8197 solo el numero: el 0x31 pasa por un uno
+C 0x81a3 yakuman, indice 8
+
+L 0x81A9 dora
+B 0x81A9 LOS DORA. El indicador es 0xE1D3 y el del ura-dora 0xE1D4, que solo cuenta con riichi (bit 0 de 0xE1CD o de 0xE1AE). 0x8270 pasa del indicador al dora y 0x8210 cuenta las copias en escaleras, trios (tres), cuartetos (cuatro) y la pareja (dos); con siete parejas, 0x8202 las cuenta en la mano. Indice 38 con tantos han como dora, y la cuenta en 0xE1D7.
+C 0x81ae siete parejas: se cuentan en la mano
+C 0x81b7 bit 1 de 0xE302: el jugador
+C 0x81c2 en riichi: el ura-dora cuenta
+C 0x81c3 el indicador del ura-dora
+C 0x81ca el indicador del dora
+C 0x81d2 ningun dora
+C 0x81d4 0xE1D7 = la cuenta
+C 0x81d9 tantos han como dora, indice 38
+C 0x81ea el ura, en siete parejas
+C 0x81f2 solo con riichi
+C 0x81f6 y el dora
+
+L 0x8202 cuenta_el_dora_en_la_mano
+C 0x8208 una copia
+
+L 0x8210 cuenta_el_dora_en_las_figuras
+C 0x8210 del indicador al dora
+C 0x8216 sin escaleras
+C 0x821d las tres fichas de cada escalera
+C 0x8236 un trio son tres
+C 0x8248 un cuarteto, cuatro
+C 0x8253 y la pareja
+C 0x8255 dos
+
+L 0x8258 cuenta_en_trios_o_cuartetos
+C 0x825f tres o cuatro copias
+
+L 0x826B cuenta_en_escalera
+C 0x826e una copia
+
+L 0x8270 del_indicador_al_dora
+B 0x8270 El dora es el siguiente del indicador: dentro del palo, del nueve vuelve al uno; entre los vientos, del norte (0x34) al este (0x31); entre los dragones, del rojo (0x37) al blanco (0x35).
+C 0x8274 el norte
+C 0x8278 vuelve al este
+C 0x827c el rojo
+C 0x8280 vuelve al blanco
+C 0x8286 el nueve
+C 0x828b vuelve al uno del palo
+C 0x828d el siguiente
+
+L 0x8290 menzen_tsumo
+B 0x8290 MENZEN TSUMO: mano cerrada y tsumo, salvo que el haitei ya lo lleve dentro (0xE1D0). Indice 16, 1 han.
+C 0x8293 el haitei ya lo cuenta
+C 0x8298 con llamadas no
+C 0x829d y tsumo
+C 0x829f 1 han, indice 16
+
+L 0x82A4 tenhou_chiihou_y_renhou
+B 0x82A4 Las manos de la primera vuelta. Con tsumo: si el OTRO aun no ha descartado (su cuenta en 0xFF), TENHOU (indice 1) si gana el que reparte y CHIIHOU (indice 2) si gana el otro. Con ron: si el que reparte acaba de hacer su primer descarte (cuenta 0) y lo gana el otro, RENHOU, que el cartucho apunta con el indice 2, el mismo del chiihou. Todos yakuman.
+C 0x82a7 bit 0 de 0xE1D1: tsumo
+C 0x82ae bit 0 de 0xE04D: reparte el 2
+C 0x82b7 0xFF: el otro no ha descartado
+C 0x82bd reparte el 1
+C 0x82c4 con ron lo gana el que no reparte
+C 0x82d4 y es el primer descarte del que reparte
+C 0x82dd el ganador contra el que reparte
+C 0x82de tenhou, indice 1
+C 0x82e3 chiihou o renhou, indice 2
+
+L 0x82E6 apunta_la_jugada
+B 0x82E6 APUNTA UNA JUGADA: sube 0xE315, escribe el indice C detras del ultimo (la lista empieza en 0xE305) y suma los B han a 0xE316. Es a donde van a parar todos los detectores.
+C 0x82e9 una jugada mas
+C 0x82eb 0xE304 + la cuenta: el hueco siguiente de la lista de 0xE305
+C 0x82f1 el indice
+C 0x82f6 y los han
+
+L 0x82F9 limpia_el_borrador
+B 0x82F9 Los 19 bytes de 0xE127 a 0xE139 a cero: el borrador con el que cuentan los detectores.
+
+# Quien paga y quien cobra en 0x5DF9, leido de las llamadas a resta y suma.
+C 0x5e0c sin el bit 1 gano el jugador 1: paga el 2
+C 0x5e15 con castigo (bits 7 y 6 de 0xE1AC) paga siempre el 1
+C 0x5e1b bit 0 de 0xE1AD: el 1 esta en tenpai y cobra, paga el 2
+C 0x5e5e y cobra el jugador 1, el de 0xE047
+C 0x5e63 o el 2, el de 0xE044
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 17: EL PAGO. 0x5AEE-0x5C97, y como se indexan las tablas de
+# 0x5C97-0x5DF9.
+#
+# QUIEN INDEXA LA TABLA, Y CON QUE. Con menos de 5 han, 0x5C5A saca la fila
+# de los fu: la decena de 0xE1E1 menos dos (20 fu = fila 0, 30 = 1, ... 90 =
+# 7), y 100 fu o mas da 8; 0x5C70 elige la tabla por 0xE04E (0 = gana el que
+# reparte, 0x5C97; 1 = el otro, 0x5CA9) y entra en la fila con (han-1)*2. De
+# 5 han en adelante no hay fila de fu: 0x5B6B toma han-4 (tope 13) como
+# indice en los topes de 0x5D4B/0x5D5D, que son mangan, haneman, baiman y
+# sanbaiman repetidos. Con yakuman, tantos como haya, en 0x5D6F/0x5D79. Y a
+# lo que salga se le suman 300 puntos por honba (0x5C7F).
+#
+# CON TSUMO EL PAGO ES OTRO: 0x5BA0 lo vuelve a sacar de las tablas "al robar"
+# (0x5D83, 0x5DDD, 0x5DEF), que son lo que paga UN jugador -la parte del que
+# reparte en el tsumo de cuatro-, mas 100 por honba. Como solo hay un rival,
+# un tsumo cobra bastante menos que un ron de la misma mano: un mangan son
+# 4.000 por tsumo y 8.000 o 12.000 por ron.
+#
+# Y UN AGUJERO DE LA TABLA: 20 fu con 1 han vale 0 en las dos tablas. En el
+# riichi de cuatro no existe esa mano (una mano abierta cuenta 30 minimo);
+# aqui no hay ese minimo, y una mano abierta con escaleras, espera ryanmen,
+# ron y una sola jugada cobra 0 mas los honba. Leido, no medido.
+# ---------------------------------------------------------------------------
+
+L 0x5AEE canta_la_jugada
+B 0x5AEE EL DESPACHADOR DEL RECUENTO, el submodo 5. Los bits de 0xE1C8 dicen por donde va, y 0x5B51 los va desplazando a la derecha al acabar cada paso, asi que el orden es de arriba abajo: bit 4 las figuras y sus fu (0x7176), bit 3 la espera y la base (0x72B8), bit 2 la suma de fu (0x7320), bit 1 el total (0x7356) y bit 0 las jugadas y el pago (0x5B01).
+C 0x5af1 bit 0: las jugadas y el pago
+C 0x5af5 bit 1: el total de fu
+C 0x5af9 bit 2: la suma de fu
+C 0x5afc bit 3: la espera y los fu de base
+C 0x5aff bit 4: las figuras
+
+L 0x5B01 escribe_las_jugadas_y_paga
+B 0x5B01 Escribe un nombre por llamada (0x70BF) y, cuando el bit 2 de 0xE1A8 cae, CALCULA EL PAGO. Cuenta en 0xE127 los yakuman de la lista (indices 1-11); si hay alguno, 0x5B57 paga tantas manos maximas como haya. Si no: de 5 han en adelante, la mano limite por 0x5B6B; con menos, la fila de los fu (0x5C5A) en la tabla del que reparte o del otro (0xE04E), y en ella la columna del han. 100 fu o mas se pagan como 8 han.
+C 0x5b01 un nombre por llamada
+C 0x5b07 hasta que esten todos escritos
+C 0x5b0d la cuenta de yakuman
+C 0x5b16 indices 1 a 11: yakuman
+C 0x5b20 alguno: mano maxima
+C 0x5b25 de 5 han en adelante, mano limite
+C 0x5b2a la fila de los fu
+C 0x5b2d 8, cien fu o mas: se paga como 8 han
+C 0x5b35 bit 0 de 0xE04E: gana el que no reparte
+C 0x5b36 la tabla del que reparte
+C 0x5b3b o la del otro
+C 0x5b3e la fila y la columna
+
+L 0x5B43 suma_los_fu_del_recuento
+L 0x5B46 espera_y_base_del_recuento
+L 0x5B4E figuras_del_recuento
+
+L 0x5B51 siguiente_paso_del_recuento
+B 0x5B51 Desplaza 0xE1C8 un bit a la derecha: el paso siguiente del recuento.
+
+L 0x5B57 paga_los_yakuman
+B 0x5B57 Tantas manos maximas como yakuman: 0xE1B3 = cuantos, y (cuantos-1)*2 entra en la tabla del que reparte (0x5D6F: 48.000, 96.000...) o del otro (0x5D79: 32.000, 64.000...).
+C 0x5b57 0xE1B3 = cuantos yakuman
+C 0x5b5f bit 0 de 0xE04E
+C 0x5b61 la tabla del que reparte
+C 0x5b66 o la del otro
+
+L 0x5B6B paga_la_mano_limite
+B 0x5B6B De 5 han en adelante: se recortan a 13, se les quitan 4 (0xE1B4 = 1 a 9) y con eso se entra en los topes de 0x5D4B (reparte: 12.000, 18.000, 18.000, 24.000, 24.000, 24.000, 36.000 x3) o de 0x5D5D. Mangan, haneman, baiman y sanbaiman.
+C 0x5b6d 13 como mucho
+C 0x5b71 menos cuatro: 1 a 9
+C 0x5b73 0xE1B4 = el escalon de la mano limite
+C 0x5b7d la tabla del que reparte
+C 0x5b82 o la del otro
+
+L 0x5B85 carga_el_pago
+B 0x5B85 Lee la palabra que toca (0x5C7F le suma 300 por honba), la deja en los dos pendientes de 0x5DF9 (0xE1B1 y 0xE1E4) y la pinta en 0x38E8. Si es TSUMO (bit 0 de 0xE1D1) vuelve a sacarla de las tablas "al robar": 0x5DEF para los yakuman, 0x5DDD para la mano limite y 0x5D83 para el resto, con 100 por honba, y esa es la que se mueve de verdad (0xE1B1).
+C 0x5b85 la palabra, mas 300 por honba
+C 0x5b88 los dos pendientes del pago
+C 0x5b90 0x38E8: donde se pinta
+C 0x5b96 tres bytes: seis cifras
+C 0x5b9e con ron, este es el pago
+C 0x5ba3 tsumo con yakuman: por 0x5BCD
+C 0x5ba9 tsumo con mano limite: por 0x5BD4
+C 0x5bac la fila de los fu otra vez
+C 0x5baf la tabla del tsumo
+C 0x5bb5 la palabra
+C 0x5bbb mas 100 por honba
+C 0x5bbf en BCD
+C 0x5bc8 lo que se mueve es esto
+C 0x5bcf tsumo con yakuman: 16.000, 32.000...
+C 0x5bd6 tsumo con mano limite: 4.000, 6.000, 6.000, 8.000...
+
+L 0x5BDB espera_ryanmen_o_penchan
+B 0x5BDB EL TIPO DE ESPERA, primera parte. Con la ficha que cierra (0xE1E8) en un extremo de alguna escalera: si el otro extremo es un uno o un nueve la escalera es 1-2-3 o 7-8-9 y la espera era de borde, PENCHAN (bit 2 de 0xE1D2, 2 fu); si no, RYANMEN (bit 0, 0 fu), y con una sola escalera ryanmen basta. Con un honor no hay nada que mirar.
+C 0x5bde la ficha que cierra
+C 0x5be1 un honor no esta en ninguna escalera
+C 0x5be6 sin escaleras
+C 0x5bef es la primera de la escalera?
+C 0x5bf3 o la tercera?
+C 0x5bf9 la escalera empieza en 1: espera de borde
+C 0x5bfc una espera de borde mas
+C 0x5c07 ninguna
+C 0x5c0c bit 2: PENCHAN
+C 0x5c11 la escalera acaba en 9: espera de borde
+C 0x5c18 bit 0: RYANMEN, y ya esta
+
+L 0x5C1B espera_kanchan
+B 0x5C1B Segunda parte, si la primera no dijo nada: la ficha que cierra es la de EN MEDIO de alguna escalera, KANCHAN (bit 1 de 0xE1D2, 2 fu).
+C 0x5c1e ya hay espera
+C 0x5c2d la ficha de en medio de cada escalera
+C 0x5c3f bit 1: KANCHAN
+
+L 0x5C42 espera_tanki_o_shanpon
+B 0x5C42 Tercera parte: la ficha que cierra es la pareja, TANKI (bit 3, 2 fu), o no, y entonces cerro un trio: SHANPON (bit 4, 0 fu).
+C 0x5c4e es la pareja?
+C 0x5c54 bit 4: SHANPON
+C 0x5c57 bit 3: TANKI
+
+L 0x5C5A fila_de_los_fu
+B 0x5C5A La fila de la tabla de pago a partir de los fu de 0xE1E1/0xE1E2: con el byte alto a cero, la decena menos dos (20 = 0, 30 = 1, hasta 90 = 7); con 100 o mas, 8.
+C 0x5c5f cien fu o mas
+C 0x5c62 fila 8
+C 0x5c65 la decena
+C 0x5c6d menos dos: 20 fu es la fila 0
+
+L 0x5C70 entra_en_la_tabla
+B 0x5C70 Con E = fila y HL = tabla de punteros, deja HL en la fila y A = (han-1)*2, la columna. Cae en 0x5C7F.
+C 0x5c71 dos bytes por puntero
+C 0x5c79 los han
+C 0x5c7d menos uno, por dos: la columna
+
+L 0x5C7F lee_el_pago_con_honba
+B 0x5C7F Lee la palabra de HL+A y le suma TRES VECES los honba de 0xE04B, en BCD: 300 puntos por honba, en centenas.
+C 0x5c85 los honba
+C 0x5c89 por dos
+C 0x5c8b mas uno: por tres
+C 0x5c8d y a la palabra, en BCD
+
+# ---------------------------------------------------------------------------
+# PASO 3, TANDA 19: los flecos de la zona de reglas, para que ninguna rutina
+# de 0x5F3E-0x8307 se quede por debajo del liston.
+# ---------------------------------------------------------------------------
+C 0x6032 los cinco bytes del registro
+C 0x61c5 los registros de cuarteto, cinco bytes cada uno
+C 0x6d59 las tres copias, hacia atras
+C 0x6d5f C distinto de cero: hay una cuarta
+C 0x6de6 dorso o ficha, ficha, ficha, dorso o ficha
+C 0x6eb9 bit 0 de 0xE206: las esperas del 2
+C 0x6f8c un call a un ret pelado: una pausa entre los dos bytes
+C 0x707e 48 bytes de colores, por 0x462F
+C 0x7825 doce esperas
+C 0x78ab al volcado
+C 0x78bf el mismo byte, repetido
+C 0x7a7c un honor pasa
+C 0x7a8d los huecos 12 y 13
+C 0x7adc los contadores de copias
+C 0x7c25 los tres bits, igual que en 0x7BD7
+C 0x7d6b encontrada en el palo 1: ahora el 2
+C 0x7e52 un palo mas arriba, entre los cuartetos
+C 0x7e72 y en el palo 2, entre los trios
+C 0x7e8e o entre los cuartetos
+C 0x7f98 la escalera vale: a la siguiente
+C 0x802d sin cuartetos
+C 0x8141 la cuenta de dragones, a cero
+C 0x8155 sin cuartetos
+C 0x8301 diecinueve bytes
+
+C 0x7e57 cinco bytes por cuarteto

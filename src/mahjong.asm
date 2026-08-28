@@ -508,10 +508,10 @@ L_4279:
 	and 060h		;427c   ; los bits 5 y 6 de 0xE1CD son los que llevan a cantar jugada
 	jr z,L_42A8		;427e
 L_4280:
-	call L_76D9		;4280
+	call penaliza		;4280
 	jr L_4288		;4283
 L_4285:
-	call L_76A6		;4285
+	call cierra_la_mano_sin_ganador		;4285
 L_4288:
 	ld a,(0e1ach)		;4288
 	and 0c0h		;428b   ; los dos bits altos de 0xE1AC deciden el importe
@@ -529,7 +529,7 @@ L_429E:
 	ld a,0c0h		;42a3   ; y con 192 fotogramas de espera
 	jp L_420F		;42a5
 L_42A8:
-	call L_7AF8		;42a8   ; salida normal: al submodo 3
+	call evalua_y_decide_la_jugada		;42a8   ; salida normal: al submodo 3
 	jp espera_32_y_avanza_de_submodo		;42ab
 
 ; ----------------------------------------------------------------------
@@ -588,7 +588,7 @@ submodo_4_del_estado_11:
 ; SUBMODO 5 DEL ESTADO 11: canta la jugada. 0x5AEE es quien decide de que jugada se trata y la escribe; mientras el bit 2 de 0xE1A8 siga puesto, aqui no se avanza. Al terminar pinta los tres digitos de 0xE1B2 en 0x38A8.
 ; ----------------------------------------------------------------------
 submodo_5_del_estado_11:
-	call L_5AEE		;430b
+	call canta_la_jugada		;430b
 	ld hl,0e1a8h		;430e   ; bit 2 de 0xE1A8: la jugada aun se esta cantando
 	bit 2,(hl)		;4311
 	ret nz			;4313
@@ -1243,7 +1243,7 @@ pinta_la_mano_del_espejo:
 	ld c,024h		;46b4   ; 36 columnas
 L_46B6:
 	push bc			;46b6
-	call L_7883		;46b7   ; rellena el trozo de 0xE2E5 antes de volcarlo
+	call descomprime_para_el_volcado_girado		;46b7   ; rellena el trozo de 0xE2E5 antes de volcarlo
 	pop bc			;46ba
 	ld hl,0e2e5h		;46bb
 	ld b,030h		;46be   ; 48 bytes por columna
@@ -1283,7 +1283,7 @@ vuelca_la_mano_de_este_lado:
 	ld c,024h		;46df   ; 36 columnas
 L_46E1:
 	push bc			;46e1
-	call L_7883		;46e2   ; rellena el trozo de 0xE2E5 antes de volcar la columna
+	call descomprime_para_el_volcado_girado		;46e2   ; rellena el trozo de 0xE2E5 antes de volcar la columna
 	pop bc			;46e5
 	ld hl,0e2e5h		;46e6
 	ld b,030h		;46e9   ; 48 bytes cada una
@@ -1305,7 +1305,7 @@ L_46EB:
 ; ----------------------------------------------------------------------
 limpia_y_pinta_los_ceros:
 	xor a			;46f9
-	ld de,06000h		;46fa   ; 0x6000, que en la VRAM de 16 KB es 0x2000: los colores
+	ld de,06000h		;46fa   ; 0x6000, que en la VRAM de 16 KB es 0x2000: los patrones
 	ld bc,00030h		;46fd
 	call rellena_la_vram		;4700
 	ld hl,04708h		;4703   ; y encima, la lista de siete bytes de aqui al lado
@@ -1355,9 +1355,9 @@ prepara_lectura_vram:
 	ret			;472a
 
 ; ----------------------------------------------------------------------
-; Devuelve en A un byte de la tabla de 0x4735, indexando con el A de entrada. Son cuatro filas de diez posiciones que bajan de seis en seis, una por orientacion de la mesa.
+; Devuelve en A el primer tile del dibujo de la ficha cuyo codigo entra en A, leyendo la tabla de 0x4735: una fila por palo y otra para los honores, todas bajando de seis en seis porque cada ficha son seis tiles. Quien pinta fichas (0x6F74, 0x7053) pasa por aqui.
 ; ----------------------------------------------------------------------
-saca_una_posicion:
+primer_tile_de_la_ficha:
 	push hl			;472b
 	ld hl,04735h		;472c
 	call suma_a_a_hl		;472f   ; indexa la tabla con A
@@ -1366,12 +1366,18 @@ saca_una_posicion:
 	ret			;4734
 
 ; ----------------------------------------------------------------------
-; DATOS cuatro_filas_de_posiciones: Cuatro filas de 16 bytes con diez valores
+; DATOS primer_tile_de_cada_ficha: Cuatro filas de 16 bytes con diez valores
 ;   utiles cada una, que bajan de seis en seis: 0xFA..0xC4, 0x88..0x58,
-;   0xBE..0x8E y 0x52..0x28. La lee 0x472C indexando con A. Son las cuatro
+;   0xBE..0x8E y 0x52..0x28. La lee 0x472C indexando con el CODIGO DE FICHA
+;   (palo en el nibble alto, numero en el bajo), asi que cada fila es un palo
+;   -0, 1, 2- y la cuarta son los honores. El valor es el PRIMER TILE del
+;   dibujo de la ficha, que son seis tiles seguidos, dos de ancho por tres de
+;   alto (0x6F72); por eso bajan de seis en seis. En la fila de los honores el
+;   indice 8 (codigo 0x38) es el dorso de la ficha y el 9 (0x39) el hueco
+;   vacio. CORRIGE la lectura anterior, que las tomaba por cuatro
 ;   orientaciones de la mesa.
 ;   0x4735..0x476f  (58 bytes)
-DATA_cuatro_filas_de_posiciones:
+DATA_primer_tile_de_cada_ficha:
 	defb 0fah,0f4h,0eeh,0e8h,0e2h,0dch,0d6h,0d0h,0cah,0c4h,000h,000h,000h,000h,000h,000h	; 4735  ................
 	defb 000h,088h,082h,07ch,076h,070h,06ah,064h,05eh,058h,000h,000h,000h,000h,000h,000h	; 4745  ...|vpjd^X......
 	defb 000h,0beh,0b8h,0b2h,0ach,0a6h,0a0h,09ah,094h,08eh,000h,000h,000h,000h,000h,000h	; 4755  ................
@@ -1612,7 +1618,7 @@ L_48B6:
 	ld (0e05dh),de		;48b8
 L_48BC:
 	ld hl,0e128h		;48bc
-	call L_6F72		;48bf
+	call pinta_una_ficha		;48bf
 	ld a,001h		;48c2
 	call L_9C4A		;48c4   ; sonido 1 en cada paso: el tecleo del recuento
 	ret			;48c7
@@ -2067,17 +2073,17 @@ DATA_guion_del_demo:
 
 
 ; ----------------------------------------------------------------------
-; Prepara la caida del rotulo del principio: diecisiete pasos en 0xE00A, la altura a cero en 0xE00E, los colores del bloque de 0x4BB0 descomprimidos en 0x2200 y los patrones de al lado rellenos a 0xF0. Cada paso lo da 0x4B75.
+; Prepara la caida del rotulo del principio: diecisiete pasos en 0xE00A, la altura a cero en 0xE00E, los patrones del bloque de 0x4BB0 descomprimidos en 0x2200 y los colores de al lado rellenos a 0xF0. Cada paso lo da 0x4B75.
 ; ----------------------------------------------------------------------
 monta_el_rotulo_que_baja:
 	ld a,011h		;4b50   ; diecisiete pasos de caida
 	ld (0e00ah),a		;4b52
 	ld hl,00000h		;4b55   ; y empieza arriba del todo
 	ld (0e00eh),hl		;4b58
-	ld hl,04bb0h		;4b5b   ; los colores, en formato B sin cabecera de destino
+	ld hl,04bb0h		;4b5b   ; los patrones, en formato B sin cabecera de destino
 	ld de,06200h		;4b5e
 	call L_4693		;4b61
-	ld de,00200h		;4b64   ; y los patrones del mismo tercio, con el byte fijo 0xF0
+	ld de,00200h		;4b64   ; y los colores del mismo tercio, con el byte fijo 0xF0
 	ld bc,000d0h		;4b67
 	ld a,0f0h		;4b6a
 	call rellena_la_vram		;4b6c
@@ -2127,16 +2133,16 @@ L_4BA2:
 	ret			;4baf
 
 ; ----------------------------------------------------------------------
-; DATOS colores_del_menu_200: Formato B SIN cabecera de destino: 0x4B5B llama
+; DATOS patrones_del_menu_200: Formato B SIN cabecera de destino: 0x4B5B llama
 ;   a la entrada 0x4693 (tres bytes dentro de 0x468F, saltandose el `ld
 ;   e,(hl)/ld d,(hl)` que lee el destino) con DE=0x6200 puesto a mano, o sea
 ;   que este bloque son solo ORDENES, sin los dos bytes de VRAM delante.
-;   Descomprime a 208 bytes en los colores 0x2200. Justo detras, 0x4B64
-;   rellena los patrones 0x0200 con el byte fijo 0xF0 repetido 208 veces (`ld
+;   Descomprime a 208 bytes en los patrones 0x2200. Justo detras, 0x4B64
+;   rellena los colores 0x0200 con el byte fijo 0xF0 repetido 208 veces (`ld
 ;   de,0x0200 / ld bc,0xD0 / ld a,0xF0 / call 0x45F6`): mismo tercio, mismo
-;   tamano, patron solido en vez de comprimido.
+;   tamano, color fijo en vez de comprimido.
 ;   0x4bb0..0x4c43  (147 bytes)
-DATA_colores_del_menu_200:
+DATA_patrones_del_menu_200:
 	defb 00eh,000h,082h,007h,00fh,006h,000h,082h,0f8h,0f0h,004h,03eh,004h,03fh,090h,01fh	; 4bb0  ...........>.?..
 	defb 03fh,07fh,0ffh,0feh,0fch,0f8h,0f0h,0e0h,0c0h,080h,000h,000h,000h,03eh,03eh,005h	; 4bc0  ?............>>.
 	defb 000h,083h,01fh,07fh,0fbh,005h,000h,083h,00fh,0cfh,0efh,005h,000h,083h,078h,0fch	; 4bd0  ..............x.
@@ -2176,7 +2182,7 @@ monta_la_mano:
 	ld bc,0018eh		;4c5f   ; 398 bytes de variables de la mano
 	ld (hl),000h		;4c62
 	ldir		;4c64
-	call L_6FC1		;4c66
+	call pinta_el_tablero		;4c66
 	call pinta_la_barra_de_arriba		;4c69
 	call L_5A67		;4c6c
 	xor a			;4c6f
@@ -2213,7 +2219,7 @@ L_4CA8:
 L_4CAF:
 	ld hl,04cf2h		;4caf
 	call pinta_lista_formato_b		;4cb2
-	jp L_6FDF		;4cb5
+	jp pinta_las_dos_manos_del_tablero		;4cb5
 
 ; ----------------------------------------------------------------------
 ; Repinta la barra de arriba entera: la limpia con el tile 1, suelta los dos marcadores con su signo, el rotulo de tres trozos y el contador de 0xE04A, y remata con el rotulo de la DIFICULTAD, que elige entre tres listas mirando los bits 0 y 1 de 0xE040. Con la tecla 1 sale 0x4D36, con la 3 sale 0x4D3E y con la 2 la tercera, 0x4D47.
@@ -2297,8 +2303,8 @@ DATA_marca_c:
 
 L_4D58:
 	call despacha_el_reparto		;4d58
-	call L_6F2E		;4d5b
-	call L_6F3E		;4d5e
+	call pinta_la_mano_del_jugador_1		;4d5b
+	call pinta_la_mano_del_jugador_2		;4d5e
 	ld a,(0e1a8h)		;4d61
 	rra			;4d64
 	ret c			;4d65
@@ -2344,7 +2350,7 @@ despacha_el_reparto:
 ; EL REPARTO INICIAL. Copia catorce fichas a 0xE32B, deja los dos contadores de mano en trece, saca las trece de 0xE12C una a una con 0x4F64 y remata con la catorce en 0xE139. Y en cuanto termina llama a 0x48E1, que puede sembrarle un trio y una o dos escaleras encima de lo repartido.
 ; ----------------------------------------------------------------------
 reparte_la_mano:
-	call L_78CE		;4da6
+	call construye_la_mano_de_la_maquina		;4da6
 	ld hl,0e21ch		;4da9
 	ld de,0e32bh		;4dac
 	ld bc,0000eh		;4daf   ; catorce fichas
@@ -2514,7 +2520,7 @@ L_4EC7:
 	ld (0e1d3h),a		;4ec7
 	call reparte_una_ficha		;4eca   ; la segunda, esta siempre sorteada
 	ld (0e1d4h),a		;4ecd
-	call L_7015		;4ed0
+	call pinta_los_indicadores_y_la_marca_a		;4ed0
 	ld hl,0e2b6h		;4ed3
 	ld de,0e2b7h		;4ed6
 	ld (hl),000h		;4ed9
@@ -2719,8 +2725,8 @@ L_4FFC:
 	ld a,(0e206h)		;5007
 	rra			;500a
 	jr c,L_5013		;500b
-	call L_65BD		;500d
-	call L_660A		;5010
+	call mueve_el_cursor_del_menu		;500d
+	call elige_en_el_menu		;5010
 L_5013:
 	ld a,(0e206h)		;5013
 	ld de,0e13ah		;5016
@@ -2755,7 +2761,7 @@ L_501F:
 	bit 6,(hl)		;5057   ; bit 6 de 0xE1CD: hay coincidencia
 	jr nz,apaga_la_marca_y_sigue		;5059
 L_505B:
-	call L_5F3E		;505b
+	call analiza_la_mano		;505b
 	ld a,(0e302h)		;505e
 	rra			;5061   ; bit 0 de 0xE302
 	jr c,L_50A4		;5062
@@ -2790,7 +2796,7 @@ L_5079:
 	call L_4F9B		;509e   ; y se reordena la mano con lo nuevo
 	jp L_56F7		;50a1
 L_50A4:
-	call L_67A1		;50a4
+	call limpia_el_analisis		;50a4
 
 ; ----------------------------------------------------------------------
 ; Baja el bit 6 de 0xE1CD -la marca de coincidencia- y, si el turno es del primero, saca el dibujo 2 del rincon, que es el unico de los tres que suena.
@@ -2999,7 +3005,7 @@ DATA_patrones_de_sprite:
 L_527F:
 	ld a,001h		;527f
 	call pinta_uno_de_los_tres_dibujos		;5281
-	call L_663C		;5284
+	call despacha_la_llamada		;5284
 	call L_51BC		;5287
 	ld a,(0e1aah)		;528a
 	cp 0ffh		;528d
@@ -3143,7 +3149,7 @@ L_539A:
 	ld a,(0e1bch)		;53a0
 	ld hl,0e1f5h		;53a3
 	ld b,00dh		;53a6
-	call L_6E5D		;53a8
+	call busca_en_la_mano		;53a8
 	cp (hl)			;53ab
 	jr z,L_5378		;53ac
 	call busca_en_las_dos_listas		;53ae
@@ -3162,7 +3168,7 @@ L_53C7:
 	ld hl,0e13ah		;53ca
 	call suma_a_a_hl		;53cd
 	ld (hl),039h		;53d0
-	call L_6F2E		;53d2
+	call pinta_la_mano_del_jugador_1		;53d2
 	ld a,(0e1cdh)		;53d5
 	rra			;53d8
 	jr nc,L_5402		;53d9
@@ -3198,7 +3204,7 @@ L_540C:
 	ld b,a			;5416
 	ld hl,0e13ah		;5417
 	call L_4F9B		;541a
-	call L_6F2E		;541d
+	call pinta_la_mano_del_jugador_1		;541d
 	ld a,0e0h		;5420
 	ld de,03b00h		;5422
 	call escribe_en_vram		;5425
@@ -3223,7 +3229,7 @@ L_5436:
 	call suma_a_a_hl		;5450
 	ld a,(0e1bch)		;5453
 	ld (hl),a			;5456
-	call L_6F4E		;5457
+	call pinta_el_rio_del_jugador_1		;5457
 	ld hl,0e1aah		;545a
 	set 4,(hl)		;545d
 	ret			;545f
@@ -3272,7 +3278,7 @@ L_549D:
 L_54BE:
 	call L_577A		;54be
 	call L_551D		;54c1
-	call L_6F3E		;54c4
+	call pinta_la_mano_del_jugador_2		;54c4
 	ld hl,0e21ch		;54c7
 	ld de,0e14ch		;54ca
 	call L_5535		;54cd
@@ -3308,7 +3314,7 @@ L_54EB:
 	call L_551D		;5508
 	call L_553C		;550b
 L_550E:
-	call L_6F3E		;550e
+	call pinta_la_mano_del_jugador_2		;550e
 	ld hl,0e21ch		;5511
 	ld de,0e14ch		;5514
 	call L_5535		;5517
@@ -3374,7 +3380,7 @@ L_556C:
 	call suma_a_a_hl		;558d
 	ld a,(0e22bh)		;5590
 	ld (hl),a			;5593
-	call L_6F60		;5594
+	call pinta_el_rio_del_jugador_2		;5594
 	ld hl,00000h		;5597
 	ld (0e052h),hl		;559a
 	ld hl,0e1aah		;559d
@@ -3401,7 +3407,7 @@ L_55B9:
 L_55CC:
 	xor a			;55cc
 	call pinta_uno_de_los_tres_dibujos		;55cd
-	call L_663C		;55d0
+	call despacha_la_llamada		;55d0
 	call L_51BC		;55d3
 	ld a,(0e1aah)		;55d6
 	cp 001h		;55d9
@@ -3439,7 +3445,7 @@ L_5603:
 	call suma_a_a_hl		;561d
 	pop af			;5620
 	ld (hl),a			;5621
-	call L_6F2E		;5622
+	call pinta_la_mano_del_jugador_1		;5622
 	ld hl,0e1aah		;5625
 	ld a,(0e1c3h)		;5628
 	ld (0e1c2h),a		;562b
@@ -3527,7 +3533,7 @@ L_56B6:
 	cp 005h		;56c7
 	jr c,L_56E3		;56c9
 L_56CB:
-	call L_67A1		;56cb
+	call limpia_el_analisis		;56cb
 	xor a			;56ce
 	ld (0e1a9h),a		;56cf
 L_56D2:
@@ -3585,7 +3591,7 @@ L_571C:
 	ld hl,0e1b7h		;573c
 	inc (hl)			;573f
 L_5740:
-	jp L_6F3E		;5740
+	jp pinta_la_mano_del_jugador_2		;5740
 L_5743:
 	ld hl,00000h		;5743
 	ld (0e052h),hl		;5746
@@ -3598,12 +3604,12 @@ L_5754:
 	ld a,(0e1bah)		;5754
 	jp L_54DE		;5757
 L_575A:
-	call L_5F3E		;575a
+	call analiza_la_mano		;575a
 	xor a			;575d
 	ld (0e316h),a		;575e
 	ld a,(0e22ah)		;5761
 	ld (0e1d1h),a		;5764
-	call L_7B3F		;5767
+	call evalua_las_jugadas		;5767
 	ld a,(0e316h)		;576a
 	ret			;576d
 L_576E:
@@ -3705,7 +3711,7 @@ L_5828:
 	ld a,(0e20dh)		;5828
 	ld (0e1c7h),a		;582b
 	call L_517A		;582e
-	call L_663C		;5831
+	call despacha_la_llamada		;5831
 	call L_51BC		;5834
 	xor a			;5837
 	ld (0e1c7h),a		;5838
@@ -3991,9 +3997,9 @@ L_5A32:
 	call L_4F9B		;5a42
 	ret			;5a45
 L_5A46:
-	call L_708B		;5a46
+	call pinta_la_fuente_katakana		;5a46
 	call pinta_la_barra_de_arriba		;5a49
-	call L_7097		;5a4c
+	call monta_la_cabecera_del_recuento		;5a4c
 	call L_5A67		;5a4f
 	ld a,(0e302h)		;5a52
 	bit 1,a		;5a55
@@ -4003,8 +4009,8 @@ L_5A46:
 L_5A5F:
 	ld a,(de)			;5a5f
 	rra			;5a60
-	jp nc,L_7018		;5a61
-	jp L_701E		;5a64
+	jp nc,pinta_la_marca_a		;5a61
+	jp pinta_la_marca_b		;5a64
 L_5A67:
 	ld hl,05a8eh		;5a67
 	call L_409D		;5a6a
@@ -4066,31 +4072,39 @@ DATA_contador_3:
 ; ======================================================================
 
 
-L_5AEE:
+
+; ----------------------------------------------------------------------
+; EL DESPACHADOR DEL RECUENTO, el submodo 5. Los bits de 0xE1C8 dicen por donde va, y 0x5B51 los va desplazando a la derecha al acabar cada paso, asi que el orden es de arriba abajo: bit 4 las figuras y sus fu (0x7176), bit 3 la espera y la base (0x72B8), bit 2 la suma de fu (0x7320), bit 1 el total (0x7356) y bit 0 las jugadas y el pago (0x5B01).
+; ----------------------------------------------------------------------
+canta_la_jugada:
 	ld a,(0e1c8h)		;5aee
-	rra			;5af1
-	jr c,L_5B01		;5af2
+	rra			;5af1   ; bit 0: las jugadas y el pago
+	jr c,escribe_las_jugadas_y_paga		;5af2
 	rra			;5af4
-	jp c,L_7356		;5af5
+	jp c,escribe_el_total_de_fu		;5af5   ; bit 1: el total de fu
 	rra			;5af8
-	jr c,L_5B43		;5af9
+	jr c,suma_los_fu_del_recuento		;5af9   ; bit 2: la suma de fu
 	rra			;5afb
-	jr c,L_5B46		;5afc
+	jr c,espera_y_base_del_recuento		;5afc   ; bit 3: la espera y los fu de base
 	rra			;5afe
-	jr c,L_5B4E		;5aff
-L_5B01:
-	call L_70BF		;5b01
+	jr c,figuras_del_recuento		;5aff   ; bit 4: las figuras
+
+; ----------------------------------------------------------------------
+; Escribe un nombre por llamada (0x70BF) y, cuando el bit 2 de 0xE1A8 cae, CALCULA EL PAGO. Cuenta en 0xE127 los yakuman de la lista (indices 1-11); si hay alguno, 0x5B57 paga tantas manos maximas como haya. Si no: de 5 han en adelante, la mano limite por 0x5B6B; con menos, la fila de los fu (0x5C5A) en la tabla del que reparte o del otro (0xE04E), y en ella la columna del han. 100 fu o mas se pagan como 8 han.
+; ----------------------------------------------------------------------
+escribe_las_jugadas_y_paga:
+	call escribe_una_jugada		;5b01   ; un nombre por llamada
 	ld a,(0e1a8h)		;5b04
-	bit 2,a		;5b07
+	bit 2,a		;5b07   ; hasta que esten todos escritos
 	ret nz			;5b09
 	ld hl,0e127h		;5b0a
-	ld (hl),000h		;5b0d
+	ld (hl),000h		;5b0d   ; la cuenta de yakuman
 	ld de,0e305h		;5b0f
 	ld b,020h		;5b12
 L_5B14:
 	ld a,(de)			;5b14
 	dec a			;5b15
-	cp 00bh		;5b16
+	cp 00bh		;5b16   ; indices 1 a 11: yakuman
 	jr nc,L_5B1E		;5b18
 	inc (hl)			;5b1a
 	inc de			;5b1b
@@ -4098,85 +4112,101 @@ L_5B14:
 L_5B1E:
 	ld a,(hl)			;5b1e
 	or a			;5b1f
-	jr nz,L_5B57		;5b20
+	jr nz,paga_los_yakuman		;5b20   ; alguno: mano maxima
 	ld a,(0e316h)		;5b22
-	cp 005h		;5b25
-	jp nc,L_5B6B		;5b27
-	call L_5C5A		;5b2a
-	cp 008h		;5b2d
-	jp z,L_5B6B		;5b2f
+	cp 005h		;5b25   ; de 5 han en adelante, mano limite
+	jp nc,paga_la_mano_limite		;5b27
+	call fila_de_los_fu		;5b2a   ; la fila de los fu
+	cp 008h		;5b2d   ; 8, cien fu o mas: se paga como 8 han
+	jp z,paga_la_mano_limite		;5b2f
 	ld a,(0e04eh)		;5b32
-	rra			;5b35
-	ld hl,05c97h		;5b36
+	rra			;5b35   ; bit 0 de 0xE04E: gana el que no reparte
+	ld hl,05c97h		;5b36   ; la tabla del que reparte
 	jr nc,L_5B3E		;5b39
-	ld hl,05ca9h		;5b3b
+	ld hl,05ca9h		;5b3b   ; o la del otro
 L_5B3E:
-	call L_5C70		;5b3e
-	jr L_5B85		;5b41
-L_5B43:
-	jp L_7320		;5b43
-L_5B46:
-	call L_82F9		;5b46
-	call L_72B8		;5b49
-	jr L_5B51		;5b4c
-L_5B4E:
-	jp L_7176		;5b4e
-L_5B51:
+	call entra_en_la_tabla		;5b3e   ; la fila y la columna
+	jr carga_el_pago		;5b41
+suma_los_fu_del_recuento:
+	jp suma_los_fu		;5b43
+espera_y_base_del_recuento:
+	call limpia_el_borrador		;5b46
+	call pinta_la_espera_y_los_fu_base		;5b49
+	jr siguiente_paso_del_recuento		;5b4c
+figuras_del_recuento:
+	jp pinta_una_figura_y_sus_fu		;5b4e
+
+; ----------------------------------------------------------------------
+; Desplaza 0xE1C8 un bit a la derecha: el paso siguiente del recuento.
+; ----------------------------------------------------------------------
+siguiente_paso_del_recuento:
 	ld hl,0e1c8h		;5b51
 	srl (hl)		;5b54
 	ret			;5b56
-L_5B57:
-	ld (0e1b3h),a		;5b57
+
+; ----------------------------------------------------------------------
+; Tantas manos maximas como yakuman: 0xE1B3 = cuantos, y (cuantos-1)*2 entra en la tabla del que reparte (0x5D6F: 48.000, 96.000...) o del otro (0x5D79: 32.000, 64.000...).
+; ----------------------------------------------------------------------
+paga_los_yakuman:
+	ld (0e1b3h),a		;5b57   ; 0xE1B3 = cuantos yakuman
 	dec a			;5b5a
 	add a,a			;5b5b
 	ld hl,0e04eh		;5b5c
-	bit 0,(hl)		;5b5f
-	ld hl,05d6fh		;5b61
-	jr z,L_5B85		;5b64
-	ld hl,05d79h		;5b66
-	jr L_5B85		;5b69
-L_5B6B:
+	bit 0,(hl)		;5b5f   ; bit 0 de 0xE04E
+	ld hl,05d6fh		;5b61   ; la tabla del que reparte
+	jr z,carga_el_pago		;5b64
+	ld hl,05d79h		;5b66   ; o la del otro
+	jr carga_el_pago		;5b69
+
+; ----------------------------------------------------------------------
+; De 5 han en adelante: se recortan a 13, se les quitan 4 (0xE1B4 = 1 a 9) y con eso se entra en los topes de 0x5D4B (reparte: 12.000, 18.000, 18.000, 24.000, 24.000, 24.000, 36.000 x3) o de 0x5D5D. Mangan, haneman, baiman y sanbaiman.
+; ----------------------------------------------------------------------
+paga_la_mano_limite:
 	cp 00dh		;5b6b
-	jr c,L_5B71		;5b6d
+	jr c,L_5B71		;5b6d   ; 13 como mucho
 	ld a,00dh		;5b6f
 L_5B71:
-	sub 004h		;5b71
-	ld (0e1b4h),a		;5b73
+	sub 004h		;5b71   ; menos cuatro: 1 a 9
+	ld (0e1b4h),a		;5b73   ; 0xE1B4 = el escalon de la mano limite
 	dec a			;5b76
 	add a,a			;5b77
 	ld hl,0e04eh		;5b78
 	bit 0,(hl)		;5b7b
-	ld hl,05d4bh		;5b7d
-	jr z,L_5B85		;5b80
-	ld hl,05d5dh		;5b82
-L_5B85:
-	call L_5C7F		;5b85
-	ld (0e1b1h),de		;5b88
+	ld hl,05d4bh		;5b7d   ; la tabla del que reparte
+	jr z,carga_el_pago		;5b80
+	ld hl,05d5dh		;5b82   ; o la del otro
+
+; ----------------------------------------------------------------------
+; Lee la palabra que toca (0x5C7F le suma 300 por honba), la deja en los dos pendientes de 0x5DF9 (0xE1B1 y 0xE1E4) y la pinta en 0x38E8. Si es TSUMO (bit 0 de 0xE1D1) vuelve a sacarla de las tablas "al robar": 0x5DEF para los yakuman, 0x5DDD para la mano limite y 0x5D83 para el resto, con 100 por honba, y esa es la que se mueve de verdad (0xE1B1).
+; ----------------------------------------------------------------------
+carga_el_pago:
+	call lee_el_pago_con_honba		;5b85   ; la palabra, mas 300 por honba
+	ld (0e1b1h),de		;5b88   ; los dos pendientes del pago
 	ld (0e1e4h),de		;5b8c
-	ld de,038e8h		;5b90
+	ld de,038e8h		;5b90   ; 0x38E8: donde se pinta
 	ld hl,0e1e5h		;5b93
-	ld b,003h		;5b96
+	ld b,003h		;5b96   ; tres bytes: seis cifras
 	call pinta_un_numero_bcd		;5b98
 	ld a,(0e1d1h)		;5b9b
-	rra			;5b9e
+	rra			;5b9e   ; con ron, este es el pago
 	ret nc			;5b9f
 	ld a,(0e1b3h)		;5ba0
-	or a			;5ba3
+	or a			;5ba3   ; tsumo con yakuman: por 0x5BCD
 	jr nz,L_5BCD		;5ba4
 	ld a,(0e1b4h)		;5ba6
-	or a			;5ba9
+	or a			;5ba9   ; tsumo con mano limite: por 0x5BD4
 	jr nz,L_5BD4		;5baa
-	call L_5C5A		;5bac
-	ld hl,05d83h		;5baf
-	call L_5C70		;5bb2
+	call fila_de_los_fu		;5bac   ; la fila de los fu otra vez
+	ld hl,05d83h		;5baf   ; la tabla del tsumo
+	call entra_en_la_tabla		;5bb2
 L_5BB5:
-	call suma_a_a_hl		;5bb5
+	call suma_a_a_hl		;5bb5   ; la palabra
 	ld e,(hl)			;5bb8
 	inc hl			;5bb9
 	ld d,(hl)			;5bba
-	ld a,(0e04bh)		;5bbb
+	ld a,(0e04bh)		;5bbb   ; mas 100 por honba
 	add a,e			;5bbe
-	daa			;5bbf
+	daa			;5bbf   ; en BCD
 	ld e,a			;5bc0
 	jr nc,L_5BC8		;5bc1
 	ld a,d			;5bc3
@@ -4184,27 +4214,31 @@ L_5BB5:
 	daa			;5bc6
 	ld d,a			;5bc7
 L_5BC8:
-	ld (0e1b1h),de		;5bc8
+	ld (0e1b1h),de		;5bc8   ; lo que se mueve es esto
 	ret			;5bcc
 L_5BCD:
 	dec a			;5bcd
 	add a,a			;5bce
-	ld hl,05defh		;5bcf
+	ld hl,05defh		;5bcf   ; tsumo con yakuman: 16.000, 32.000...
 	jr L_5BD9		;5bd2
 L_5BD4:
 	dec a			;5bd4
 	add a,a			;5bd5
-	ld hl,05dddh		;5bd6
+	ld hl,05dddh		;5bd6   ; tsumo con mano limite: 4.000, 6.000, 6.000, 8.000...
 L_5BD9:
 	jr L_5BB5		;5bd9
-L_5BDB:
+
+; ----------------------------------------------------------------------
+; EL TIPO DE ESPERA, primera parte. Con la ficha que cierra (0xE1E8) en un extremo de alguna escalera: si el otro extremo es un uno o un nueve la escalera es 1-2-3 o 7-8-9 y la espera era de borde, PENCHAN (bit 2 de 0xE1D2, 2 fu); si no, RYANMEN (bit 0, 0 fu), y con una sola escalera ryanmen basta. Con un honor no hay nada que mirar.
+; ----------------------------------------------------------------------
+espera_ryanmen_o_penchan:
 	ld a,(0e1e8h)		;5bdb
-	ld c,a			;5bde
+	ld c,a			;5bde   ; la ficha que cierra
 	cp 030h		;5bdf
-	ret nc			;5be1
+	ret nc			;5be1   ; un honor no esta en ninguna escalera
 	ld a,(0e2c8h)		;5be2
 	or a			;5be5
-	ret z			;5be6
+	ret z			;5be6   ; sin escaleras
 	ld b,a			;5be7
 	ld de,0e2b7h		;5be8
 L_5BEB:
@@ -4212,39 +4246,43 @@ L_5BEB:
 	ld h,a			;5bec
 	inc de			;5bed
 	inc de			;5bee
-	cp c			;5bef
+	cp c			;5bef   ; es la primera de la escalera?
 	ld a,(de)			;5bf0
 	jr z,L_5C0F		;5bf1
-	cp c			;5bf3
+	cp c			;5bf3   ; o la tercera?
 	jr nz,L_5C00		;5bf4
 	ld a,h			;5bf6
 	and 00fh		;5bf7
-	dec a			;5bf9
+	dec a			;5bf9   ; la escalera empieza en 1: espera de borde
 	jr nz,L_5C15		;5bfa
 L_5BFC:
-	ld hl,0e127h		;5bfc
+	ld hl,0e127h		;5bfc   ; una espera de borde mas
 	inc (hl)			;5bff
 L_5C00:
 	inc de			;5c00
 	inc de			;5c01
 	djnz L_5BEB		;5c02
 	ld a,(0e127h)		;5c04
-	or a			;5c07
+	or a			;5c07   ; ninguna
 	ret z			;5c08
 	ld hl,0e1d2h		;5c09
-	set 2,(hl)		;5c0c
+	set 2,(hl)		;5c0c   ; bit 2: PENCHAN
 	ret			;5c0e
 L_5C0F:
 	and 00fh		;5c0f
-	cp 009h		;5c11
+	cp 009h		;5c11   ; la escalera acaba en 9: espera de borde
 	jr z,L_5BFC		;5c13
 L_5C15:
 	ld hl,0e1d2h		;5c15
-	set 0,(hl)		;5c18
+	set 0,(hl)		;5c18   ; bit 0: RYANMEN, y ya esta
 	ret			;5c1a
-L_5C1B:
+
+; ----------------------------------------------------------------------
+; Segunda parte, si la primera no dijo nada: la ficha que cierra es la de EN MEDIO de alguna escalera, KANCHAN (bit 1 de 0xE1D2, 2 fu).
+; ----------------------------------------------------------------------
+espera_kanchan:
 	ld a,(0e1d2h)		;5c1b
-	or a			;5c1e
+	or a			;5c1e   ; ya hay espera
 	ret nz			;5c1f
 	ld a,(0e1e8h)		;5c20
 	ld c,a			;5c23
@@ -4254,7 +4292,7 @@ L_5C1B:
 	or a			;5c2a
 	ret z			;5c2b
 	ld b,a			;5c2c
-	ld de,0e2b8h		;5c2d
+	ld de,0e2b8h		;5c2d   ; la ficha de en medio de cada escalera
 L_5C30:
 	ld a,(de)			;5c30
 	cp c			;5c31
@@ -4265,62 +4303,78 @@ L_5C30:
 	ret			;5c3b
 L_5C3C:
 	ld hl,0e1d2h		;5c3c
-	set 1,(hl)		;5c3f
+	set 1,(hl)		;5c3f   ; bit 1: KANCHAN
 	ret			;5c41
-L_5C42:
+
+; ----------------------------------------------------------------------
+; Tercera parte: la ficha que cierra es la pareja, TANKI (bit 3, 2 fu), o no, y entonces cerro un trio: SHANPON (bit 4, 0 fu).
+; ----------------------------------------------------------------------
+espera_tanki_o_shanpon:
 	ld a,(0e1d2h)		;5c42
 	or a			;5c45
 	ret nz			;5c46
 	ld a,(0e1e8h)		;5c47
 	ld c,a			;5c4a
 	ld a,(0e300h)		;5c4b
-	cp c			;5c4e
+	cp c			;5c4e   ; es la pareja?
 	ld hl,0e1d2h		;5c4f
 	jr z,L_5C57		;5c52
-	set 4,(hl)		;5c54
+	set 4,(hl)		;5c54   ; bit 4: SHANPON
 	ret			;5c56
 L_5C57:
-	set 3,(hl)		;5c57
+	set 3,(hl)		;5c57   ; bit 3: TANKI
 	ret			;5c59
-L_5C5A:
+
+; ----------------------------------------------------------------------
+; La fila de la tabla de pago a partir de los fu de 0xE1E1/0xE1E2: con el byte alto a cero, la decena menos dos (20 = 0, 30 = 1, hasta 90 = 7); con 100 o mas, 8.
+; ----------------------------------------------------------------------
+fila_de_los_fu:
 	ld de,(0e1e1h)		;5c5a
 	ld a,d			;5c5e
-	or a			;5c5f
+	or a			;5c5f   ; cien fu o mas
 	jr z,L_5C65		;5c60
-	ld a,008h		;5c62
+	ld a,008h		;5c62   ; fila 8
 	ret			;5c64
 L_5C65:
-	srl e		;5c65
+	srl e		;5c65   ; la decena
 	srl e		;5c67
 	srl e		;5c69
 	srl e		;5c6b
-	dec e			;5c6d
+	dec e			;5c6d   ; menos dos: 20 fu es la fila 0
 	dec e			;5c6e
 	ret			;5c6f
-L_5C70:
+
+; ----------------------------------------------------------------------
+; Con E = fila y HL = tabla de punteros, deja HL en la fila y A = (han-1)*2, la columna. Cae en 0x5C7F.
+; ----------------------------------------------------------------------
+entra_en_la_tabla:
 	ld a,e			;5c70
-	add a,a			;5c71
+	add a,a			;5c71   ; dos bytes por puntero
 	call suma_a_a_hl		;5c72
 	ld e,(hl)			;5c75
 	inc hl			;5c76
 	ld d,(hl)			;5c77
 	ex de,hl			;5c78
-	ld a,(0e316h)		;5c79
+	ld a,(0e316h)		;5c79   ; los han
 	dec a			;5c7c
-	add a,a			;5c7d
+	add a,a			;5c7d   ; menos uno, por dos: la columna
 	ret			;5c7e
-L_5C7F:
+
+; ----------------------------------------------------------------------
+; Lee la palabra de HL+A y le suma TRES VECES los honba de 0xE04B, en BCD: 300 puntos por honba, en centenas.
+; ----------------------------------------------------------------------
+lee_el_pago_con_honba:
 	call suma_a_a_hl		;5c7f
 	ld e,(hl)			;5c82
 	inc hl			;5c83
 	ld d,(hl)			;5c84
-	ld a,(0e04bh)		;5c85
+	ld a,(0e04bh)		;5c85   ; los honba
 	ld c,a			;5c88
-	add a,a			;5c89
+	add a,a			;5c89   ; por dos
 	daa			;5c8a
-	adc a,c			;5c8b
+	adc a,c			;5c8b   ; mas uno: por tres
 	daa			;5c8c
-	adc a,e			;5c8d
+	adc a,e			;5c8d   ; y a la palabra, en BCD
 	daa			;5c8e
 	ld e,a			;5c8f
 	ret nc			;5c90
@@ -4527,20 +4581,20 @@ mueve_cien_puntos:
 	jr nz,L_5E10		;5e08
 	rra			;5e0a
 	rra			;5e0b
-	jr nc,L_5E1D		;5e0c
+	jr nc,L_5E1D		;5e0c   ; sin el bit 1 gano el jugador 1: paga el 2
 	jr L_5E22		;5e0e
 L_5E10:
 	ld a,(0e1ach)		;5e10
 	and 0c0h		;5e13
-	jr nz,L_5E22		;5e15
+	jr nz,L_5E22		;5e15   ; con castigo (bits 7 y 6 de 0xE1AC) paga siempre el 1
 	ld a,(0e1adh)		;5e17
 	rra			;5e1a
-	jr nc,L_5E22		;5e1b
+	jr nc,L_5E22		;5e1b   ; bit 0 de 0xE1AD: el 1 esta en tenpai y cobra, paga el 2
 L_5E1D:
-	call resta_del_marcador_de_e044		;5e1d   ; cobra el jugador de 0xE044
+	call resta_del_marcador_de_e044		;5e1d   ; paga el jugador 2, el de 0xE044
 	jr L_5E25		;5e20
 L_5E22:
-	call resta_del_marcador_de_e047		;5e22   ; cobra el jugador de 0xE047
+	call resta_del_marcador_de_e047		;5e22   ; paga el jugador 1, el de 0xE047
 L_5E25:
 	ld hl,(0e1b1h)		;5e25
 	call baja_un_paso_bcd		;5e28   ; y el pendiente baja un paso, o sea cien puntos
@@ -4572,10 +4626,10 @@ L_5E51:
 	rra			;5e5b
 	jr nc,L_5E63		;5e5c
 L_5E5E:
-	call suma_al_marcador_de_e047		;5e5e
+	call suma_al_marcador_de_e047		;5e5e   ; y cobra el jugador 1, el de 0xE047
 	jr L_5E66		;5e61
 L_5E63:
-	call suma_al_marcador_de_e044		;5e63
+	call suma_al_marcador_de_e044		;5e63   ; o el 2, el de 0xE044
 L_5E66:
 	ld hl,(0e1e4h)		;5e66
 	call baja_un_paso_bcd		;5e69
@@ -4650,7 +4704,7 @@ L_5ED0:
 	jr c,L_5F0F		;5ee6
 	ld hl,0e04bh		;5ee8
 	ld (hl),000h		;5eeb
-	call L_77F7		;5eed
+	call cambia_el_reparto		;5eed
 	jr L_5F12		;5ef0
 L_5EF2:
 	ld (hl),000h		;5ef2
@@ -4666,10 +4720,10 @@ L_5F00:
 L_5F05:
 	ld hl,0e04bh		;5f05
 	ld (hl),000h		;5f08
-	call L_77EF		;5f0a
+	call cambia_la_ronda		;5f0a
 	jr L_5F12		;5f0d
 L_5F0F:
-	call L_780A		;5f0f
+	call suma_un_honba		;5f0f
 L_5F12:
 	ld hl,0e1a8h		;5f12
 	res 3,(hl)		;5f15
@@ -4715,68 +4769,76 @@ L_5F33:
 	pop bc			;5f3a
 	djnz L_5F33		;5f3b
 	ret			;5f3d
-L_5F3E:
-	call L_5F4C		;5f3e
-	call L_6038		;5f41
+
+; ----------------------------------------------------------------------
+; LA PUERTA DEL ANALISIS. Monta la copia ordenada de la mano en 0xE2F1 (0x5F4C), limpia las marcas y cae en el motor (0x6038 sigue en 0x6042). Al volver, el bit 0 de 0xE302 puesto significa que la mano NO esta completa; si esta limpio, 0x656D la reagrupa por figuras para el recuento. La llaman 0x505B (el jugador ha pedido agari en el menu) y 0x575A (la maquina se pregunta si ha ganado).
+; ----------------------------------------------------------------------
+analiza_la_mano:
+	call monta_la_copia_para_el_analisis		;5f3e   ; la copia de trabajo, ordenada, en 0xE2F1
+	call limpia_y_descompone		;5f41   ; limpia las marcas y cae en el motor de 0x6042
 	ld a,(0e302h)		;5f44
-	rra			;5f47
+	rra			;5f47   ; bit 0 de 0xE302 puesto: no hay descomposicion, la mano no esta completa
 	ret c			;5f48
-	jp L_656D		;5f49
-L_5F4C:
-	ld a,(0e206h)		;5f4c
+	jp reagrupa_la_mano_por_figuras		;5f49   ; completa: se reagrupa por figuras
+
+; ----------------------------------------------------------------------
+; Prepara la copia con la que trabaja el motor. Elige las variables del jugador que toca (bit 0 de 0xE206: 0 el jugador 1, 1 el 2), copia las figuras ya declaradas, limpia 0xE2F1-0xE32A, y decide de donde sale la ficha que cierra la mano: si 0xE22C esta a cero es RON y la ficha es el ultimo descarte del rival, que se mete en el hueco de la mano y se apunta en 0xE347; si no, es propia (TSUMO) y ya esta en la mano. Luego ordena las 0xE20A+1 fichas.
+; ----------------------------------------------------------------------
+monta_la_copia_para_el_analisis:
+	ld a,(0e206h)		;5f4c   ; bit 0 de 0xE206: de quien es la mano
 	rra			;5f4f
-	ld a,(0e1d1h)		;5f50
+	ld a,(0e1d1h)		;5f50   ; 0xE1D1 o 0xE22A: la ficha que cierra es propia (tsumo) o del rival (ron)
 	ld (0e22ch),a		;5f53
-	ld a,(0e1c3h)		;5f56
+	ld a,(0e1c3h)		;5f56   ; 0xE1C3 o 0xE208: el hueco de la ficha que cierra
 	ld (0e20ah),a		;5f59
-	jr nc,L_5F6A		;5f5c
+	jr nc,L_5F6A		;5f5c   ; bit 0 a cero: las del jugador 1; si no, las del 2
 	ld a,(0e208h)		;5f5e
 	ld (0e20ah),a		;5f61
 	ld a,(0e22ah)		;5f64
 	ld (0e22ch),a		;5f67
 L_5F6A:
-	ld de,0e2feh		;5f6a
+	ld de,0e2feh		;5f6a   ; las figuras declaradas, tres fichas cada una, se copian a 0xE2FE hacia atras
 	ld hl,0e2bah		;5f6d
-	ld bc,00403h		;5f70
-	call L_5FFA		;5f73
+	ld bc,00403h		;5f70   ; cuatro registros de cuatro bytes
+	call copia_o_borra_los_registros		;5f73
 	ld hl,0e2cch		;5f76
 	ld bc,00403h		;5f79
-	call L_5FFA		;5f7c
-	call L_6019		;5f7f
-	ld hl,0e2f1h		;5f82
+	call copia_o_borra_los_registros		;5f7c
+	call borra_los_cuartetos_sobrantes		;5f7f   ; y los registros de cuarteto que sobren, a cero
+	ld hl,0e2f1h		;5f82   ; limpia 0xE2F1-0xE32A, la copia de trabajo, de un tiron
 	ld de,0e2f2h		;5f85
 	ld bc,00039h		;5f88
 	ld (hl),000h		;5f8b
 	ldir		;5f8d
-	xor a			;5f8f
+	xor a			;5f8f   ; 0xE347 = 0: de momento no hay ficha de ron
 	ld (0e347h),a		;5f90
-	ld a,(0e20ah)		;5f93
+	ld a,(0e20ah)		;5f93   ; el hueco de la ficha que cierra, en la mano de 0xE32B
 	ld hl,0e32bh		;5f96
 	call suma_a_a_hl		;5f99
 	ld c,(hl)			;5f9c
-	ld a,(0e22ch)		;5f9d
+	ld a,(0e22ch)		;5f9d   ; 0xE22C distinto de cero: la ficha es propia y ya esta en la mano
 	or a			;5fa0
 	jr nz,L_5FC7		;5fa1
-	ld a,(0e206h)		;5fa3
+	ld a,(0e206h)		;5fa3   ; RON: la ficha es el ultimo descarte del rival
 	rra			;5fa6
-	ld hl,0e172h		;5fa7
+	ld hl,0e172h		;5fa7   ; los descartes del rival y cuantos lleva (0xE172/0xE1BF o 0xE15E/0xE1BE)
 	ld a,(0e1bfh)		;5faa
 	jr nc,L_5FB5		;5fad
 	ld hl,0e15eh		;5faf
 	ld a,(0e1beh)		;5fb2
 L_5FB5:
 	call suma_a_a_hl		;5fb5
-	ld c,(hl)			;5fb8
+	ld c,(hl)			;5fb8   ; el ultimo descarte del rival
 	ld hl,0e32bh		;5fb9
 	ld a,(0e20ah)		;5fbc
 	call suma_a_a_hl		;5fbf
-	ld (hl),c			;5fc2
+	ld (hl),c			;5fc2   ; se mete en el hueco de la mano
 	ld a,c			;5fc3
-	ld (0e347h),a		;5fc4
+	ld (0e347h),a		;5fc4   ; y se apunta en 0xE347 como la ficha de ron
 L_5FC7:
-	ld hl,0e1e8h		;5fc7
+	ld hl,0e1e8h		;5fc7   ; 0xE1E8 = la ficha que cierra, que es la que mira el tipo de espera (0x5BDB)
 	ld (hl),c			;5fca
-	ld hl,0e32bh		;5fcb
+	ld hl,0e32bh		;5fcb   ; copia las 0xE20A+1 fichas a 0xE2F1
 	ld de,0e2f1h		;5fce
 	ld a,(0e20ah)		;5fd1
 	ld c,a			;5fd4
@@ -4787,27 +4849,31 @@ L_5FC7:
 	inc a			;5fdd
 	ld b,a			;5fde
 	ld hl,0e2f1h		;5fdf
-	call L_4F9B		;5fe2
+	call L_4F9B		;5fe2   ; y las ordena de menor a mayor
 	ld a,(0e347h)		;5fe5
 	ld de,0e2f1h		;5fe8
 	ld hl,0e2f2h		;5feb
-	call L_6E6F		;5fee
+	call L_6E6F		;5fee   ; busca cuatro iguales seguidas (vuelve con C=3 si las hay)
 	ld a,c			;5ff1
-	cp 003h		;5ff2
+	cp 003h		;5ff2   ; con cuatro iguales en la mano se borra la marca de ficha de ron
 	ret nz			;5ff4
 	xor a			;5ff5
 	ld (0e347h),a		;5ff6
 	ret			;5ff9
-L_5FFA:
+
+; ----------------------------------------------------------------------
+; Recorre B registros de C+1 bytes empezando por HL, que apunta a la MARCA (el ultimo byte de cada uno): con la marca a cero borra las C fichas del registro; con la marca puesta las copia a DE hacia atras. Es lo que separa las figuras DECLARADAS, que se conservan, de las que el motor apunto por su cuenta en el analisis anterior.
+; ----------------------------------------------------------------------
+copia_o_borra_los_registros:
 	push bc			;5ffa
 	push hl			;5ffb
 	xor a			;5ffc
-	cp (hl)			;5ffd
-	jr nz,L_6008		;5ffe
+	cp (hl)			;5ffd   ; la marca del registro
+	jr nz,L_6008		;5ffe   ; puesta: figura declarada, se conserva y se copia
 	dec hl			;6000
 	ld b,c			;6001
 L_6002:
-	ld (hl),a			;6002
+	ld (hl),a			;6002   ; a cero: sus C fichas se borran
 	dec hl			;6003
 	djnz L_6002		;6004
 	jr L_6010		;6006
@@ -4815,7 +4881,7 @@ L_6008:
 	dec hl			;6008
 	ld b,c			;6009
 L_600A:
-	ld a,(hl)			;600a
+	ld a,(hl)			;600a   ; la copia va hacia atras, ficha a ficha
 	ld (de),a			;600b
 	dec hl			;600c
 	dec de			;600d
@@ -4823,225 +4889,261 @@ L_600A:
 L_6010:
 	pop hl			;6010
 	pop bc			;6011
-	ld a,l			;6012
+	ld a,l			;6012   ; al registro siguiente, C+1 bytes mas alla
 	add a,c			;6013
 	inc a			;6014
 	ld l,a			;6015
-	djnz L_5FFA		;6016
+	djnz copia_o_borra_los_registros		;6016
 	ret			;6018
-L_6019:
-	ld a,(0e2f0h)		;6019
+
+; ----------------------------------------------------------------------
+; Deja a cero los registros de cuarteto que no esten en uso: 0xE2F0 dice cuantos hay, cada uno son cinco bytes desde 0xE2DB, y se borran los que faltan hasta cuatro.
+; ----------------------------------------------------------------------
+borra_los_cuartetos_sobrantes:
+	ld a,(0e2f0h)		;6019   ; cuantos cuartetos hay
 	ld c,a			;601c
-	add a,a			;601d
+	add a,a			;601d   ; por cinco: cuatro fichas y la marca
 	add a,a			;601e
 	add a,c			;601f
 	ld hl,0e2dbh		;6020
 	call suma_a_a_hl		;6023
-	ld a,004h		;6026
+	ld a,004h		;6026   ; los que faltan hasta cuatro
 	sub c			;6028
 	or a			;6029
 	ret z			;602a
 	ld b,a			;602b
 L_602C:
 	push bc			;602c
-	ld b,005h		;602d
+	ld b,005h		;602d   ; cinco bytes a cero cada uno
 L_602F:
 	ld (hl),000h		;602f
 	inc hl			;6031
-	djnz L_602F		;6032
+	djnz L_602F		;6032   ; los cinco bytes del registro
 	pop bc			;6034
 	djnz L_602C		;6035
 	ret			;6037
-L_6038:
+
+; ----------------------------------------------------------------------
+; LA ENTRADA NORMAL DEL MOTOR: pone a cero la pila de alternativas (0xE237), sus banderas (0xE239) y la clase de mano (0xE205) y CAE en 0x6042. La usan 0x5F3E y el calculo de esperas (0x6754): "call 0x6038 y mirar el bit 0 de 0xE302" es la pregunta "esta completa esta mano?".
+; ----------------------------------------------------------------------
+limpia_y_descompone:
 	xor a			;6038
-	ld (0e237h),a		;6039
-	ld (0e239h),a		;603c
-	ld (0e205h),a		;603f
-L_6042:
-	ld hl,0e2f1h		;6042
+	ld (0e237h),a		;6039   ; 0xE237: cuantas copias hay guardadas para volver atras
+	ld (0e239h),a		;603c   ; 0xE239: que rama probar al volver
+	ld (0e205h),a		;603f   ; 0xE205: 0 normal, 1 siete parejas, 2 trece huerfanos
+
+; ----------------------------------------------------------------------
+; EL MOTOR. Mira la ficha del cursor (DE) y la siguiente (HL) y reparte: iguales -> 0x6072 (trio o pareja); la siguiente es la ficha mas uno -> escalera si la tercera es la ficha mas dos (0x6159), y si la tercera es otra copia de la mas uno, el caso enredado de 0x6216; ni igual ni seguida -> la ficha esta suelta y solo puede ser trece huerfanos (0x651D). Cada rama apunta su figura y vuelve a 0x6091, que decide si sigue.
+; ----------------------------------------------------------------------
+motor_de_descomposicion:
+	ld hl,0e2f1h		;6042   ; DE = la ficha del cursor
 	ld a,(0e304h)		;6045
 	ld de,0e2f1h		;6048
 	call suma_a_a_de		;604b
-	ld l,e			;604e
+	ld l,e			;604e   ; HL = la siguiente
 	inc l			;604f
 	ld a,(de)			;6050
-	cp (hl)			;6051
+	cp (hl)			;6051   ; iguales: trio o pareja, por 0x6072
 	jr z,L_6072		;6052
 	ld a,(de)			;6054
 	sub (hl)			;6055
-	cp 0ffh		;6056
-	jr nz,L_606D		;6058
-	call L_620A		;605a
+	cp 0ffh		;6056   ; 0xFF: la siguiente es la ficha mas uno, candidata a escalera
+	jr nz,L_606D		;6058   ; ni igual ni seguida: ficha suelta, solo vale para trece huerfanos
+	call es_la_ficha_mas_dos		;605a   ; la tercera es la ficha mas dos: escalera hecha
 	jr nz,L_6064		;605d
-	call L_6159		;605f
-	jr L_6091		;6062
+	call apunta_una_escalera		;605f   ; se apunta
+	jr sigue_o_termina		;6062
 L_6064:
-	cp 0ffh		;6064
-	jr nz,L_60E0		;6066
-	call L_6216		;6068
-	jr L_6091		;606b
+	cp 0ffh		;6064   ; 0xFF: x, x+1, x+1: hay que mirar mas lejos
+	jr nz,vuelta_atras		;6066   ; cualquier otra cosa no cuadra: vuelta atras
+	call caso_x_x1_x1		;6068
+	jr sigue_o_termina		;606b
 L_606D:
-	call L_651D		;606d
-	jr L_6091		;6070
+	call prueba_trece_huerfanos		;606d
+	jr sigue_o_termina		;6070
 L_6072:
-	inc hl			;6072
+	inc hl			;6072   ; la tercera ficha
 	cp (hl)			;6073
-	jr nz,L_6084		;6074
+	jr nz,L_6084		;6074   ; dos iguales y la tercera distinta: pareja mas algo
 	inc hl			;6076
-	cp (hl)			;6077
+	cp (hl)			;6077   ; tres iguales: si la cuarta tambien, por 0x62D7
 	jr z,L_607F		;6078
-	call L_63F2		;607a
-	jr L_6091		;607d
+	call caso_trio		;607a   ; tres iguales y la cuarta distinta: trio, con sus dudas
+	jr sigue_o_termina		;607d
 L_607F:
-	call L_62D7		;607f
-	jr L_6091		;6082
+	call caso_cuatro_iguales		;607f
+	jr sigue_o_termina		;6082
 L_6084:
 	sub (hl)			;6084
-	cp 0ffh		;6085
+	cp 0ffh		;6085   ; pareja y luego la ficha mas uno: por 0x6376
 	jr z,L_608E		;6087
-	call L_64F8		;6089
-	jr L_6091		;608c
+	call prueba_siete_parejas		;6089   ; pareja y luego otra cosa: candidata a siete parejas
+	jr sigue_o_termina		;608c
 L_608E:
-	call L_6376		;608e
-L_6091:
-	ld a,(0e20ah)		;6091
+	call caso_pareja_y_siguiente		;608e
+
+; ----------------------------------------------------------------------
+; Lo que pasa despues de colocar una figura. Si el motor ya dijo que no (0xE302 = 1), vuelta atras. Si el cursor no ha llegado a la penultima ficha, otra vuelta por 0x6042; si quedan exactamente dos, tienen que ser la pareja (0x61DA); y si no queda ninguna, la mano esta completa (0x60B4).
+; ----------------------------------------------------------------------
+sigue_o_termina:
+	ld a,(0e20ah)		;6091   ; 0xE20A+1 fichas en total
 	ld b,a			;6094
 	ld c,a			;6095
 	inc b			;6096
 	dec c			;6097
 	ld a,(0e302h)		;6098
-	dec a			;609b
-	jr z,L_60E0		;609c
+	dec a			;609b   ; 0xE302 = 1: el motor ya ha dicho que no hay descomposicion
+	jr z,vuelta_atras		;609c
 	ld a,(0e304h)		;609e
 	cp c			;60a1
-	jp c,L_6042		;60a2
-	cp b			;60a5
-	jr z,L_60B4		;60a6
+	jp c,motor_de_descomposicion		;60a2   ; el cursor aun no llega al final: sigue descomponiendo
+	cp b			;60a5   ; el cursor esta en el final: mano completa
+	jr z,mano_completa		;60a6
 	ld a,(0e304h)		;60a8
 	ld de,0e2f1h		;60ab
 	call suma_a_a_de		;60ae
-	call L_61DA		;60b1
-L_60B4:
-	ld a,(0e303h)		;60b4
+	call apunta_la_pareja		;60b1   ; quedan dos fichas y tienen que ser la pareja
+
+; ----------------------------------------------------------------------
+; LA SALIDA BUENA. 0xE303 cuenta las parejas de escaleras iguales apuntadas por 0x6386: con dos (ryanpeikou) el acarreo lo saca a 0xE205; pero si la mano ya era siete parejas (bit 0 de 0xE205) se olvidan las escaleras dobles. Copia el turno de 0xE206 al bit 1 de 0xE302 y deja el cursor al final.
+; ----------------------------------------------------------------------
+mano_completa:
+	ld a,(0e303h)		;60b4   ; 0xE303: cuantas parejas de escaleras iguales
 	rra			;60b7
-	rra			;60b8
+	rra			;60b8   ; el segundo rra saca al acarreo si van dos o mas
 	jr nc,L_60BE		;60b9
 	ld (0e205h),a		;60bb
 L_60BE:
 	ld a,(0e205h)		;60be
-	rra			;60c1
+	rra			;60c1   ; bit 0 de 0xE205: siete parejas
 	jr nc,L_60C8		;60c2
 	xor a			;60c4
-	ld (0e303h),a		;60c5
+	ld (0e303h),a		;60c5   ; siete parejas manda: fuera las escaleras dobles
 L_60C8:
 	ld hl,0e302h		;60c8
-	res 1,(hl)		;60cb
+	res 1,(hl)		;60cb   ; bit 1 de 0xE302 = de quien es la mano, copiado de 0xE206
 	ld a,(0e206h)		;60cd
 	rra			;60d0
 	jr nc,L_60D5		;60d1
 	set 1,(hl)		;60d3
 L_60D5:
-	ld a,(0e20ah)		;60d5
+	ld a,(0e20ah)		;60d5   ; el cursor, al final
 	inc a			;60d8
 	ld (0e304h),a		;60d9
 	ret			;60dc
 L_60DD:
-	jp L_6042		;60dd
-L_60E0:
+	jp motor_de_descomposicion		;60dd
+
+; ----------------------------------------------------------------------
+; LA VUELTA ATRAS. Si ya se vio que la mano son siete parejas, vale como completa. Si no hay copia guardada (0xE237 a cero), NO HAY DESCOMPOSICION: 0xE302 = 1 y se limpia por 0x67AE. Si la hay, se restaura y se prueba la rama que dejo apuntada 0xE239: bit 0 la de 0x63C1 (dos escaleras dobles), bit 1 la de 0x6386 mas uno, y sin bits, tomar el grupo como trio (0x6185).
+; ----------------------------------------------------------------------
+vuelta_atras:
 	ld a,(0e205h)		;60e0
-	rra			;60e3
-	jr c,L_60B4		;60e4
+	rra			;60e3   ; bit 0 de 0xE205: la mano son siete parejas y vale
+	jr c,mano_completa		;60e4
 	xor a			;60e6
 	ld hl,0e237h		;60e7
-	cp (hl)			;60ea
+	cp (hl)			;60ea   ; sin copia que restaurar
 	jr nz,L_60F5		;60eb
-	ld a,001h		;60ed
+	ld a,001h		;60ed   ; 0xE302 = 1: NO HAY DESCOMPOSICION, la mano no esta completa
 	ld (0e302h),a		;60ef
-	jp L_67AE		;60f2
+	jp limpia_las_figuras		;60f2
 L_60F5:
-	dec (hl)			;60f5
+	dec (hl)			;60f5   ; una copia menos
 	ld hl,0e239h		;60f6
-	bit 0,(hl)		;60f9
+	bit 0,(hl)		;60f9   ; bit 0: la rama de las dos escaleras dobles
 	jr z,L_6108		;60fb
 	res 0,(hl)		;60fd
-	call L_612A		;60ff
+	call restaura_la_copia		;60ff   ; restaura la copia y deja DE en el cursor
 	call L_63C1		;6102
 	jp L_60DD		;6105
 L_6108:
-	bit 1,(hl)		;6108
+	bit 1,(hl)		;6108   ; bit 1: la rama de 0x6386
 	jr z,L_6121		;610a
 	res 0,(hl)		;610c
-	call L_612A		;610e
-	call L_6386		;6111
+	call restaura_la_copia		;610e
+	call apunta_dos_escaleras_iguales		;6111
 	ld a,(de)			;6114
 	push af			;6115
-	ld a,006h		;6116
+	ld a,006h		;6116   ; seis fichas mas alla
 	call suma_a_a_de		;6118
 	pop af			;611b
 	inc a			;611c
-	ld (de),a			;611d
+	ld (de),a			;611d   ; se le suma uno a esa ficha, y otra vuelta
 	jp L_60DD		;611e
 L_6121:
-	call L_612A		;6121
-	call L_6185		;6124
+	call restaura_la_copia		;6121   ; sin bits: el grupo va de trio
+	call apunta_un_trio		;6124
 	jp L_60DD		;6127
-L_612A:
+
+; ----------------------------------------------------------------------
+; Vuelve a cargar la copia guardada por 0x62A5: la mano con su cursor (20 bytes a 0xE2F1) y las figuras (38 bytes a 0xE2B6). Del hueco 0 (0xE36E/0xE101) si ya no queda profundidad, del hueco 1 (0xE094/0xE06E) si aun queda una. Sale con DE en el cursor.
+; ----------------------------------------------------------------------
+restaura_la_copia:
 	ld hl,0e237h		;612a
-	ld a,(hl)			;612d
+	ld a,(hl)			;612d   ; la profundidad que queda
 	ld hl,0e36eh		;612e
 	or a			;6131
 	jr z,L_6137		;6132
-	ld hl,0e094h		;6134
+	ld hl,0e094h		;6134   ; el hueco 1
 L_6137:
 	ld de,0e2f1h		;6137
-	ld bc,00014h		;613a
+	ld bc,00014h		;613a   ; veinte bytes: la mano y 0xE300-0xE304
 	ldir		;613d
 	ld hl,0e101h		;613f
 	or a			;6142
 	jr z,L_6148		;6143
-	ld hl,0e06eh		;6145
+	ld hl,0e06eh		;6145   ; el hueco 1, para las figuras
 L_6148:
 	ld de,0e2b6h		;6148
-	ld bc,00026h		;614b
+	ld bc,00026h		;614b   ; treinta y ocho bytes: los registros de figuras
 	ldir		;614e
-	ld a,(0e304h)		;6150
+	ld a,(0e304h)		;6150   ; DE = el cursor
 	ld de,0e2f1h		;6153
 	jp suma_a_a_de		;6156
-L_6159:
+
+; ----------------------------------------------------------------------
+; Apunta la escalera que empieza en la ficha de DE: la ficha, la ficha mas uno y la ficha mas dos en el registro siguiente de 0xE2B7, sube 0xE2C8 y adelanta el cursor tres. Un honor (0x31 en adelante) no forma escalera: vuelta atras. Con el cursor ya en 14 no hay nada que apuntar.
+; ----------------------------------------------------------------------
+apunta_una_escalera:
 	ld a,(0e304h)		;6159
-	cp 00eh		;615c
+	cp 00eh		;615c   ; cursor en el final: nada que apuntar
 	ret z			;615e
 	ld a,(de)			;615f
-	cp 031h		;6160
-	jp nc,L_60E0		;6162
-	ld hl,0e2c8h		;6165
+	cp 031h		;6160   ; un honor no forma escalera
+	jp nc,vuelta_atras		;6162
+	ld hl,0e2c8h		;6165   ; una escalera mas
 	inc (hl)			;6168
 	ld a,(0e304h)		;6169
-	add a,003h		;616c
+	add a,003h		;616c   ; el cursor salta tres fichas
 	ld (0e304h),a		;616e
 	ld hl,0e2b7h		;6171
 	ld a,(0e2c8h)		;6174
 	dec a			;6177
-	add a,a			;6178
+	add a,a			;6178   ; cuatro bytes por registro
 	add a,a			;6179
 	add a,l			;617a
 	ld l,a			;617b
 	ld b,003h		;617c
 	ld a,(de)			;617e
 L_617F:
-	ld (hl),a			;617f
+	ld (hl),a			;617f   ; la ficha, la ficha mas uno y la ficha mas dos
 	inc a			;6180
 	inc hl			;6181
 	djnz L_617F		;6182
 	ret			;6184
-L_6185:
+
+; ----------------------------------------------------------------------
+; Apunta el trio de la ficha de DE en el registro siguiente de 0xE2C9, sube 0xE2DA y adelanta el cursor tres. Y UNA REGLA DEL MAHJONG DE VERDAD: si el trio se cierra con la ficha de RON (0xE347) se marca como ABIERTO (marca 1 y 0xE2D9++), que es lo que despues le quita fu (0x71BC) y lo deja fuera de los trios ocultos (0x7DD9).
+; ----------------------------------------------------------------------
+apunta_un_trio:
 	ld a,(0e304h)		;6185
-	cp 00eh		;6188
+	cp 00eh		;6188   ; cursor en el final: nada que apuntar
 	ret z			;618a
 	ld hl,0e2dah		;618b
-	inc (hl)			;618e
+	inc (hl)			;618e   ; un trio mas
 	ld a,(0e304h)		;618f
-	add a,003h		;6192
+	add a,003h		;6192   ; el cursor salta tres fichas
 	ld (0e304h),a		;6194
 	ld hl,0e2c9h		;6197
 	ld a,(0e2dah)		;619a
@@ -5053,32 +5155,36 @@ L_6185:
 	ld b,003h		;61a2
 	ld a,(de)			;61a4
 L_61A5:
-	ld (hl),a			;61a5
+	ld (hl),a			;61a5   ; las tres copias
 	inc hl			;61a6
 	inc de			;61a7
 	djnz L_61A5		;61a8
 	push hl			;61aa
 	ld hl,0e347h		;61ab
-	cp (hl)			;61ae
+	cp (hl)			;61ae   ; es la ficha de ron?
 	pop hl			;61af
 	ret nz			;61b0
-	ld a,001h		;61b1
+	ld a,001h		;61b1   ; marca 1: un trio cerrado con la ficha del rival cuenta como ABIERTO
 	ld (hl),a			;61b3
 	ld hl,0e2d9h		;61b4
-	inc (hl)			;61b7
+	inc (hl)			;61b7   ; y uno mas entre los trios abiertos
 	ret			;61b8
-L_61B9:
+
+; ----------------------------------------------------------------------
+; Apunta cuatro copias de la ficha de DE como cuarteto en 0xE2DB (cinco bytes por registro), sube 0xE2F0 y adelanta el cursor cuatro. Solo lo llama el kan (0x6D97). La entrada de 0x61C5 escribe sin tocar el cursor, y 0x6EEC la usa para deshacer un kan.
+; ----------------------------------------------------------------------
+apunta_un_cuarteto:
 	ld hl,0e2f0h		;61b9
 	inc (hl)			;61bc
 	ld a,(0e304h)		;61bd
-	add a,004h		;61c0
+	add a,004h		;61c0   ; el cursor salta cuatro fichas
 	ld (0e304h),a		;61c2
 L_61C5:
-	ld hl,0e2dbh		;61c5
+	ld hl,0e2dbh		;61c5   ; los registros de cuarteto, cinco bytes cada uno
 	ld a,(0e2f0h)		;61c8
 	dec a			;61cb
 	ld c,a			;61cc
-	add a,a			;61cd
+	add a,a			;61cd   ; por cinco: cuatro fichas y la marca
 	add a,a			;61ce
 	add a,c			;61cf
 	add a,l			;61d0
@@ -5086,84 +5192,96 @@ L_61C5:
 	ld b,004h		;61d2
 	ld a,(de)			;61d4
 L_61D5:
-	ld (hl),a			;61d5
+	ld (hl),a			;61d5   ; las cuatro copias
 	inc hl			;61d6
 	djnz L_61D5		;61d7
 	ret			;61d9
-L_61DA:
+
+; ----------------------------------------------------------------------
+; Toma las dos fichas de DE como LA PAREJA (0xE300 y 0xE301) si son iguales y aun no habia pareja. Si ya la habia o no son iguales, vuelta atras. Adelanta el cursor dos.
+; ----------------------------------------------------------------------
+apunta_la_pareja:
 	ld a,(0e304h)		;61da
 	cp 00eh		;61dd
 	ret z			;61df
-	ld a,(0e300h)		;61e0
+	ld a,(0e300h)		;61e0   ; ya hay pareja: dos no caben
 	or a			;61e3
-	jp nz,L_60E0		;61e4
+	jp nz,vuelta_atras		;61e4
 	ld a,(de)			;61e7
 	ld h,d			;61e8
 	ld l,e			;61e9
 	inc hl			;61ea
-	cp (hl)			;61eb
-	jp nz,L_60E0		;61ec
-	ld (0e300h),a		;61ef
+	cp (hl)			;61eb   ; la siguiente tiene que ser igual
+	jp nz,vuelta_atras		;61ec
+	ld (0e300h),a		;61ef   ; la pareja, en 0xE300 y 0xE301
 	ld (0e301h),a		;61f2
 	inc de			;61f5
 	inc de			;61f6
 	ld a,(0e304h)		;61f7
-	add a,002h		;61fa
+	add a,002h		;61fa   ; el cursor salta dos fichas
 	ld (0e304h),a		;61fc
 	ret			;61ff
-L_6200:
+
+; ----------------------------------------------------------------------
+; Adelanta HL y devuelve la ficha de DE menos la de HL. Las tres entradas de abajo comparan el resultado con -1, -2 y -3: "la que sigue es la ficha mas uno, mas dos o mas tres". Todo el arbol del motor esta escrito con estas tres preguntas encadenadas.
+; ----------------------------------------------------------------------
+resta_la_siguiente:
 	inc hl			;6200
 	ld a,(de)			;6201
 	sub (hl)			;6202
 	ret			;6203
-L_6204:
-	call L_6200		;6204
-	cp 0ffh		;6207
+es_la_ficha_mas_uno:
+	call resta_la_siguiente		;6204
+	cp 0ffh		;6207   ; 0xFF: la que sigue es la ficha mas uno
 	ret			;6209
-L_620A:
-	call L_6200		;620a
-	cp 0feh		;620d
+es_la_ficha_mas_dos:
+	call resta_la_siguiente		;620a
+	cp 0feh		;620d   ; 0xFE: la ficha mas dos
 	ret			;620f
-L_6210:
-	call L_6200		;6210
-	cp 0fdh		;6213
+es_la_ficha_mas_tres:
+	call resta_la_siguiente		;6210
+	cp 0fdh		;6213   ; 0xFD: la ficha mas tres
 	ret			;6215
-L_6216:
-	call L_620A		;6216
-	jr z,L_624D		;6219
+
+; ----------------------------------------------------------------------
+; El caso x, x+1, x+1: dos copias de la ficha siguiente. Mira hasta ocho fichas mas alla para separar las lecturas posibles: tres escaleras encadenadas (x, x+1 y otra vez x+1, en 0x623E), escalera y pareja (0x628E), escalera y trio (0x6287), escalera y luego un grupo que puede ir de pareja o de trio (0x6295) y las mezclas de en medio. Cada rama apunta sus figuras y vuelve a 0x6091.
+; ----------------------------------------------------------------------
+caso_x_x1_x1:
+	call es_la_ficha_mas_dos		;6216
+	jr z,L_624D		;6219   ; la cuarta es x+2: por 0x624D
 	cp 0ffh		;621b
-	jp nz,L_60E0		;621d
-	call L_6204		;6220
-	jr z,L_626D		;6223
+	jp nz,vuelta_atras		;621d   ; si tampoco es x+1, nada cuadra
+	call es_la_ficha_mas_uno		;6220   ; tres copias de x+1: la quinta decide
+	jr z,L_626D		;6223   ; cuatro copias de x+1: por 0x626D
 	cp 0feh		;6225
-	jp nz,L_60E0		;6227
-	call L_620A		;622a
+	jp nz,vuelta_atras		;6227
+	call es_la_ficha_mas_dos		;622a   ; x+2, x+2, x+3, x+3 detras: tres escaleras
 	jr nz,L_628E		;622d
-	call L_620A		;622f
+	call es_la_ficha_mas_dos		;622f
 	jr nz,L_628E		;6232
-	call L_6210		;6234
+	call es_la_ficha_mas_tres		;6234
 	jr nz,L_628E		;6237
-	call L_6210		;6239
+	call es_la_ficha_mas_tres		;6239
 	jr nz,L_628E		;623c
-	call L_6159		;623e
+	call apunta_una_escalera		;623e   ; la escalera de x
 	inc de			;6241
-	call L_6159		;6242
-	call L_6159		;6245
+	call apunta_una_escalera		;6242   ; y dos veces la de x+1
+	call apunta_una_escalera		;6245
 	ld hl,0e303h		;6248
-	inc (hl)			;624b
+	inc (hl)			;624b   ; una pareja de escaleras iguales mas
 	ret			;624c
 L_624D:
-	call L_620A		;624d
-	jp nz,L_60E0		;6250
-	call L_6210		;6253
-	jr nz,L_625F		;6256
-	call L_6159		;6258
+	call es_la_ficha_mas_dos		;624d
+	jp nz,vuelta_atras		;6250   ; x, x+1, x+1, x+2: la quinta tiene que ser otro x+2
+	call es_la_ficha_mas_tres		;6253
+	jr nz,L_625F		;6256   ; con x+3 detras son dos escaleras, x y x+1
+	call apunta_una_escalera		;6258
 	inc de			;625b
-	jp L_6159		;625c
+	jp apunta_una_escalera		;625c
 L_625F:
 	cp 0feh		;625f
-	jp nz,L_60E0		;6261
-	call L_6159		;6264
+	jp nz,vuelta_atras		;6261   ; y si no, escalera de x y se reescribe el resto para seguir ordenado
+	call apunta_una_escalera		;6264
 	inc de			;6267
 	inc de			;6268
 	ld a,(de)			;6269
@@ -5171,48 +5289,56 @@ L_625F:
 	ld (de),a			;626b
 	ret			;626c
 L_626D:
-	call L_620A		;626d
-	jp nz,L_60E0		;6270
-	call L_620A		;6273
+	call es_la_ficha_mas_dos		;626d
+	jp nz,vuelta_atras		;6270   ; cuatro copias de x+1: detras tiene que venir x+2
+	call es_la_ficha_mas_dos		;6273
 	jr nz,L_6283		;6276
 L_6278:
-	dec hl			;6278
+	dec hl			;6278   ; se reescribe la ficha para que la escalera salga de x
 	dec hl			;6279
 	ld a,(hl)			;627a
 	inc hl			;627b
 	ld (hl),a			;627c
-	call L_6159		;627d
+	call apunta_una_escalera		;627d   ; escalera, y el resto puede ir de pareja o de trio
 	inc de			;6280
-	jr L_6295		;6281
+	jr prueba_pareja_o_trio		;6281
 L_6283:
 	cp 0fdh		;6283
 	jr z,L_6278		;6285
 L_6287:
-	call L_6159		;6287
+	call apunta_una_escalera		;6287   ; escalera de x y trio de x+1
 	inc de			;628a
-	jp L_6185		;628b
+	jp apunta_un_trio		;628b
 L_628E:
-	call L_6159		;628e
+	call apunta_una_escalera		;628e   ; escalera de x y pareja de x+1
 	inc de			;6291
-	jp L_61DA		;6292
-L_6295:
+	jp apunta_la_pareja		;6292
+
+; ----------------------------------------------------------------------
+; El grupo de DE puede ir de pareja o de trio. Si ya hay pareja, no hay duda: trio. Si no, GUARDA COPIA y lo prueba como pareja, dejando el trio como la rama que 0x60E0 probara si esta falla.
+; ----------------------------------------------------------------------
+prueba_pareja_o_trio:
 	ld a,(0e300h)		;6295
-	or a			;6298
-	jp nz,L_6185		;6299
-	call L_62A5		;629c
-	call L_61DA		;629f
+	or a			;6298   ; ya hay pareja: el grupo va de trio
+	jp nz,apunta_un_trio		;6299
+	call guarda_una_copia		;629c   ; guarda copia para poder volver atras
+	call apunta_la_pareja		;629f   ; y lo prueba como pareja
 	jp L_60DD		;62a2
-L_62A5:
+
+; ----------------------------------------------------------------------
+; Guarda el estado del analisis para poder volver atras: sube 0xE237 y copia la mano con su cursor (20 bytes desde 0xE2F1) y las figuras (38 desde 0xE2B6) al hueco 0 (0xE36E/0xE101) si la profundidad es 1 o al hueco 1 (0xE094/0xE06E) si es 2. Sale con DE en el cursor.
+; ----------------------------------------------------------------------
+guarda_una_copia:
 	ld hl,0e237h		;62a5
-	inc (hl)			;62a8
+	inc (hl)			;62a8   ; un nivel mas de profundidad
 	ld a,(hl)			;62a9
 	ld hl,0e2f1h		;62aa
 	ld de,0e36eh		;62ad
-	cp 001h		;62b0
+	cp 001h		;62b0   ; el primer nivel va al hueco 0
 	jr z,L_62B7		;62b2
-	ld de,0e094h		;62b4
+	ld de,0e094h		;62b4   ; el segundo, al hueco 1
 L_62B7:
-	ld bc,00014h		;62b7
+	ld bc,00014h		;62b7   ; veinte bytes: la mano y 0xE300-0xE304
 	ldir		;62ba
 	ld hl,0e2b6h		;62bc
 	ld de,0e101h		;62bf
@@ -5220,332 +5346,360 @@ L_62B7:
 	jr z,L_62C9		;62c4
 	ld de,0e06eh		;62c6
 L_62C9:
-	ld bc,00026h		;62c9
+	ld bc,00026h		;62c9   ; treinta y ocho: las figuras
 	ldir		;62cc
-	ld a,(0e304h)		;62ce
+	ld a,(0e304h)		;62ce   ; DE = el cursor
 	ld de,0e2f1h		;62d1
 	jp suma_a_a_de		;62d4
-L_62D7:
-	call L_6204		;62d7
-	jp nz,L_60E0		;62da
-	call L_6204		;62dd
-	jr z,L_62ED		;62e0
+
+; ----------------------------------------------------------------------
+; Cuatro copias seguidas de la misma ficha. En la mano cerrada un cuarteto no existe (los kan se declaran), asi que es trio mas pareja o trio mas escalera segun lo que venga detras: x+1 y x+2 dan trio y escalera (0x62E7); mas copias de x+1 y x+2 abren las ramas de 0x62F4.
+; ----------------------------------------------------------------------
+caso_cuatro_iguales:
+	call es_la_ficha_mas_uno		;62d7
+	jp nz,vuelta_atras		;62da   ; detras tiene que venir x+1
+	call es_la_ficha_mas_uno		;62dd
+	jr z,L_62ED		;62e0   ; dos x+1: por 0x62ED
 	cp 0feh		;62e2
-	jp nz,L_60E0		;62e4
+	jp nz,vuelta_atras		;62e4   ; un x+1 y luego tiene que venir x+2
 L_62E7:
-	call L_6185		;62e7
-	jp L_6159		;62ea
+	call apunta_un_trio		;62e7   ; trio de x y escalera de x
+	jp apunta_una_escalera		;62ea
 L_62ED:
-	call L_6204		;62ed
-	jr z,L_62F4		;62f0
-	jr L_6295		;62f2
+	call es_la_ficha_mas_uno		;62ed
+	jr z,L_62F4		;62f0   ; tres x+1: por 0x62F4
+	jr prueba_pareja_o_trio		;62f2   ; dos x+1 y otra cosa: trio, y el resto de pareja o trio
 L_62F4:
-	call L_6204		;62f4
-	jr z,L_6332		;62f7
+	call es_la_ficha_mas_uno		;62f4
+	jr z,L_6332		;62f7   ; cuatro x+1: por 0x6332
 	cp 0feh		;62f9
-	jp nz,L_60E0		;62fb
-	call L_620A		;62fe
-	jr z,L_630A		;6301
-	call L_62E7		;6303
+	jp nz,vuelta_atras		;62fb   ; tres x+1 y luego tiene que venir x+2
+	call es_la_ficha_mas_dos		;62fe
+	jr z,L_630A		;6301   ; dos x+2: por 0x630A
+	call L_62E7		;6303   ; trio, escalera, y la pareja detras
 	inc de			;6306
-	jp L_61DA		;6307
+	jp apunta_la_pareja		;6307
 L_630A:
-	call L_620A		;630a
-	jr nz,L_635B		;630d
-	call L_6210		;630f
+	call es_la_ficha_mas_dos		;630a
+	jr nz,L_635B		;630d   ; la ficha mas dos otra vez, o por 0x635B
+	call es_la_ficha_mas_tres		;630f
 	jr nz,L_6327		;6312
-	call L_61DA		;6314
-	call L_6159		;6317
-	call L_6159		;631a
+	call apunta_la_pareja		;6314   ; pareja de x, y tres escaleras
+	call apunta_una_escalera		;6317
+	call apunta_una_escalera		;631a
 	inc de			;631d
 	inc de			;631e
-	call L_6159		;631f
+	call apunta_una_escalera		;631f
 	ld hl,0e303h		;6322
-	inc (hl)			;6325
+	inc (hl)			;6325   ; una pareja de escaleras iguales mas
 	ret			;6326
 L_6327:
 	cp 0feh		;6327
-	jp nz,L_60E0		;6329
-	call L_636D		;632c
-	jp L_6185		;632f
+	jp nz,vuelta_atras		;6329   ; y si no es x+3, tiene que ser otro x+2
+	call L_636D		;632c   ; trio, escalera, pareja, y un trio mas
+	jp apunta_un_trio		;632f
 L_6332:
-	call L_620A		;6332
-	jp nz,L_60E0		;6335
-	call L_620A		;6338
-	jr z,L_6344		;633b
-	call L_62E7		;633d
+	call es_la_ficha_mas_dos		;6332
+	jp nz,vuelta_atras		;6335   ; cuatro x y cuatro x+1: tiene que venir x+2
+	call es_la_ficha_mas_dos		;6338
+	jr z,L_6344		;633b   ; dos x+2: por 0x6344
+	call L_62E7		;633d   ; trio, escalera, y otro trio
 	inc de			;6340
-	jp L_6185		;6341
+	jp apunta_un_trio		;6341
 L_6344:
-	call L_620A		;6344
-	jp nz,L_6185		;6347
-	call L_620A		;634a
-	jp nz,L_6185		;634d
-	call L_62E7		;6350
+	call es_la_ficha_mas_dos		;6344
+	jp nz,apunta_un_trio		;6347   ; solo dos x+2: trio de x y a seguir
+	call es_la_ficha_mas_dos		;634a
+	jp nz,apunta_un_trio		;634d
+	call L_62E7		;6350   ; trio, escalera, y dos trios mas
 	inc de			;6353
 	inc de			;6354
-	call L_6185		;6355
-	jp L_6185		;6358
+	call apunta_un_trio		;6355
+	jp apunta_un_trio		;6358
 L_635B:
 	cp 0fdh		;635b
-	jp nz,L_60E0		;635d
-	call L_6200		;6360
-	cp 0fch		;6363
+	jp nz,vuelta_atras		;635d   ; aqui tiene que venir x+3
+	call resta_la_siguiente		;6360
+	cp 0fch		;6363   ; y x+4 detras
 	jr nz,L_636D		;6365
 	call L_636D		;6367
-	jp L_6159		;636a
+	jp apunta_una_escalera		;636a
 L_636D:
-	call L_62E7		;636d
+	call L_62E7		;636d   ; trio de x, escalera de x, y pareja
 	inc de			;6370
-	call L_61DA		;6371
+	call apunta_la_pareja		;6371
 	inc de			;6374
 	ret			;6375
-L_6376:
-	call L_6204		;6376
-	jr nz,L_6391		;6379
-	call L_620A		;637b
-	jr nz,L_63A2		;637e
-	call L_620A		;6380
-	jp nz,L_60E0		;6383
-L_6386:
-	call L_6159		;6386
-	call L_6159		;6389
-	ld hl,0e303h		;638c
+
+; ----------------------------------------------------------------------
+; El caso x, x, x+1: pareja seguida de la ficha mas uno. Con x+1 y x+2 dobles son DOS ESCALERAS IGUALES (0x6386, el iipeikou); con una sola copia de cada, pareja y escalera; y con mas copias de x+1 se abren las dudas de 0x63A2, que son las que dejan una rama apuntada en 0xE239 para la vuelta atras.
+; ----------------------------------------------------------------------
+caso_pareja_y_siguiente:
+	call es_la_ficha_mas_uno		;6376
+	jr nz,L_6391		;6379   ; una sola x+1: por 0x6391
+	call es_la_ficha_mas_dos		;637b
+	jr nz,caso_pareja_y_dos_siguientes		;637e   ; x+1 doble y luego no viene x+2: por 0x63A2
+	call es_la_ficha_mas_dos		;6380
+	jp nz,vuelta_atras		;6383   ; y tiene que venir x+2 doble
+
+; ----------------------------------------------------------------------
+; Apunta DOS veces la misma escalera desde DE y sube 0xE303. Es la figura del iipeikou: dos escaleras identicas; dos de estas son el ryanpeikou.
+; ----------------------------------------------------------------------
+apunta_dos_escaleras_iguales:
+	call apunta_una_escalera		;6386
+	call apunta_una_escalera		;6389
+	ld hl,0e303h		;638c   ; una pareja de escaleras iguales mas
 	inc (hl)			;638f
 	ret			;6390
 L_6391:
 	cp 0feh		;6391
-	jp nz,L_60E0		;6393
-	call L_6210		;6396
-	jp nz,L_61DA		;6399
-	call L_61DA		;639c
-	jp L_6159		;639f
-L_63A2:
+	jp nz,vuelta_atras		;6393   ; tras x, x, x+1 tiene que venir x+2
+	call es_la_ficha_mas_tres		;6396
+	jp nz,apunta_la_pareja		;6399   ; sin x+3 detras: pareja de x y escalera
+	call apunta_la_pareja		;639c   ; pareja de x, y escalera de x+1
+	jp apunta_una_escalera		;639f
+
+; ----------------------------------------------------------------------
+; El caso x, x, x+1, x+1: aqui el motor no puede saber a ciegas si va de pareja mas escalera o de dos escaleras, asi que mira mas lejos y, en los casos que siguen siendo ambiguos, GUARDA COPIA y apunta en 0xE239 la rama alternativa antes de tirar por una.
+; ----------------------------------------------------------------------
+caso_pareja_y_dos_siguientes:
 	cp 0ffh		;63a2
-	jp nz,L_64F8		;63a4
-	call L_6204		;63a7
-	jr nz,L_63DD		;63aa
-	call L_620A		;63ac
-	jp nz,L_60E0		;63af
-	call L_620A		;63b2
-	jp nz,L_61DA		;63b5
-	call L_620A		;63b8
+	jp nz,prueba_siete_parejas		;63a4   ; si la quinta no es otro x+1, candidata a siete parejas
+	call es_la_ficha_mas_uno		;63a7
+	jr nz,L_63DD		;63aa   ; sin un cuarto x+1: por 0x63DD
+	call es_la_ficha_mas_dos		;63ac
+	jp nz,vuelta_atras		;63af
+	call es_la_ficha_mas_dos		;63b2
+	jp nz,apunta_la_pareja		;63b5
+	call es_la_ficha_mas_dos		;63b8   ; tres x+2, o x+3 detras: ambiguo, por 0x63C9
 	jr z,L_63C9		;63bb
 	cp 0fdh		;63bd
-	jr z,L_63C9		;63bf
+	jr z,L_63C9		;63bf   ; x+3 detras: tambien ambiguo
 L_63C1:
-	call L_6386		;63c1
+	call apunta_dos_escaleras_iguales		;63c1   ; dos escaleras iguales y detras la pareja
 	inc de			;63c4
 	inc de			;63c5
-	jp L_61DA		;63c6
+	jp apunta_la_pareja		;63c6
 L_63C9:
 	ld hl,0e239h		;63c9
-	set 0,(hl)		;63cc
+	set 0,(hl)		;63cc   ; bit 0 de 0xE239: si falla, se probaran las dos escaleras iguales
 L_63CE:
-	call L_62A5		;63ce
+	call guarda_una_copia		;63ce   ; guarda copia y va de pareja mas trio
 	call L_63D7		;63d1
 	jp L_60DD		;63d4
 L_63D7:
-	call L_61DA		;63d7
-	jp L_6185		;63da
+	call apunta_la_pareja		;63d7   ; pareja de x y trio de x+1
+	jp apunta_un_trio		;63da
 L_63DD:
 	cp 0feh		;63dd
-	jr nz,L_63D7		;63df
-	call L_620A		;63e1
-	jr nz,L_63D7		;63e4
-	call L_620A		;63e6
+	jr nz,L_63D7		;63df   ; sin x+2 detras: pareja y trio
+	call es_la_ficha_mas_dos		;63e1
+	jr nz,L_63D7		;63e4   ; un solo x+2: pareja y trio
+	call es_la_ficha_mas_dos		;63e6
 	jr nz,L_63D7		;63e9
 	ld hl,0e239h		;63eb
-	set 1,(hl)		;63ee
+	set 1,(hl)		;63ee   ; bit 1 de 0xE239: la rama alternativa de 0x6386
 	jr L_63CE		;63f0
-L_63F2:
+
+; ----------------------------------------------------------------------
+; El caso x, x, x, y con y distinta: tres iguales. Si y no es x+1 va de trio sin mas. Si lo es, la ambiguedad clasica: trio de x o pareja de x mas escalera de x, y el motor la resuelve mirando cuantas copias de x+1, x+2, x+3... siguen; en la tira mas larga (0x6403-0x6424, hasta x+6) distingue trio mas escaleras de pareja mas escaleras.
+; ----------------------------------------------------------------------
+caso_trio:
 	sub (hl)			;63f2
-	cp 0ffh		;63f3
-	jp nz,L_6185		;63f5
-	call L_620A		;63f8
-	jp nz,L_647D		;63fb
-	call L_6210		;63fe
-	jr nz,L_6441		;6401
-	call L_6200		;6403
-	cp 0fch		;6406
+	cp 0ffh		;63f3   ; la cuarta no es x+1: trio y punto
+	jp nz,apunta_un_trio		;63f5
+	call es_la_ficha_mas_dos		;63f8
+	jp nz,L_647D		;63fb   ; sin x+2 en la quinta: por 0x647D
+	call es_la_ficha_mas_tres		;63fe
+	jr nz,L_6441		;6401   ; sin x+3 en la sexta: por 0x6441
+	call resta_la_siguiente		;6403
+	cp 0fch		;6406   ; x+1, x+2, x+3 seguidos: la tira larga
 	jr nz,L_643B		;6408
-	call L_6200		;640a
+	call resta_la_siguiente		;640a
 	cp 0fbh		;640d
 	jr nz,L_643B		;640f
-	call L_6200		;6411
+	call resta_la_siguiente		;6411
 	cp 0fah		;6414
-	jr nz,L_6430		;6416
-	call L_6200		;6418
+	jr nz,L_6430		;6416   ; sin x+6: pareja y dos escaleras
+	call resta_la_siguiente		;6418
 	cp 0f9h		;641b
-	jr nz,L_642B		;641d
-	call L_6200		;641f
+	jr nz,L_642B		;641d   ; sin x+7: trio y dos escaleras
+	call resta_la_siguiente		;641f
 	cp 0f8h		;6422
 	jr nz,L_642B		;6424
-	call L_6430		;6426
+	call L_6430		;6426   ; hasta x+8 seguidos: pareja de x y tres escaleras
 	jr L_6436		;6429
 L_642B:
-	call L_643B		;642b
+	call L_643B		;642b   ; trio y dos escaleras
 	jr L_6436		;642e
 L_6430:
-	call L_61DA		;6430
-	call L_6159		;6433
+	call apunta_la_pareja		;6430   ; pareja de x y escalera de x
+	call apunta_una_escalera		;6433
 L_6436:
-	call L_64F3		;6436
+	call L_64F3		;6436   ; y una escalera mas, tres fichas mas alla
 	jr L_643E		;6439
 L_643B:
-	call L_6185		;643b
+	call apunta_un_trio		;643b   ; trio de x
 L_643E:
-	jp L_6159		;643e
+	jp apunta_una_escalera		;643e   ; y escalera detras
 L_6441:
 	cp 0feh		;6441
-	jr nz,L_6477		;6443
-	call L_620A		;6445
-	jr nz,L_646F		;6448
-	call L_6210		;644a
-	jr nz,L_6455		;644d
-	call L_6185		;644f
-	jp L_628E		;6452
+	jr nz,L_6477		;6443   ; la sexta no es x+2: pareja y escalera, por 0x6477
+	call es_la_ficha_mas_dos		;6445
+	jr nz,L_646F		;6448   ; sin un tercer x+2: por 0x646F
+	call es_la_ficha_mas_tres		;644a
+	jr nz,L_6455		;644d   ; x+3 en la octava: trio de x, escalera de x+1 y pareja de x+2
+	call apunta_un_trio		;644f
+	jp L_628E		;6452   ; pareja de x+3 detras
 L_6455:
 	cp 0feh		;6455
-	jr nz,L_646F		;6457
-	call L_6210		;6459
-	jr nz,L_6464		;645c
-	call L_6185		;645e
-	jp L_6287		;6461
+	jr nz,L_646F		;6457   ; si la octava no es otro x+2: por 0x646F
+	call es_la_ficha_mas_tres		;6459
+	jr nz,L_6464		;645c   ; sin x+3 detras: pareja de x, escalera de x y trio de x+2
+	call apunta_un_trio		;645e   ; con x+3: trio de x
+	jp L_6287		;6461   ; escalera de x+1 y trio de x+2
 L_6464:
-	call L_61DA		;6464
-	call L_6159		;6467
+	call apunta_la_pareja		;6464   ; pareja de x, escalera de x y trio de x+2
+	call apunta_una_escalera		;6467
 	inc de			;646a
 	inc de			;646b
-	jp L_6185		;646c
+	jp apunta_un_trio		;646c
 L_646F:
 	cp 0fdh		;646f
-	jp nz,L_60E0		;6471
-	jp L_6295		;6474
+	jp nz,vuelta_atras		;6471   ; aqui tiene que venir x+3
+	jp prueba_pareja_o_trio		;6474   ; y el grupo de x puede ir de pareja o de trio
 L_6477:
-	call L_61DA		;6477
-	jp L_6159		;647a
+	call apunta_la_pareja		;6477   ; pareja de x y escalera de x
+	jp apunta_una_escalera		;647a
 L_647D:
 	cp 0ffh		;647d
-	jp nz,L_60E0		;647f
-	call L_6204		;6482
-	jr nz,L_6496		;6485
-	call L_6204		;6487
-	jr z,L_64A1		;648a
+	jp nz,vuelta_atras		;647f   ; la quinta tiene que ser otro x+1
+	call es_la_ficha_mas_uno		;6482
+	jr nz,L_6496		;6485   ; sin un tercer x+1: por 0x6496
+	call es_la_ficha_mas_uno		;6487
+	jr z,L_64A1		;648a   ; cuatro x+1: por 0x64A1
 	cp 0feh		;648c
-	jr z,L_64B8		;648e
-	call L_6185		;6490
-	jp L_6185		;6493
+	jr z,L_64B8		;648e   ; tres x+1 y luego x+2: por 0x64B8
+	call apunta_un_trio		;6490   ; dos trios seguidos, x y x+1
+	jp apunta_un_trio		;6493
 L_6496:
 	cp 0feh		;6496
-	jp z,L_6295		;6498
-	call L_6185		;649b
-	jp L_61DA		;649e
+	jp z,prueba_pareja_o_trio		;6498   ; dos x+1 y luego x+2: el grupo de x va de pareja o de trio
+	call apunta_un_trio		;649b   ; trio de x y pareja de x+1
+	jp apunta_la_pareja		;649e
 L_64A1:
-	call L_620A		;64a1
-	jp nz,L_60E0		;64a4
-	call L_6210		;64a7
-	jr z,L_64C5		;64aa
+	call es_la_ficha_mas_dos		;64a1
+	jp nz,vuelta_atras		;64a4   ; aqui tiene que venir x+2
+	call es_la_ficha_mas_tres		;64a7
+	jr z,L_64C5		;64aa   ; con x+3 detras: por 0x64C5
 	cp 0feh		;64ac
-	jp z,L_6295		;64ae
+	jp z,prueba_pareja_o_trio		;64ae   ; x+2 doble: pareja o trio
 L_64B1:
-	call L_6477		;64b1
+	call L_6477		;64b1   ; pareja de x, escalera de x, y trio
 	inc de			;64b4
-	jp L_6185		;64b5
+	jp apunta_un_trio		;64b5
 L_64B8:
-	call L_620A		;64b8
-	jp nz,L_6185		;64bb
+	call es_la_ficha_mas_dos		;64b8
+	jp nz,apunta_un_trio		;64bb   ; sin x+3: trio de x
 	cp 0fdh		;64be
-	jp nz,L_6295		;64c0
+	jp nz,prueba_pareja_o_trio		;64c0   ; si no viene x+3, pareja o trio
 	jr L_64B1		;64c3
 L_64C5:
-	call L_6200		;64c5
-	cp 0fch		;64c8
+	call resta_la_siguiente		;64c5
+	cp 0fch		;64c8   ; con x+4 detras: por 0x64D2
 	jr z,L_64D2		;64ca
 L_64CC:
-	call L_6185		;64cc
+	call apunta_un_trio		;64cc   ; trio de x, trio de x+1 y escalera de x+2
 	jp L_643B		;64cf
 L_64D2:
-	call L_6200		;64d2
-	cp 0fbh		;64d5
+	call resta_la_siguiente		;64d2
+	cp 0fbh		;64d5   ; sin x+5: por 0x64E6
 	jr nz,L_64E6		;64d7
-	call L_6200		;64d9
-	cp 0fah		;64dc
+	call resta_la_siguiente		;64d9
+	cp 0fah		;64dc   ; con x+6: por 0x64ED
 	jr z,L_64ED		;64de
-	call L_64B1		;64e0
+	call L_64B1		;64e0   ; pareja, escalera, trio y otra escalera
 	jp L_6436		;64e3
 L_64E6:
 	cp 0fch		;64e6
-	jp nz,L_60E0		;64e8
+	jp nz,vuelta_atras		;64e8   ; sin otro x+4, nada cuadra
 	jr L_64CC		;64eb
 L_64ED:
-	call L_6185		;64ed
+	call apunta_un_trio		;64ed   ; trio de x, trio y dos escaleras
 	jp L_642B		;64f0
 L_64F3:
-	ld a,e			;64f3
+	ld a,e			;64f3   ; DE salta tres fichas
 	add a,003h		;64f4
 	ld e,a			;64f6
 	ret			;64f7
-L_64F8:
+
+; ----------------------------------------------------------------------
+; SIETE PAREJAS (chiitoitsu). Con la mano cerrada (0xE2B6 a cero) comprueba que las catorce fichas de 0xE2F1 vayan de dos en dos y que ninguna pareja se repita: cuatro iguales NO valen como dos parejas. Si cuadra, 0xE205 = 1. Luego sigue por la pareja como si nada: la descomposicion normal fallara, y 0x60E0 dara la mano por buena gracias a esa marca.
+; ----------------------------------------------------------------------
+prueba_siete_parejas:
 	push de			;64f8
-	ld a,(0e2b6h)		;64f9
+	ld a,(0e2b6h)		;64f9   ; con figuras declaradas no hay siete parejas
 	or a			;64fc
 	jr nz,L_6519		;64fd
 	ld hl,0e2f1h		;64ff
 	ld de,0e2f2h		;6502
-	ld b,007h		;6505
+	ld b,007h		;6505   ; siete parejas que mirar
 L_6507:
 	ld a,(de)			;6507
-	cp (hl)			;6508
+	cp (hl)			;6508   ; las dos de cada pareja iguales
 	jr nz,L_6519		;6509
 	inc hl			;650b
 	inc hl			;650c
-	cp (hl)			;650d
+	cp (hl)			;650d   ; y distintas de la pareja siguiente: cuatro iguales no valen
 	jr z,L_6519		;650e
 	inc de			;6510
 	inc de			;6511
 	djnz L_6507		;6512
-	ld a,001h		;6514
+	ld a,001h		;6514   ; 0xE205 = 1: SIETE PAREJAS
 	ld (0e205h),a		;6516
 L_6519:
 	pop de			;6519
-	jp L_61DA		;651a
-L_651D:
-	ld a,(0e2b6h)		;651d
+	jp apunta_la_pareja		;651a   ; y a seguir por la pareja, que es lo que toca en cualquier caso
+
+; ----------------------------------------------------------------------
+; TRECE HUERFANOS (kokushi musou), y el unico sitio donde una ficha suelta no es un fallo. Con la mano cerrada busca la unica pareja, la apunta en 0xE300, quita una de las dos (0x39), reordena para que el hueco caiga al final, y compara las trece que quedan una a una con la tabla de 0x6560: el uno y el nueve de cada palo y los siete honores. Si cuadra, 0xE205 = 2 y a 0x60B4 directo.
+; ----------------------------------------------------------------------
+prueba_trece_huerfanos:
+	ld a,(0e2b6h)		;651d   ; con figuras declaradas no hay trece huerfanos
 	or a			;6520
-	jp nz,L_60E0		;6521
+	jp nz,vuelta_atras		;6521
 	ld de,0e2f1h		;6524
 	ld hl,0e2f2h		;6527
-	ld b,00dh		;652a
+	ld b,00dh		;652a   ; trece comparaciones con la siguiente
 L_652C:
 	ld a,(de)			;652c
 	cp (hl)			;652d
-	jr z,L_6537		;652e
+	jr z,L_6537		;652e   ; dos iguales seguidas: la pareja
 	inc de			;6530
 	inc hl			;6531
 	djnz L_652C		;6532
-	jp L_60E0		;6534
+	jp vuelta_atras		;6534   ; sin pareja no es kokushi
 L_6537:
 	ld a,(hl)			;6537
-	ld (0e300h),a		;6538
+	ld (0e300h),a		;6538   ; la pareja
 	ld (0e301h),a		;653b
-	ld a,039h		;653e
+	ld a,039h		;653e   ; una de las dos se quita de la mano
 	ld (hl),a			;6540
 	ld hl,0e2f1h		;6541
-	call L_4F99		;6544
+	call L_4F99		;6544   ; y se reordena para que el hueco caiga al final
 	ld b,00dh		;6547
-	ld hl,06560h		;6549
+	ld hl,06560h		;6549   ; la tabla de los trece
 	ld de,0e2f1h		;654c
 L_654F:
 	ld a,(de)			;654f
 	cp (hl)			;6550
-	jp nz,L_60E0		;6551
+	jp nz,vuelta_atras		;6551   ; una que no cuadre y no es kokushi
 	inc de			;6554
 	inc hl			;6555
 	djnz L_654F		;6556
-	ld a,002h		;6558
+	ld a,002h		;6558   ; 0xE205 = 2: TRECE HUERFANOS
 	ld (0e205h),a		;655a
-	jp L_60B4		;655d
+	jp mano_completa		;655d
 
 ; ----------------------------------------------------------------------
 ; DATOS los_trece_terminales_y_honores: Los trece codigos que no son fichas de
@@ -5560,26 +5714,30 @@ DATA_los_trece_terminales_y_honores:
 ; ======================================================================
 
 
-L_656D:
-	ld a,(0e305h)		;656d
+
+; ----------------------------------------------------------------------
+; Deja en 0xE2F1 la mano ordenada POR FIGURAS para el recuento: las escaleras (0xE2B7), los trios (0xE2C9), tres de las cuatro fichas de cada cuarteto (0xE2DB) y la pareja (0xE300), y la vuelve a ordenar de menor a mayor. Solo si 0xE305 esta a cero, o sea si aun no hay jugadas apuntadas.
+; ----------------------------------------------------------------------
+reagrupa_la_mano_por_figuras:
+	ld a,(0e305h)		;656d   ; con jugadas ya apuntadas no se toca
 	or a			;6570
 	ret nz			;6571
 	ld de,0e2f1h		;6572
-	ld a,(0e2c8h)		;6575
+	ld a,(0e2c8h)		;6575   ; las escaleras, tres fichas cada una
 	or a			;6578
 	jr z,L_6582		;6579
 	ld hl,0e2b7h		;657b
 	ld b,a			;657e
-	call L_65B2		;657f
+	call copia_tres_de_cada_registro		;657f
 L_6582:
-	ld a,(0e2dah)		;6582
+	ld a,(0e2dah)		;6582   ; los trios
 	or a			;6585
 	jr z,L_658F		;6586
 	ld hl,0e2c9h		;6588
 	ld b,a			;658b
-	call L_65B2		;658c
+	call copia_tres_de_cada_registro		;658c
 L_658F:
-	ld a,(0e2f0h)		;658f
+	ld a,(0e2f0h)		;658f   ; los cuartetos, tres de sus cuatro fichas
 	or a			;6592
 	jr z,L_65A4		;6593
 	ld hl,0e2dbh		;6595
@@ -5588,126 +5746,142 @@ L_6599:
 	push bc			;6599
 	ld bc,00003h		;659a
 	ldir		;659d
-	inc hl			;659f
+	inc hl			;659f   ; saltando la cuarta y la marca
 	inc hl			;65a0
 	pop bc			;65a1
 	djnz L_6599		;65a2
 L_65A4:
-	ld hl,0e300h		;65a4
+	ld hl,0e300h		;65a4   ; y la pareja
 	ld bc,00002h		;65a7
 	ldir		;65aa
 	ld hl,0e2f1h		;65ac
-	jp L_4F99		;65af
-L_65B2:
+	jp L_4F99		;65af   ; otra vez ordenada de menor a mayor
+copia_tres_de_cada_registro:
 	push bc			;65b2
-	ld bc,00003h		;65b3
+	ld bc,00003h		;65b3   ; tres fichas
 	ldir		;65b6
-	inc hl			;65b8
+	inc hl			;65b8   ; y se salta la marca
 	pop bc			;65b9
-	djnz L_65B2		;65ba
+	djnz copia_tres_de_cada_registro		;65ba
 	ret			;65bc
-L_65BD:
+
+; ----------------------------------------------------------------------
+; El cursor del menu de llamadas: un tile 0xEA en la columna de la derecha, cuya direccion de VRAM vive en 0xE1C5. Arriba o abajo (bits 0 y 1 de 0xE009, solo en el flanco) suenan el 4, borran el tile viejo con el blanco (0x01) y lo pintan una fila mas arriba o mas abajo, 0x20 bytes de VRAM. Da la vuelta entre las filas de byte bajo 0x39 y 0xF9 saltando 0xA0, o sea cinco entradas.
+; ----------------------------------------------------------------------
+mueve_el_cursor_del_menu:
 	ld a,(0e009h)		;65bd
-	and 003h		;65c0
+	and 003h		;65c0   ; bits 0 y 1: arriba y abajo
 	ret z			;65c2
 	ld c,a			;65c3
 	ld a,(0e008h)		;65c4
 	and 003h		;65c7
-	xor c			;65c9
+	xor c			;65c9   ; solo el flanco: si ya estaba pulsada, nada
 	ret z			;65ca
 	ld b,a			;65cb
-	ld a,004h		;65cc
+	ld a,004h		;65cc   ; sonido 4
 	call L_9C4A		;65ce
-	ld hl,(0e1c5h)		;65d1
+	ld hl,(0e1c5h)		;65d1   ; donde esta el cursor
 	ld d,h			;65d4
 	ld e,l			;65d5
 	ld a,001h		;65d6
-	call escribe_en_vram		;65d8
+	call escribe_en_vram		;65d8   ; tile 1, el blanco, borra el viejo
 	ex de,hl			;65db
 	ld a,b			;65dc
-	rra			;65dd
+	rra			;65dd   ; bit 0: arriba
 	jr c,L_65F9		;65de
-	ld a,020h		;65e0
+	ld a,020h		;65e0   ; abajo: una fila mas
 	call suma_a_a_de		;65e2
 	ld a,e			;65e5
-	cp 0f9h		;65e6
+	cp 0f9h		;65e6   ; pasada la ultima entrada, cinco filas arriba
 	jr nz,L_65EF		;65e8
 	ld a,0a0h		;65ea
 	call resta_a_de_de		;65ec
 L_65EF:
 	ld h,d			;65ef
 	ld l,e			;65f0
-	ld (0e1c5h),hl		;65f1
-	ld a,0eah		;65f4
+	ld (0e1c5h),hl		;65f1   ; la posicion nueva
+	ld a,0eah		;65f4   ; tile 0xEA: el cursor
 	jp escribe_en_vram		;65f6
 L_65F9:
-	ld a,020h		;65f9
+	ld a,020h		;65f9   ; arriba: una fila menos
 	call resta_a_de_de		;65fb
 	ld a,e			;65fe
-	cp 039h		;65ff
+	cp 039h		;65ff   ; pasada la primera, cinco filas abajo
 	jr nz,L_65EF		;6601
 	ld a,0a0h		;6603
 	call suma_a_a_de		;6605
 	jr L_65EF		;6608
-L_660A:
+
+; ----------------------------------------------------------------------
+; SELECT (bit 5 de 0xE009, en el flanco) elige la entrada donde esta el cursor, y la entrada se codifica por bits en 0xE1C7 segun la fila: 0x5x = 1 (agari), 0x7x = 2 (riichi), 0x9x = 4 (pon, 0x680B), 0xBx = 8 (chi, 0x692F) y la de abajo del todo 0x10 (kan). 0x663C despacha los cuatro ultimos; el agari lo mira 0x5036 dentro del turno.
+; ----------------------------------------------------------------------
+elige_en_el_menu:
 	ld hl,(0e1c5h)		;660a
-	ld a,l			;660d
+	ld a,l			;660d   ; la fila del cursor, por la parte alta del byte bajo
 	and 0f0h		;660e
-	ld h,001h		;6610
+	ld h,001h		;6610   ; fila 0x5x: 1, agari
 	cp 050h		;6612
 	jr z,L_662A		;6614
-	ld h,002h		;6616
+	ld h,002h		;6616   ; 0x7x: 2, riichi
 	cp 070h		;6618
 	jr z,L_662A		;661a
-	ld h,004h		;661c
+	ld h,004h		;661c   ; 0x9x: 4, pon
 	cp 090h		;661e
 	jr z,L_662A		;6620
-	ld h,008h		;6622
+	ld h,008h		;6622   ; 0xBx: 8, chi
 	cp 0b0h		;6624
 	jr z,L_662A		;6626
-	ld h,010h		;6628
+	ld h,010h		;6628   ; y la ultima, 0x10, kan
 L_662A:
 	ld a,(0e009h)		;662a
-	and 020h		;662d
+	and 020h		;662d   ; bit 5: SELECT
 	ret z			;662f
 	ld c,a			;6630
 	ld a,(0e008h)		;6631
-	and 020h		;6634
+	and 020h		;6634   ; solo el flanco
 	ret nz			;6636
 	ld a,h			;6637
-	ld (0e1c7h),a		;6638
+	ld (0e1c7h),a		;6638   ; la llamada elegida, en 0xE1C7
 	ret			;663b
-L_663C:
+
+; ----------------------------------------------------------------------
+; Reparte la llamada de 0xE1C7 por bits: 2 riichi (0x6653), 4 pon (0x680B), 8 chi (0x692F), 0x10 kan (0x6C12). El bit 0, agari, no pasa por aqui. Lo llaman tres sitios del turno: 0x5284, 0x55D0 y 0x5831.
+; ----------------------------------------------------------------------
+despacha_la_llamada:
 	ld hl,0e1c7h		;663c
-	bit 1,(hl)		;663f
-	jr nz,L_6653		;6641
-	bit 2,(hl)		;6643
-	jp nz,L_680B		;6645
-	bit 3,(hl)		;6648
-	jp nz,L_692F		;664a
-	bit 4,(hl)		;664d
-	jp nz,L_6C12		;664f
+	bit 1,(hl)		;663f   ; bit 1: riichi
+	jr nz,declara_riichi		;6641
+	bit 2,(hl)		;6643   ; bit 2: pon
+	jp nz,hace_pon		;6645
+	bit 3,(hl)		;6648   ; bit 3: chi
+	jp nz,hace_chi		;664a
+	bit 4,(hl)		;664d   ; bit 4: kan
+	jp nz,hace_kan		;664f
 	ret			;6652
-L_6653:
+
+; ----------------------------------------------------------------------
+; RIICHI, y lo que le pide el cartucho. Al jugador 1 (bit 0 de 0xE206 a cero): que no vaya por el descarte 18 (0xE1BE = 0x12) y que no este ya en riichi (bit 0 de 0xE33E). A los dos: que la mano este CERRADA (0xE2B6 a cero, ninguna llamada) y que acabe de robar (bit 0 de 0xE22C). Si algo falla, el dibujo 2 del rincon y nada mas. Si pasa: bit 0 de 0xE33E, el palo de riichi como sprite (patrones 0x78/0x88/0x98/0x88 en 0xE0B8 para el 1, 0x18/0x28/0x38/0x28 en 0xE0C8 para el 2), 0xE1CC apunta CON QUE DESCARTE se declara (de ahi salen el doble riichi y el ippatsu de 0x7BAF) y suena el 10. Los mil puntos del palo no se cobran aqui (la cuenta de palos, 0xE04A, la tocan 0x53B8 y 0x579A).
+; ----------------------------------------------------------------------
+declara_riichi:
 	ld a,(0e206h)		;6653
-	rra			;6656
+	rra			;6656   ; bit 0 de 0xE206: la maquina se salta las dos primeras comprobaciones
 	jr c,L_6666		;6657
 	ld a,(0e1beh)		;6659
-	cp 012h		;665c
-	jr z,L_66DA		;665e
+	cp 012h		;665c   ; descarte 18: ya no se puede declarar
+	jr z,rechaza_la_llamada		;665e
 	ld a,(0e33eh)		;6660
-	rra			;6663
-	jr c,L_66DA		;6664
+	rra			;6663   ; bit 0 de 0xE33E: ya esta en riichi
+	jr c,rechaza_la_llamada		;6664
 L_6666:
 	ld a,(0e2b6h)		;6666
-	or a			;6669
-	jr nz,L_66DA		;666a
+	or a			;6669   ; con alguna llamada hecha la mano no esta cerrada: no hay riichi
+	jr nz,rechaza_la_llamada		;666a
 	ld a,(0e22ch)		;666c
-	rra			;666f
-	jr nc,L_66DA		;6670
+	rra			;666f   ; y hay que acabar de robar
+	jr nc,rechaza_la_llamada		;6670
 	ld hl,0e33eh		;6672
-	set 0,(hl)		;6675
-	ld a,078h		;6677
+	set 0,(hl)		;6675   ; EN RIICHI: bit 0 de 0xE33E
+	ld a,078h		;6677   ; el palo de riichi del jugador 1, cuatro patrones de sprite
 	ld (0e0b8h),a		;6679
 	ld a,088h		;667c
 	ld (0e0bch),a		;667e
@@ -5719,7 +5893,7 @@ L_6666:
 	rra			;668e
 	ld a,(0e1bfh)		;668f
 	jr nc,L_66AB		;6692
-	ld a,018h		;6694
+	ld a,018h		;6694   ; y el del jugador 2
 	ld (0e0c8h),a		;6696
 	ld a,028h		;6699
 	ld (0e0cch),a		;669b
@@ -5733,13 +5907,13 @@ L_66AB:
 	rra			;66ae
 	jr c,L_66B8		;66af
 	ld a,(0e1beh)		;66b1
-	inc a			;66b4
+	inc a			;66b4   ; 0xE1CC = el numero del descarte con el que se declara
 	ld (0e1cch),a		;66b5
 L_66B8:
 	ld a,00ah		;66b8
-	call L_9C4A		;66ba
+	call L_9C4A		;66ba   ; sonido 10
 	ld hl,0e0b8h		;66bd
-	ld de,03b10h		;66c0
+	ld de,03b10h		;66c0   ; los atributos del sprite, a 0x3B10 o 0x3B20
 	ld a,(0e206h)		;66c3
 	rra			;66c6
 	jr nc,L_66CF		;66c7
@@ -5750,47 +5924,55 @@ L_66CF:
 	call L_460B		;66d2
 L_66D5:
 	xor a			;66d5
-	ld (0e1c7h),a		;66d6
+	ld (0e1c7h),a		;66d6   ; la llamada queda atendida
 	ret			;66d9
-L_66DA:
+
+; ----------------------------------------------------------------------
+; La llamada no vale: el dibujo 2 del rincon (el unico que suena) y 0xE1C7 a cero.
+; ----------------------------------------------------------------------
+rechaza_la_llamada:
 	ld a,002h		;66da
 	call pinta_uno_de_los_tres_dibujos		;66dc
 	jr L_66D5		;66df
-L_66E1:
-	ld a,(0e20ah)		;66e1
+
+; ----------------------------------------------------------------------
+; LAS ESPERAS: que fichas completan la mano. Para cada uno de los 34 tipos (o para una sola, la de (0xE382), si entra con C = 0xFF) mete la ficha en el hueco 0xE209 de una copia de la mano, la ordena y pregunta al motor (0x6038). Si la mano queda completa, el tipo se apunta en la lista de esperas del jugador: 0xE1F5 para el 1, 0xE20E para el 2, terminada en cero, con la cuenta en 0xE128. Si el jugador 1 tiene alguna, bit 7 de 0xE1CD: esta en tenpai. Las tres entradas: 0x66E1 fija el hueco en la ficha robada (0xE20A), 0x66E7 recorre los 34 tipos, 0x66EB entra con B y C puestos desde fuera.
+; ----------------------------------------------------------------------
+calcula_las_esperas:
+	ld a,(0e20ah)		;66e1   ; el hueco donde se prueba cada ficha: el de la robada
 	ld (0e209h),a		;66e4
 L_66E7:
 	ld c,000h		;66e7
-	ld b,022h		;66e9
+	ld b,022h		;66e9   ; los 34 tipos de ficha, B cuenta hacia abajo
 L_66EB:
 	xor a			;66eb
-	ld (0e128h),a		;66ec
-	ld (0e347h),a		;66ef
+	ld (0e128h),a		;66ec   ; ninguna espera todavia
+	ld (0e347h),a		;66ef   ; y sin ficha de ron
 	push bc			;66f2
-	ld hl,0e1f5h		;66f3
+	ld hl,0e1f5h		;66f3   ; la lista de esperas del jugador 1
 	ld de,0e1f6h		;66f6
 	ld a,(0e206h)		;66f9
 	rra			;66fc
 	jr nc,L_6705		;66fd
-	ld hl,0e20eh		;66ff
+	ld hl,0e20eh		;66ff   ; o la del 2
 	ld de,0e20fh		;6702
 L_6705:
-	ld (hl),000h		;6705
+	ld (hl),000h		;6705   ; se vacia: un cero y trece detras
 	ld bc,0000dh		;6707
 	ldir		;670a
 	pop bc			;670c
 L_670D:
 	push bc			;670d
-	ld hl,0e2bah		;670e
-	call L_67C2		;6711
+	ld hl,0e2bah		;670e   ; las figuras que apunto el analisis anterior, fuera
+	call borra_las_figuras_sueltas		;6711
 	ld hl,0e2cch		;6714
-	call L_67C2		;6717
-	ld hl,0e2f1h		;671a
+	call borra_las_figuras_sueltas		;6717
+	ld hl,0e2f1h		;671a   ; la copia de trabajo, limpia
 	ld de,0e2f2h		;671d
 	ld bc,00013h		;6720
 	ld (hl),000h		;6723
 	ldir		;6725
-	ld hl,0e32bh		;6727
+	ld hl,0e32bh		;6727   ; la mano, 0xE20A+1 fichas
 	ld de,0e2f1h		;672a
 	ld a,(0e20ah)		;672d
 	inc a			;6730
@@ -5801,83 +5983,91 @@ L_670D:
 	pop bc			;6739
 	ld a,(0e209h)		;673a
 	ld de,0e2f1h		;673d
-	call suma_a_a_de		;6740
-	ld hl,(0e382h)		;6743
+	call suma_a_a_de		;6740   ; el hueco donde va la ficha a probar
+	ld hl,(0e382h)		;6743   ; con C = 0xFF se prueba una sola ficha, la de (0xE382)
 	ld a,c			;6746
 	cp 0ffh		;6747
 	jr z,L_6754		;6749
 	ld a,b			;674b
 	sub 001h		;674c
-	ld hl,04fbfh		;674e
+	ld hl,04fbfh		;674e   ; si no, el tipo B-1 de la tabla de los 34
 	call suma_a_a_hl		;6751
 L_6754:
-	ld a,(hl)			;6754
+	ld a,(hl)			;6754   ; la ficha a probar, al hueco
 	ld (de),a			;6755
 	ld (0e129h),a		;6756
 	push bc			;6759
 	ld hl,0e2f1h		;675a
 	ld a,(0e12ah)		;675d
 	ld b,a			;6760
-	call L_4F9B		;6761
-	call L_6038		;6764
+	call L_4F9B		;6761   ; ordenada
+	call limpia_y_descompone		;6764   ; y al motor: esta completa?
 	pop bc			;6767
 	ld a,(0e302h)		;6768
-	rra			;676b
+	rra			;676b   ; bit 0 de 0xE302: no lo esta
 	jr c,L_678B		;676c
 	ld a,(0e206h)		;676e
 	rra			;6771
-	ld hl,0e1f5h		;6772
+	ld hl,0e1f5h		;6772   ; la lista de esperas que toca
 	jr nc,L_677A		;6775
 	ld hl,0e20eh		;6777
 L_677A:
 	ld a,(0e128h)		;677a
 	call suma_a_a_hl		;677d
 	ld a,(0e129h)		;6780
-	ld (hl),a			;6783
+	ld (hl),a			;6783   ; una espera mas
 	ld a,(0e128h)		;6784
 	inc a			;6787
 	ld (0e128h),a		;6788
 L_678B:
-	djnz L_670D		;678b
+	djnz L_670D		;678b   ; el tipo siguiente
 	ld a,(0e128h)		;678d
 	or a			;6790
-	jr z,L_679E		;6791
+	jr z,L_679E		;6791   ; sin esperas no hay tenpai
 	ld a,(0e206h)		;6793
 	rra			;6796
 	jr c,L_679E		;6797
 	ld hl,0e1cdh		;6799
-	set 7,(hl)		;679c
+	set 7,(hl)		;679c   ; bit 7 de 0xE1CD: el jugador 1 esta en tenpai
 L_679E:
 	ld a,c			;679e
-	or a			;679f
+	or a			;679f   ; con C distinto de cero se sale sin limpiar
 	ret nz			;67a0
-L_67A1:
+
+; ----------------------------------------------------------------------
+; Deja la copia de trabajo (0xE2F1) a cero y sigue en 0x67AE.
+; ----------------------------------------------------------------------
+limpia_el_analisis:
 	ld hl,0e2f1h		;67a1
 	ld de,0e2f2h		;67a4
 	ld bc,00013h		;67a7
 	ld (hl),000h		;67aa
 	ldir		;67ac
-L_67AE:
-	ld hl,0e2bah		;67ae
-	call L_67C2		;67b1
-	ld hl,0e2cch		;67b4
-	call L_67C2		;67b7
-	call L_67E6		;67ba
+
+; ----------------------------------------------------------------------
+; Borra las figuras que el motor apunto por su cuenta (marca 0) y deja las declaradas (marca 1); repone las cuentas de 0xE2C8 y 0xE2DA a lo declarado (0xE2C7 y 0xE2D9), y si habia un trio marcado con la ficha de ron, 0x67E6 lo quita tambien. Es lo que se hace tras cada pregunta al motor, y a donde salta 0x60E0 cuando no hay descomposicion.
+; ----------------------------------------------------------------------
+limpia_las_figuras:
+	ld hl,0e2bah		;67ae   ; las escaleras
+	call borra_las_figuras_sueltas		;67b1
+	ld hl,0e2cch		;67b4   ; los trios
+	call borra_las_figuras_sueltas		;67b7
+	call quita_el_trio_del_ron		;67ba   ; y el trio de la ficha de ron, si lo hubo
 	xor a			;67bd
-	ld (0e347h),a		;67be
+	ld (0e347h),a		;67be   ; sin ficha de ron
 	ret			;67c1
-L_67C2:
-	ld bc,00403h		;67c2
+borra_las_figuras_sueltas:
+	ld bc,00403h		;67c2   ; cuatro registros de tres fichas y marca
 L_67C5:
 	push bc			;67c5
 	push hl			;67c6
 	xor a			;67c7
-	cp (hl)			;67c8
-	jr nz,L_67D1		;67c9
+	cp (hl)			;67c8   ; la marca
+	jr nz,L_67D1		;67c9   ; puesta: figura declarada, se queda
 	dec hl			;67cb
 	ld b,c			;67cc
 L_67CD:
-	ld (hl),a			;67cd
+	ld (hl),a			;67cd   ; a cero: se borran sus fichas
 	dec hl			;67ce
 	djnz L_67CD		;67cf
 L_67D1:
@@ -5888,19 +6078,23 @@ L_67D1:
 	inc a			;67d5
 	ld l,a			;67d6
 	djnz L_67C5		;67d7
-	ld a,(0e2c7h)		;67d9
+	ld a,(0e2c7h)		;67d9   ; escaleras: quedan las declaradas
 	ld (0e2c8h),a		;67dc
-	ld a,(0e2d9h)		;67df
+	ld a,(0e2d9h)		;67df   ; y trios igual
 	ld (0e2dah),a		;67e2
 	ret			;67e5
-L_67E6:
+
+; ----------------------------------------------------------------------
+; Busca en 0xE2C9 el trio hecho con la ficha de ron (0xE347) y lo borra, restando uno a los trios abiertos (0xE2D9) y al total (0xE2DA). Ese trio lleva marca 1 y 0x67C2 no lo tocaria.
+; ----------------------------------------------------------------------
+quita_el_trio_del_ron:
 	ld b,004h		;67e6
-	ld a,(0e347h)		;67e8
-	or a			;67eb
+	ld a,(0e347h)		;67e8   ; la ficha de ron
+	or a			;67eb   ; sin ella no hay nada que quitar
 	ret z			;67ec
 	ld hl,0e2c9h		;67ed
 L_67F0:
-	cp (hl)			;67f0
+	cp (hl)			;67f0   ; el trio de esa ficha
 	jr z,L_67FD		;67f1
 	push af			;67f3
 	ld a,004h		;67f4
@@ -5910,25 +6104,29 @@ L_67F0:
 	ret			;67fc
 L_67FD:
 	ld b,004h		;67fd
-	xor a			;67ff
+	xor a			;67ff   ; cuatro bytes a cero
 L_6800:
 	ld (hl),a			;6800
 	inc hl			;6801
 	djnz L_6800		;6802
 	ld hl,0e2d9h		;6804
-	dec (hl)			;6807
+	dec (hl)			;6807   ; un trio abierto menos
 	inc hl			;6808
-	dec (hl)			;6809
+	dec (hl)			;6809   ; y uno menos en total
 	ret			;680a
-L_680B:
+
+; ----------------------------------------------------------------------
+; PON: robar el ultimo descarte del rival para hacer trio con dos copias de la mano. No vale en riichi (bit 0 de 0xE33E), ni en la fase 1 de la mano (0xE1AA = 1), ni sin descarte (0x39). Al jugador 1 le basta con las dos copias; a la maquina (bit 0 de 0xE206) el codigo le pide mas: que no tenga delante la ficha menos uno (0x684A), que tenga TRES copias (0x6868) y que detras no venga la ficha mas uno (0x686E). Las copias se cambian por 0x39, el descarte robado tambien, se reordena, y el trio va detras de la parte cerrada (0xE20B baja cuatro) y a 0xE2C9 con marca 1: figura ABIERTA (0xE2D9++ y 0xE2B6++). Sonido 11, y la fase vuelve a 1: toca descartar.
+; ----------------------------------------------------------------------
+hace_pon:
 	ld a,(0e33eh)		;680b
-	rra			;680e
-	jp c,L_68EF		;680f
+	rra			;680e   ; en riichi no se puede hacer pon
+	jp c,rechaza_pon		;680f
 	ld a,(0e1aah)		;6812
-	dec a			;6815
-	jp z,L_68EF		;6816
+	dec a			;6815   ; fase 1 de la mano: tampoco
+	jp z,rechaza_pon		;6816
 	ld a,(0e206h)		;6819
-	rra			;681c
+	rra			;681c   ; los descartes del rival
 	ld a,(0e1bfh)		;681d
 	ld hl,0e172h		;6820
 	jr nc,L_682B		;6823
@@ -5937,162 +6135,182 @@ L_680B:
 L_682B:
 	call suma_a_a_hl		;682b
 	ld a,(hl)			;682e
-	cp 039h		;682f
-	jp z,L_68EF		;6831
-	ld (0e128h),a		;6834
+	cp 039h		;682f   ; 0x39: no hay descarte
+	jp z,rechaza_pon		;6831
+	ld (0e128h),a		;6834   ; la ficha del pon
 	ex de,hl			;6837
 	ld a,(0e128h)		;6838
 	ld hl,0e32bh		;683b
-	call L_6E5D		;683e
+	call busca_en_la_mano		;683e   ; la primera copia en la mano
 	ld a,(0e206h)		;6841
-	rra			;6844
+	rra			;6844   ; la maquina mira ademas la ficha de delante
 	jr nc,L_6851		;6845
 	ld a,(0e128h)		;6847
 	dec a			;684a
 	dec hl			;684b
 	cp (hl)			;684c
-	jp z,L_68EF		;684d
+	jp z,rechaza_pon		;684d   ; si es la ficha menos uno, no hace pon
 	inc hl			;6850
 L_6851:
 	ld a,(0e128h)		;6851
 	cp (hl)			;6854
-	jp nz,L_68EF		;6855
+	jp nz,rechaza_pon		;6855   ; hacen falta dos copias en la mano
 	inc hl			;6858
 	cp (hl)			;6859
-	jp nz,L_68EF		;685a
+	jp nz,rechaza_pon		;685a
 	ld a,(0e206h)		;685d
-	rra			;6860
+	rra			;6860   ; la maquina pide una tercera
 	jr nc,L_6875		;6861
 	ld a,(0e128h)		;6863
 	inc hl			;6866
 	cp (hl)			;6867
-	jp nz,L_68FC		;6868
+	jp nz,L_68FC		;6868   ; sin tercera copia, se cancela sin ruido
 	inc a			;686b
 	inc hl			;686c
 	cp (hl)			;686d
-	jp z,L_68FC		;686e
+	jp z,L_68FC		;686e   ; y si detras viene la ficha mas uno, tampoco
 	dec hl			;6871
-	ld (hl),039h		;6872
+	ld (hl),039h		;6872   ; la tercera copia sale de la mano
 	dec hl			;6874
 L_6875:
-	ld a,039h		;6875
+	ld a,039h		;6875   ; 0x39 en las dos copias
 	ld (hl),a			;6877
 	dec hl			;6878
 	ld (hl),a			;6879
 	ex de,hl			;687a
-	ld (hl),a			;687b
-	call L_6F60		;687c
+	ld (hl),a			;687b   ; y en el descarte robado, que desaparece del rio
+	call pinta_el_rio_del_jugador_2		;687c   ; repinta el rio del rival
 	ld a,(0e206h)		;687f
 	rra			;6882
 	jr nc,L_6888		;6883
-	call L_6F4E		;6885
+	call pinta_el_rio_del_jugador_1		;6885   ; y el propio, si es la maquina
 L_6888:
 	ld a,(0e20ah)		;6888
 	inc a			;688b
 	ld b,a			;688c
 	ld hl,0e32bh		;688d
-	call L_4F9B		;6890
+	call L_4F9B		;6890   ; reordena la mano
 	ld a,(0e20bh)		;6893
-	sub 004h		;6896
+	sub 004h		;6896   ; el limite de la parte cerrada baja cuatro
 	cp 00ch		;6898
 	jr nz,L_689D		;689a
 	dec a			;689c
 L_689D:
-	ld (0e20bh),a		;689d
+	ld (0e20bh),a		;689d   ; 0xE20B: el ultimo hueco antes de las figuras
 	inc a			;68a0
 	ld hl,0e32bh		;68a1
 	call suma_a_a_hl		;68a4
-	ld a,(0e128h)		;68a7
+	ld a,(0e128h)		;68a7   ; las tres copias, justo detras
 	ld (hl),a			;68aa
 	inc hl			;68ab
 	ld (hl),a			;68ac
 	inc hl			;68ad
 	ld (hl),a			;68ae
 	ex de,hl			;68af
-	call L_6185		;68b0
-	inc (hl)			;68b3
+	call apunta_un_trio		;68b0   ; y a la lista de trios
+	inc (hl)			;68b3   ; con marca 1: ABIERTO
 	ld hl,0e2d9h		;68b4
-	inc (hl)			;68b7
+	inc (hl)			;68b7   ; un trio abierto mas
 	ld hl,0e2b6h		;68b8
-	inc (hl)			;68bb
-	call L_6917		;68bc
+	inc (hl)			;68bb   ; y una llamada mas: la mano ya no esta cerrada
+	call apunta_la_ficha_robada		;68bc   ; la ficha robada, a la lista del jugador
 	ld a,(0e206h)		;68bf
 	rra			;68c2
 	jr nc,L_68CA		;68c3
-	call L_690B		;68c5
-	jr L_68D0		;68c8
+	call devuelve_la_mano_al_jugador_2		;68c5   ; la mano vuelve al jugador 2
+	jr cierra_la_llamada		;68c8
 L_68CA:
-	call L_68FF		;68ca
-	call L_6F2E		;68cd
-L_68D0:
+	call devuelve_la_mano_al_jugador_1		;68ca   ; o al 1, y se repinta
+	call pinta_la_mano_del_jugador_1		;68cd
+
+; ----------------------------------------------------------------------
+; Remate del pon y del kan: la parte cerrada tiene tres fichas menos (0xE209 y 0xE20A bajan tres), el jugador 1 pasa a la fase 1 (0xE1AA = 1: descartar), sonido 11 y C = 0: la llamada se ha hecho.
+; ----------------------------------------------------------------------
+cierra_la_llamada:
 	ld a,(0e20ah)		;68d0
-	sub 003h		;68d3
+	sub 003h		;68d3   ; tres fichas menos en la parte cerrada
 	ld (0e209h),a		;68d5
 	ld (0e20ah),a		;68d8
 	ld a,(0e206h)		;68db
 	rra			;68de
-	jr c,L_68E6		;68df
+	jr c,L_68E6		;68df   ; la maquina no toca la fase
 	ld a,001h		;68e1
-	ld (0e1aah),a		;68e3
+	ld (0e1aah),a		;68e3   ; fase 1: toca descartar
 L_68E6:
 	ld a,00bh		;68e6
-	call L_9C4A		;68e8
-	ld c,000h		;68eb
+	call L_9C4A		;68e8   ; sonido 11
+	ld c,000h		;68eb   ; C = 0: hecha
 	jr L_68FC		;68ed
-L_68EF:
-	ld c,001h		;68ef
+rechaza_pon:
+	ld c,001h		;68ef   ; C = 1: no se ha hecho
 	ld a,(0e206h)		;68f1
 	rra			;68f4
-	jr c,L_68FC		;68f5
+	jr c,L_68FC		;68f5   ; a la maquina no se le pinta el aviso
 	ld a,002h		;68f7
-	call pinta_uno_de_los_tres_dibujos		;68f9
+	call pinta_uno_de_los_tres_dibujos		;68f9   ; el dibujo 2, que suena
 L_68FC:
 	jp L_66D5		;68fc
-L_68FF:
+
+; ----------------------------------------------------------------------
+; Copia los 18 bytes de la mano de trabajo (0xE32B) a la del jugador 1 (0xE13A).
+; ----------------------------------------------------------------------
+devuelve_la_mano_al_jugador_1:
 	ld hl,0e32bh		;68ff
 	ld de,0e13ah		;6902
 	ld bc,00012h		;6905
 	ldir		;6908
 	ret			;690a
-L_690B:
+
+; ----------------------------------------------------------------------
+; La gemela para el jugador 2: 0xE32B a 0xE14C.
+; ----------------------------------------------------------------------
+devuelve_la_mano_al_jugador_2:
 	ld hl,0e32bh		;690b
 	ld de,0e14ch		;690e
 	ld bc,00012h		;6911
 	ldir		;6914
 	ret			;6916
-L_6917:
+
+; ----------------------------------------------------------------------
+; Apunta la ficha que se acaba de robar al rival (0xE128) en la lista del jugador: 0xE22D para el 1 y 0xE232 para el 2, una cuenta y hasta cuatro fichas. La del 2 (0xE233) es la que 0x4833 cruza con las esperas del 1 para el furiten: son descartes del 1 que ya no estan en su rio.
+; ----------------------------------------------------------------------
+apunta_la_ficha_robada:
 	ld hl,0e22dh		;6917
 	ld a,(0e206h)		;691a
-	rra			;691d
+	rra			;691d   ; bit 0 de 0xE206: la lista del 2
 	jr nc,L_6923		;691e
 	ld hl,0e232h		;6920
 L_6923:
 	ld a,(hl)			;6923
 	ld d,a			;6924
-	inc (hl)			;6925
+	inc (hl)			;6925   ; una mas
 	inc hl			;6926
 	call suma_a_a_hl		;6927
 	ld a,(0e128h)		;692a
-	ld (hl),a			;692d
+	ld (hl),a			;692d   ; la ficha
 	ret			;692e
-L_692F:
+
+; ----------------------------------------------------------------------
+; CHI: robar el ultimo descarte del rival para hacer escalera. No en la fase 1 ni en riichi. La primera vez (bit 0 de 0xE1AB a cero) busca en la mano las tres escaleras posibles -ficha-2 con ficha-1, ficha-1 con ficha+1, ficha+1 con ficha+2- y apunta cada una que encuentra: los dos huecos de la mano en 0xE1E9 (0x6C02) y la ficha por la que empieza en 0xE1F1 (0x6BF5). Un honor (0x31 o mas) no se puede chi. Sin ninguna, se rechaza; con una, se ejecuta (0x6AA2); con dos o tres, el jugador elige (0x69F9).
+; ----------------------------------------------------------------------
+hace_chi:
 	ld a,(0e1aah)		;692f
-	dec a			;6932
-	jp z,L_6BC6		;6933
+	dec a			;6932   ; fase 1: no
+	jp z,rechaza_chi		;6933
 	ld a,(0e33eh)		;6936
-	rra			;6939
-	jp c,L_6BC6		;693a
+	rra			;6939   ; en riichi tampoco
+	jp c,rechaza_chi		;693a
 	ld hl,0e1abh		;693d
-	bit 0,(hl)		;6940
+	bit 0,(hl)		;6940   ; bit 0 de 0xE1AB: las opciones ya estan buscadas
 	jp z,L_694B		;6942
-	bit 1,(hl)		;6945
-	jp z,L_69F9		;6947
+	bit 1,(hl)		;6945   ; bit 1: el jugador esta eligiendo
+	jp z,elige_la_escalera		;6947
 	ret			;694a
 L_694B:
-	ld a,0ffh		;694b
+	ld a,0ffh		;694b   ; 0xFF: ninguna opcion aun
 	ld (0e1efh),a		;694d
 	ld a,(0e206h)		;6950
-	rra			;6953
+	rra			;6953   ; los descartes del rival
 	ld a,(0e1bfh)		;6954
 	ld hl,0e172h		;6957
 	jr nc,L_6962		;695a
@@ -6101,112 +6319,116 @@ L_694B:
 L_6962:
 	call suma_a_a_hl		;6962
 	ld a,(hl)			;6965
-	cp 031h		;6966
-	jp nc,L_6BC6		;6968
-	ld (0e128h),a		;696b
-	ld (0e129h),hl		;696e
+	cp 031h		;6966   ; un honor no forma escalera
+	jp nc,rechaza_chi		;6968
+	ld (0e128h),a		;696b   ; la ficha del chi
+	ld (0e129h),hl		;696e   ; y donde esta en el rio
 	ld c,000h		;6971
 	ld a,(0e128h)		;6973
-	dec a			;6976
+	dec a			;6976   ; la ficha menos uno
 	ld hl,0e32bh		;6977
-	call L_6E5D		;697a
-	cp (hl)			;697d
+	call busca_en_la_mano		;697a   ; la busca en la mano
+	cp (hl)			;697d   ; no esta
 	jr nz,L_69A1		;697e
 	ld c,001h		;6980
 	ld (0e12bh),hl		;6982
-	dec a			;6985
+	dec a			;6985   ; y la ficha menos dos
 	ld hl,0e32bh		;6986
-	call L_6E5D		;6989
+	call busca_en_la_mano		;6989
 	cp (hl)			;698c
 	jr nz,L_69A1		;698d
-	call L_6C02		;698f
+	call apunta_un_hueco_de_la_opcion		;698f   ; primera opcion: menos dos, menos uno, ficha
 	ld hl,(0e12bh)		;6992
-	call L_6C02		;6995
+	call apunta_un_hueco_de_la_opcion		;6995
 	ld a,(0e128h)		;6998
 	dec a			;699b
 	dec a			;699c
 	ld b,a			;699d
-	call L_6BF5		;699e
+	call apunta_la_primera_ficha_de_la_opcion		;699e
 L_69A1:
 	ld a,(0e128h)		;69a1
-	inc a			;69a4
+	inc a			;69a4   ; la ficha mas uno
 	ld hl,0e32bh		;69a5
-	call L_6E5D		;69a8
+	call busca_en_la_mano		;69a8
 	cp (hl)			;69ab
 	jr nz,L_69E5		;69ac
 	ld (0e12dh),hl		;69ae
 	ld a,c			;69b1
 	cp 001h		;69b2
 	jr nz,L_69C7		;69b4
-	call L_6C02		;69b6
+	call apunta_un_hueco_de_la_opcion		;69b6   ; segunda: menos uno, ficha, mas uno
 	ld hl,(0e12bh)		;69b9
-	call L_6C02		;69bc
+	call apunta_un_hueco_de_la_opcion		;69bc
 	ld a,(0e128h)		;69bf
 	dec a			;69c2
 	ld b,a			;69c3
-	call L_6BF5		;69c4
+	call apunta_la_primera_ficha_de_la_opcion		;69c4
 L_69C7:
 	ld a,(0e128h)		;69c7
 	inc a			;69ca
-	inc a			;69cb
+	inc a			;69cb   ; la ficha mas dos
 	ld hl,0e32bh		;69cc
-	call L_6E5D		;69cf
+	call busca_en_la_mano		;69cf
 	cp (hl)			;69d2
 	jr nz,L_69E5		;69d3
-	call L_6C02		;69d5
+	call apunta_un_hueco_de_la_opcion		;69d5   ; tercera: ficha, mas uno, mas dos
 	ld hl,(0e12dh)		;69d8
-	call L_6C02		;69db
+	call apunta_un_hueco_de_la_opcion		;69db
 	ld a,(0e128h)		;69de
 	ld b,a			;69e1
-	call L_6BF5		;69e2
+	call apunta_la_primera_ficha_de_la_opcion		;69e2
 L_69E5:
 	ld a,(0e1efh)		;69e5
-	cp 0ffh		;69e8
-	jp z,L_6BC6		;69ea
-	sra a		;69ed
+	cp 0ffh		;69e8   ; sin opciones: se rechaza
+	jp z,rechaza_chi		;69ea
+	sra a		;69ed   ; 0xE1EF pasa de 2n-1 a n-1: opciones menos una
 	ld (0e1efh),a		;69ef
 	cp 001h		;69f2
-	jr nc,L_69F9		;69f4
-	jp L_6AA2		;69f6
-L_69F9:
+	jr nc,elige_la_escalera		;69f4   ; con dos o mas, a elegir
+	jp ejecuta_el_chi		;69f6   ; con una, se ejecuta
+
+; ----------------------------------------------------------------------
+; El jugador elige entre las dos o tres escaleras posibles: bit 1 de 0xE1AB mientras dura, la elegida en 0xE1F0; izquierda y derecha (bits 2 y 3 de 0xE009) la cambian cada 16 fotogramas con sonido 5, y los dos huecos de la mano se marcan con un par de sprites (0xE0A8, X de la tabla de 0x5350). Espacio (bit 4, en el flanco) la confirma y ejecuta. La maquina no elige: con mas de una opcion cancela la llamada.
+; ----------------------------------------------------------------------
+elige_la_escalera:
 	ld a,(0e206h)		;69f9
 	rra			;69fc
-	jp c,L_6BD3		;69fd
+	jp c,cancela_la_eleccion		;69fd   ; la maquina no elige: cancela
 	ld hl,0e1abh		;6a00
-	set 1,(hl)		;6a03
+	set 1,(hl)		;6a03   ; bit 1: eligiendo
 	ld hl,0e1c4h		;6a05
 	ld a,(0e009h)		;6a08
-	and 010h		;6a0b
+	and 010h		;6a0b   ; bit 4: espacio
 	jr nz,L_6A13		;6a0d
 	res 0,(hl)		;6a0f
 	jr L_6A21		;6a11
 L_6A13:
 	bit 0,(hl)		;6a13
 	jr nz,L_6A21		;6a15
-	set 0,(hl)		;6a17
+	set 0,(hl)		;6a17   ; el flanco del espacio, en 0xE1C4
 	ld a,006h		;6a19
-	call L_9C4A		;6a1b
-	jp L_6AA2		;6a1e
+	call L_9C4A		;6a1b   ; sonido 6
+	jp ejecuta_el_chi		;6a1e   ; y se ejecuta la elegida
 L_6A21:
 	ld a,(0e003h)		;6a21
-	and 00fh		;6a24
+	and 00fh		;6a24   ; cada 16 fotogramas
 	ret nz			;6a26
 	ld hl,0e009h		;6a27
-	bit 2,(hl)		;6a2a
+	bit 2,(hl)		;6a2a   ; bit 2: izquierda
 	jr z,L_6A46		;6a2c
 	ld a,005h		;6a2e
-	call L_9C4A		;6a30
+	call L_9C4A		;6a30   ; sonido 5
 	ld a,(0e1f0h)		;6a33
 	dec a			;6a36
 	ld (0e1f0h),a		;6a37
 	or a			;6a3a
-	jp p,L_6A65		;6a3b
+	jp p,L_6A65		;6a3b   ; la anterior, o la ultima si se pasa
 	ld a,(0e1efh)		;6a3e
 	ld (0e1f0h),a		;6a41
 	jr L_6A65		;6a44
 L_6A46:
 	ld hl,0e009h		;6a46
-	bit 3,(hl)		;6a49
+	bit 3,(hl)		;6a49   ; bit 3: derecha
 	jr z,L_6A65		;6a4b
 	ld a,005h		;6a4d
 	call L_9C4A		;6a4f
@@ -6214,14 +6436,14 @@ L_6A46:
 	inc a			;6a55
 	ld hl,0e1efh		;6a56
 	ld (0e1f0h),a		;6a59
-	cp (hl)			;6a5c
+	cp (hl)			;6a5c   ; la siguiente, o la primera si se pasa
 	jr c,L_6A65		;6a5d
 	jr z,L_6A65		;6a5f
 	xor a			;6a61
 	ld (0e1f0h),a		;6a62
 L_6A65:
 	ld a,(0e1f0h)		;6a65
-	sla a		;6a68
+	sla a		;6a68   ; dos huecos por opcion
 	ld hl,0e1e9h		;6a6a
 	call suma_a_a_hl		;6a6d
 	ld b,(hl)			;6a70
@@ -6233,7 +6455,7 @@ L_6A65:
 	ld b,a			;6a78
 	ld a,c			;6a79
 	sub l			;6a7a
-	ld hl,05350h		;6a7b
+	ld hl,05350h		;6a7b   ; la X de cada hueco, de la tabla de 0x5350
 	call suma_a_a_hl		;6a7e
 	ld a,(hl)			;6a81
 	ld (0e0a9h),a		;6a82
@@ -6245,22 +6467,26 @@ L_6A65:
 	ld (0e0b1h),a		;6a90
 	ld (0e0b5h),a		;6a93
 	ld hl,0e0a8h		;6a96
-	ld de,03b00h		;6a99
+	ld de,03b00h		;6a99   ; los atributos de los sprites, a 0x3B00
 	ld bc,00010h		;6a9c
 	jp L_460B		;6a9f
-L_6AA2:
+
+; ----------------------------------------------------------------------
+; Ejecuta la escalera elegida (0xE1F0): quita de la mano los dos huecos apuntados en 0xE1E9 y el descarte del rio del rival (0x39 en los tres), reordena, y pone la escalera entera -tres seguidas desde la ficha de 0xE1F1- detras de la parte cerrada (0xE20B baja cuatro). La apunta en 0xE2B7 con marca 1 (0xE2C7++, 0xE2B6++), marca la ficha robada con un sprite (0xE0E0 para el 1, 0xE0F0 para el 2) y cierra por 0x6BA7 igual que el pon.
+; ----------------------------------------------------------------------
+ejecuta_el_chi:
 	ld a,(0e206h)		;6aa2
-	rra			;6aa5
+	rra			;6aa5   ; la maquina quita ademas la ficha de su mano de trabajo
 	jr nc,L_6AB7		;6aa6
 	ld a,(0e128h)		;6aa8
 	ld hl,0e32bh		;6aab
-	call L_6E5D		;6aae
+	call busca_en_la_mano		;6aae
 	cp (hl)			;6ab1
-	jp nz,L_6BD3		;6ab2
+	jp nz,cancela_la_eleccion		;6ab2   ; si no la tiene, cancela
 	ld (hl),039h		;6ab5
 L_6AB7:
 	ld a,(0e1f0h)		;6ab7
-	sla a		;6aba
+	sla a		;6aba   ; dos huecos por opcion
 	ld hl,0e1e9h		;6abc
 	call suma_a_a_hl		;6abf
 	ld b,(hl)			;6ac2
@@ -6268,25 +6494,25 @@ L_6AB7:
 	ld c,(hl)			;6ac4
 	ld hl,0e32bh		;6ac5
 	ld l,b			;6ac8
-	ld (hl),039h		;6ac9
+	ld (hl),039h		;6ac9   ; 0x39 en los dos huecos
 	ld l,c			;6acb
 	ld (hl),039h		;6acc
 	ld de,(0e129h)		;6ace
 	ld a,039h		;6ad2
-	ld (de),a			;6ad4
-	call L_6F60		;6ad5
+	ld (de),a			;6ad4   ; y en el descarte robado
+	call pinta_el_rio_del_jugador_2		;6ad5   ; repinta el rio del rival
 	ld a,(0e206h)		;6ad8
 	rra			;6adb
 	jr nc,L_6AE1		;6adc
-	call L_6F4E		;6ade
+	call pinta_el_rio_del_jugador_1		;6ade
 L_6AE1:
 	ld a,(0e20ah)		;6ae1
 	inc a			;6ae4
 	ld b,a			;6ae5
 	ld hl,0e32bh		;6ae6
-	call L_4F9B		;6ae9
+	call L_4F9B		;6ae9   ; reordena
 	ld a,(0e20bh)		;6aec
-	sub 004h		;6aef
+	sub 004h		;6aef   ; el limite de la parte cerrada baja cuatro
 	cp 00ch		;6af1
 	jr nz,L_6AF6		;6af3
 	dec a			;6af5
@@ -6295,11 +6521,11 @@ L_6AF6:
 	inc a			;6af9
 	ld hl,0e32bh		;6afa
 	call suma_a_a_hl		;6afd
-	ld a,(0e1f0h)		;6b00
+	ld a,(0e1f0h)		;6b00   ; la ficha por la que empieza la escalera
 	ld de,0e1f1h		;6b03
 	call suma_a_a_de		;6b06
 	ld a,(de)			;6b09
-	ld (hl),a			;6b0a
+	ld (hl),a			;6b0a   ; las tres seguidas, detras de la parte cerrada
 	inc a			;6b0b
 	inc hl			;6b0c
 	ld (hl),a			;6b0d
@@ -6307,7 +6533,7 @@ L_6AF6:
 	inc hl			;6b0f
 	ld (hl),a			;6b10
 	push de			;6b11
-	call L_6917		;6b12
+	call apunta_la_ficha_robada		;6b12   ; la ficha robada, a la lista del jugador
 	ld a,(0e20bh)		;6b15
 	add a,004h		;6b18
 	ld b,a			;6b1a
@@ -6316,7 +6542,7 @@ L_6AF6:
 	call suma_a_a_hl		;6b1f
 	ld a,(0e128h)		;6b22
 L_6B25:
-	cp (hl)			;6b25
+	cp (hl)			;6b25   ; busca la robada dentro de la escalera
 	jr z,L_6B2B		;6b26
 	dec hl			;6b28
 	djnz L_6B25		;6b29
@@ -6326,21 +6552,21 @@ L_6B2B:
 	rla			;6b2d
 	rla			;6b2e
 	ld d,a			;6b2f
-	ld a,(0e206h)		;6b30
+	ld a,(0e206h)		;6b30   ; bit 0: los sprites del 2 (0xE0F0) o del 1 (0xE0E0)
 	rra			;6b33
 	ld a,d			;6b34
 	jr c,L_6B59		;6b35
 	ld hl,0e0e0h		;6b37
 	call suma_a_a_hl		;6b3a
-	ld (hl),0bch		;6b3d
+	ld (hl),0bch		;6b3d   ; patron 0xBC: la marca de ficha robada del jugador 1
 	ld a,b			;6b3f
-	cp 00eh		;6b40
+	cp 00eh		;6b40   ; de la ficha 14 en adelante es la segunda fila de figuras
 	jr c,L_6B48		;6b42
 	sub 004h		;6b44
-	ld (hl),0a8h		;6b46
+	ld (hl),0a8h		;6b46   ; patron 0xA8 para la segunda fila
 L_6B48:
 	ld hl,05350h		;6b48
-	call suma_a_a_hl		;6b4b
+	call suma_a_a_hl		;6b4b   ; la X, de la tabla de 0x5350
 	ld a,d			;6b4e
 	ld de,0e0e1h		;6b4f
 	call suma_a_a_de		;6b52
@@ -6350,16 +6576,16 @@ L_6B48:
 L_6B59:
 	ld hl,0e0f0h		;6b59
 	call suma_a_a_hl		;6b5c
-	ld (hl),0ffh		;6b5f
+	ld (hl),0ffh		;6b5f   ; patron 0xFF para el jugador 2
 	ld a,b			;6b61
 	cp 00eh		;6b62
 	jr c,L_6B6A		;6b64
 	sub 004h		;6b66
-	ld (hl),017h		;6b68
+	ld (hl),017h		;6b68   ; y 0x17 para su segunda fila
 L_6B6A:
 	sub 00eh		;6b6a
 	xor 0ffh		;6b6c
-	ld hl,05350h		;6b6e
+	ld hl,05350h		;6b6e   ; la X, contada desde el otro lado
 	call suma_a_a_hl		;6b71
 	ld a,d			;6b74
 	ld de,0e0f1h		;6b75
@@ -6368,52 +6594,56 @@ L_6B6A:
 	ld (de),a			;6b7c
 L_6B7D:
 	ld hl,0e0e0h		;6b7d
-	ld de,03b38h		;6b80
+	ld de,03b38h		;6b80   ; los atributos, a 0x3B38
 	ld bc,00020h		;6b83
 	call L_460B		;6b86
 	pop de			;6b89
-	call L_6159		;6b8a
-	inc (hl)			;6b8d
+	call apunta_una_escalera		;6b8a   ; la escalera, a la lista
+	inc (hl)			;6b8d   ; con marca 1: ABIERTA
 	ld hl,0e2c7h		;6b8e
-	inc (hl)			;6b91
+	inc (hl)			;6b91   ; una escalera abierta mas
 	ld hl,0e2b6h		;6b92
-	inc (hl)			;6b95
+	inc (hl)			;6b95   ; y una llamada mas: la mano ya no esta cerrada
 	ld a,(0e206h)		;6b96
 	rra			;6b99
 	jr c,L_6BA4		;6b9a
-	call L_68FF		;6b9c
-	call L_6F2E		;6b9f
-	jr L_6BA7		;6ba2
+	call devuelve_la_mano_al_jugador_1		;6b9c   ; la mano vuelve al jugador 1, y se repinta
+	call pinta_la_mano_del_jugador_1		;6b9f
+	jr cierra_el_chi		;6ba2
 L_6BA4:
-	call L_690B		;6ba4
-L_6BA7:
+	call devuelve_la_mano_al_jugador_2		;6ba4   ; o al 2
+cierra_el_chi:
 	ld a,(0e20ah)		;6ba7
-	sub 003h		;6baa
+	sub 003h		;6baa   ; tres fichas menos en la parte cerrada
 	ld (0e209h),a		;6bac
 	ld (0e20ah),a		;6baf
 	ld a,(0e206h)		;6bb2
 	rra			;6bb5
 	jr c,L_6BBD		;6bb6
 	ld a,001h		;6bb8
-	ld (0e1aah),a		;6bba
+	ld (0e1aah),a		;6bba   ; fase 1: toca descartar
 L_6BBD:
 	ld a,00bh		;6bbd
-	call L_9C4A		;6bbf
+	call L_9C4A		;6bbf   ; sonido 11
 	ld c,000h		;6bc2
-	jr L_6BD3		;6bc4
-L_6BC6:
-	ld c,001h		;6bc6
+	jr cancela_la_eleccion		;6bc4
+rechaza_chi:
+	ld c,001h		;6bc6   ; C = 1: no se ha hecho
 	ld a,(0e206h)		;6bc8
 	rra			;6bcb
-	jr c,L_6BD3		;6bcc
+	jr c,cancela_la_eleccion		;6bcc
 	ld a,002h		;6bce
-	call pinta_uno_de_los_tres_dibujos		;6bd0
-L_6BD3:
+	call pinta_uno_de_los_tres_dibujos		;6bd0   ; el dibujo 2
+
+; ----------------------------------------------------------------------
+; Deja la eleccion de chi a cero: 0xE1AB, 0xE1C7, los once bytes de opciones (0xE1E9-0xE1F3) y los cuatro sprites de 0x3B00, que se mandan a Y=0xE0, fuera de la pantalla.
+; ----------------------------------------------------------------------
+cancela_la_eleccion:
 	xor a			;6bd3
 	ld (0e1abh),a		;6bd4
 	ld (0e1c7h),a		;6bd7
 	xor a			;6bda
-	ld b,00bh		;6bdb
+	ld b,00bh		;6bdb   ; once bytes: las opciones
 	ld hl,0e1e9h		;6bdd
 L_6BE0:
 	ld (hl),a			;6be0
@@ -6421,7 +6651,7 @@ L_6BE0:
 	djnz L_6BE0		;6be2
 	ld b,004h		;6be4
 L_6BE6:
-	ld a,0e0h		;6be6
+	ld a,0e0h		;6be6   ; Y=0xE0: el sprite desaparece
 	ld de,03b00h		;6be8
 	call escribe_en_vram		;6beb
 	ld a,e			;6bee
@@ -6429,36 +6659,40 @@ L_6BE6:
 	ld e,a			;6bf1
 	djnz L_6BE6		;6bf2
 	ret			;6bf4
-L_6BF5:
+apunta_la_primera_ficha_de_la_opcion:
 	ld a,(0e1efh)		;6bf5
-	sra a		;6bf8
+	sra a		;6bf8   ; la mitad de 0xE1EF: el numero de opcion
 	ld hl,0e1f1h		;6bfa
 	call suma_a_a_hl		;6bfd
 	ld (hl),b			;6c00
 	ret			;6c01
-L_6C02:
+apunta_un_hueco_de_la_opcion:
 	ld b,l			;6c02
 	ld hl,0e1efh		;6c03
-	inc (hl)			;6c06
+	inc (hl)			;6c06   ; dos huecos por opcion
 	ld a,(0e1efh)		;6c07
 	ld hl,0e1e9h		;6c0a
 	call suma_a_a_hl		;6c0d
 	ld (hl),b			;6c10
 	ret			;6c11
-L_6C12:
-	ld hl,0e32bh		;6c12
+
+; ----------------------------------------------------------------------
+; KAN, en sus tres formas. Guarda copia de la mano en 0xE348 por si hay que deshacer. Con 0xE22C a cero la ficha es el ultimo descarte del rival (DAIMINKAN, abierto; no vale en riichi); si no, es la recien robada, la de 0xE209. Con tres copias en la mano (0x6C5F) se quitan esas tres -y la robada, o el descarte-; sin ellas (0x6CCA) se buscan cuatro iguales seguidas en la parte cerrada (0x6E69, ankan) o un pon ya declarado de esa ficha (0x6CE7, SHOUMINKAN, 0xE12B = 1). Luego 0x6D64 apunta el cuarteto, 0x6DB9 reordena y pinta, y 0x6DED decide si hay que comprobar las esperas.
+; ----------------------------------------------------------------------
+hace_kan:
+	ld hl,0e32bh		;6c12   ; copia de la mano, por si hay que deshacer
 	ld de,0e348h		;6c15
 	ld bc,00012h		;6c18
 	ldir		;6c1b
 	ld a,(0e22ch)		;6c1d
-	or a			;6c20
+	or a			;6c20   ; 0xE22C a cero: la ficha es el descarte del rival
 	jr nz,L_6C41		;6c21
 	ld a,(0e33eh)		;6c23
 	rra			;6c26
-	jp c,L_6E4D		;6c27
+	jp c,rechaza_kan		;6c27   ; en riichi no se roba para kan
 	ld a,(0e206h)		;6c2a
 	rra			;6c2d
-	ld a,(0e1bfh)		;6c2e
+	ld a,(0e1bfh)		;6c2e   ; los descartes del rival
 	ld hl,0e172h		;6c31
 	jr nc,L_6C3C		;6c34
 	ld a,(0e1beh)		;6c36
@@ -6467,21 +6701,21 @@ L_6C3C:
 	call suma_a_a_hl		;6c3c
 	jr L_6C4A		;6c3f
 L_6C41:
-	ld a,(0e209h)		;6c41
+	ld a,(0e209h)		;6c41   ; con ficha propia es la recien robada, en 0xE209
 	ld hl,0e32bh		;6c44
 	call suma_a_a_hl		;6c47
 L_6C4A:
 	ld a,(hl)			;6c4a
-	cp 039h		;6c4b
+	cp 039h		;6c4b   ; 0x39: no hay ficha
 	jp z,L_6E5A		;6c4d
-	ld (0e128h),a		;6c50
+	ld (0e128h),a		;6c50   ; la ficha del kan
 	ld (0e129h),hl		;6c53
 	ld a,(0e128h)		;6c56
 	ld hl,0e32bh		;6c59
-	call L_6E5D		;6c5c
+	call busca_en_la_mano		;6c5c   ; su primera copia en la mano
 	ld a,(0e128h)		;6c5f
 	cp (hl)			;6c62
-	jr nz,L_6CCA		;6c63
+	jr nz,L_6CCA		;6c63   ; tres copias seguidas, o por 0x6CCA
 	inc hl			;6c65
 	cp (hl)			;6c66
 	jr nz,L_6CCA		;6c67
@@ -6492,23 +6726,23 @@ L_6C4A:
 	ld de,0e32bh		;6c70
 	call suma_a_a_de		;6c73
 	ld a,e			;6c76
-	cp l			;6c77
+	cp l			;6c77   ; si las tres empiezan en el hueco de la robada, por 0x6CCA
 	jr z,L_6CCA		;6c78
 	push hl			;6c7a
 	ld c,000h		;6c7b
 	ld a,c			;6c7d
-	ld (0e12bh),a		;6c7e
+	ld (0e12bh),a		;6c7e   ; 0xE12B = 0: kan normal
 	ld a,(0e22ch)		;6c81
 	or a			;6c84
-	jr z,L_6CC6		;6c85
+	jr z,L_6CC6		;6c85   ; con el descarte del rival, las tres se quitan y listo
 	ld hl,0e20ah		;6c87
 	ld a,(0e209h)		;6c8a
 	cp (hl)			;6c8d
-	jr z,L_6CC6		;6c8e
+	jr z,L_6CC6		;6c8e   ; la robada es una de las tres
 	ld a,(0e128h)		;6c90
 	pop hl			;6c93
 	inc hl			;6c94
-	cp (hl)			;6c95
+	cp (hl)			;6c95   ; una cuarta copia detras: se quitan las cuatro
 	jr z,L_6CB0		;6c96
 	dec hl			;6c98
 	ex de,hl			;6c99
@@ -6516,73 +6750,73 @@ L_6C4A:
 	ld hl,0e32bh		;6c9d
 	call suma_a_a_hl		;6ca0
 	ld a,(0e128h)		;6ca3
-	cp (hl)			;6ca6
+	cp (hl)			;6ca6   ; la robada del final de la mano tiene que ser la misma ficha
 	jr nz,L_6CCA		;6ca7
-	ld (0e129h),hl		;6ca9
+	ld (0e129h),hl		;6ca9   ; y es la que se quita aparte
 	ex de,hl			;6cac
-	jp L_6D57		;6cad
+	jp quita_las_copias		;6cad
 L_6CB0:
 	push hl			;6cb0
 	ld a,(0e209h)		;6cb1
 	ld hl,0e32bh		;6cb4
-	call suma_a_a_hl		;6cb7
+	call suma_a_a_hl		;6cb7   ; la cuarta copia es la robada
 	ld (0e129h),hl		;6cba
-	ld c,001h		;6cbd
+	ld c,001h		;6cbd   ; C = 1: cuatro huecos que quitar
 	ld hl,(0e129h)		;6cbf
 	ld a,(hl)			;6cc2
 	ld (0e128h),a		;6cc3
 L_6CC6:
 	pop hl			;6cc6
-	jp L_6D57		;6cc7
+	jp quita_las_copias		;6cc7
 L_6CCA:
 	ld a,(0e22ch)		;6cca
-	rra			;6ccd
-	jp nc,L_6E4D		;6cce
-	call L_6E69		;6cd1
+	rra			;6ccd   ; sin ficha propia no hay mas kan que probar
+	jp nc,rechaza_kan		;6cce
+	call busca_cuatro_iguales		;6cd1   ; busca cuatro iguales seguidas en la parte cerrada
 	ld a,c			;6cd4
-	cp 003h		;6cd5
+	cp 003h		;6cd5   ; C = 3: las hay
 	jr nz,L_6CE7		;6cd7
 	ld a,(hl)			;6cd9
 	ld (0e128h),a		;6cda
 	ld (0e129h),hl		;6cdd
 	ld a,002h		;6ce0
-	ld (0e12bh),a		;6ce2
-	jr L_6D57		;6ce5
+	ld (0e12bh),a		;6ce2   ; 0xE12B = 2: kan cerrado con cuatro de la mano
+	jr quita_las_copias		;6ce5
 L_6CE7:
 	ld a,(0e22ch)		;6ce7
 	rra			;6cea
-	jp nc,L_6E4D		;6ceb
+	jp nc,rechaza_kan		;6ceb   ; con la ficha del rival no hay kan anadido
 	ld hl,0e20bh		;6cee
-	ld a,012h		;6cf1
+	ld a,012h		;6cf1   ; las figuras declaradas van de 0xE20B a 18
 	sub (hl)			;6cf3
 	or a			;6cf4
-	jp z,L_6E4D		;6cf5
+	jp z,rechaza_kan		;6cf5   ; ninguna declarada
 	ld b,a			;6cf8
 	ld hl,0e32bh		;6cf9
 	ld a,(0e20bh)		;6cfc
 	call suma_a_a_hl		;6cff
 	ld a,(0e128h)		;6d02
 L_6D05:
-	cp (hl)			;6d05
+	cp (hl)			;6d05   ; busca la ficha entre las figuras
 	jr z,L_6D0E		;6d06
 	inc hl			;6d08
 	djnz L_6D05		;6d09
-	jp L_6E4D		;6d0b
+	jp rechaza_kan		;6d0b   ; no esta
 L_6D0E:
 	inc hl			;6d0e
 	cp (hl)			;6d0f
-	jp nz,L_6E4D		;6d10
+	jp nz,rechaza_kan		;6d10   ; y tiene que ser un trio: dos copias mas
 	inc hl			;6d13
 	cp (hl)			;6d14
-	jp nz,L_6E4D		;6d15
+	jp nz,rechaza_kan		;6d15
 	dec hl			;6d18
 	dec hl			;6d19
 	dec hl			;6d1a
-	ld (hl),a			;6d1b
+	ld (hl),a			;6d1b   ; la ficha, delante del trio: ya son cuatro
 	ld hl,0e2c9h		;6d1c
 	ld b,004h		;6d1f
 L_6D21:
-	cp (hl)			;6d21
+	cp (hl)			;6d21   ; el trio, en la lista de 0xE2C9
 	jr z,L_6D2A		;6d22
 	ld a,l			;6d24
 	add a,002h		;6d25
@@ -6591,14 +6825,14 @@ L_6D21:
 L_6D2A:
 	ex de,hl			;6d2a
 	ld hl,0e2c9h		;6d2b
-	ld a,(0e2dah)		;6d2e
+	ld a,(0e2dah)		;6d2e   ; el primer registro libre
 	add a,a			;6d31
 	add a,a			;6d32
 	add a,l			;6d33
 	ld l,a			;6d34
 	push hl			;6d35
 	ld bc,00004h		;6d36
-	ldir		;6d39
+	ldir		;6d39   ; copia el trio al hueco libre y luego lo borra: solo lo quita si era el ultimo
 	pop hl			;6d3b
 	xor a			;6d3c
 	ld (hl),a			;6d3d
@@ -6609,47 +6843,55 @@ L_6D2A:
 	inc hl			;6d42
 	ld (hl),a			;6d43
 	ld hl,0e2d9h		;6d44
-	dec (hl)			;6d47
+	dec (hl)			;6d47   ; un trio abierto menos
 	ld hl,0e304h		;6d48
-	dec (hl)			;6d4b
+	dec (hl)			;6d4b   ; el cursor, uno menos
 	ld hl,0e2dah		;6d4c
-	dec (hl)			;6d4f
+	dec (hl)			;6d4f   ; y un trio menos
 	ld a,001h		;6d50
-	ld (0e12bh),a		;6d52
-	jr L_6D64		;6d55
-L_6D57:
+	ld (0e12bh),a		;6d52   ; 0xE12B = 1: KAN ANADIDO sobre un pon
+	jr apunta_el_cuarteto		;6d55
+
+; ----------------------------------------------------------------------
+; Cambia por 0x39 las tres copias que acaban en HL, o cuatro si C no es cero.
+; ----------------------------------------------------------------------
+quita_las_copias:
 	ld b,039h		;6d57
-	ld (hl),b			;6d59
+	ld (hl),b			;6d59   ; las tres copias, hacia atras
 	dec hl			;6d5a
 	ld (hl),b			;6d5b
 	dec hl			;6d5c
 	ld (hl),b			;6d5d
 	ld a,c			;6d5e
-	or a			;6d5f
-	jr z,L_6D64		;6d60
+	or a			;6d5f   ; C distinto de cero: hay una cuarta
+	jr z,apunta_el_cuarteto		;6d60
 	dec hl			;6d62
 	ld (hl),b			;6d63
-L_6D64:
+
+; ----------------------------------------------------------------------
+; Quita la ficha que cierra el kan (del rio del rival si viene de fuera, de la mano si es propia), baja el limite de la parte cerrada (salvo en el kan anadido) y apunta el cuarteto en 0xE2DB por 0x61B9. La marca: ABIERTO (1) con el descarte del rival o en el kan anadido, CERRADO (0) con cuatro de la mano. El abierto cuenta como llamada (0xE2B6++, salvo el anadido, que ya contaba) y sube 0xE2EF, los kan abiertos.
+; ----------------------------------------------------------------------
+apunta_el_cuarteto:
 	ld hl,(0e129h)		;6d64
-	ld a,(0e22ch)		;6d67
+	ld a,(0e22ch)		;6d67   ; con ficha propia no hay rio que tocar
 	or a			;6d6a
 	jr nz,L_6D7D		;6d6b
-	ld (hl),039h		;6d6d
-	call L_6F60		;6d6f
+	ld (hl),039h		;6d6d   ; el descarte robado desaparece del rio
+	call pinta_el_rio_del_jugador_2		;6d6f   ; y se repinta
 	ld a,(0e206h)		;6d72
 	rra			;6d75
 	jr nc,L_6D7B		;6d76
-	call L_6F4E		;6d78
+	call pinta_el_rio_del_jugador_1		;6d78
 L_6D7B:
 	jr L_6D7F		;6d7b
 L_6D7D:
-	ld (hl),039h		;6d7d
+	ld (hl),039h		;6d7d   ; la ficha robada, fuera de la mano
 L_6D7F:
 	ld a,(0e12bh)		;6d7f
-	cp 001h		;6d82
+	cp 001h		;6d82   ; el kan anadido no mueve la parte cerrada
 	jr z,L_6D93		;6d84
 	ld a,(0e20bh)		;6d86
-	sub 004h		;6d89
+	sub 004h		;6d89   ; los demas: el limite baja cuatro
 	cp 00ch		;6d8b
 	jr nz,L_6D90		;6d8d
 	dec a			;6d8f
@@ -6658,183 +6900,203 @@ L_6D90:
 L_6D93:
 	ld hl,0e128h		;6d93
 	ex de,hl			;6d96
-	call L_61B9		;6d97
+	call apunta_un_cuarteto		;6d97   ; el cuarteto, a la lista de 0xE2DB
 	ld a,(0e22ch)		;6d9a
-	or a			;6d9d
+	or a			;6d9d   ; con el descarte del rival siempre es abierto
 	jr z,L_6DA6		;6d9e
 	ld a,(0e12bh)		;6da0
 	dec a			;6da3
-	jr nz,L_6DB9		;6da4
+	jr nz,coloca_el_cuarteto		;6da4   ; 0xE12B = 2, cuatro de la mano: CERRADO, sin marca
 L_6DA6:
-	inc (hl)			;6da6
+	inc (hl)			;6da6   ; marca 1: ABIERTO
 	ld a,(0e22ch)		;6da7
-	cp 001h		;6daa
-	jr z,L_6DB9		;6dac
+	cp 001h		;6daa   ; el kan anadido ya contaba como llamada
+	jr z,coloca_el_cuarteto		;6dac
 	ld hl,0e2b6h		;6dae
-	inc (hl)			;6db1
+	inc (hl)			;6db1   ; una llamada mas
 	ld hl,0e2efh		;6db2
-	inc (hl)			;6db5
-	call L_6917		;6db6
-L_6DB9:
+	inc (hl)			;6db5   ; y un kan abierto mas, 0xE2EF
+	call apunta_la_ficha_robada		;6db6   ; la ficha robada, a la lista del jugador
+
+; ----------------------------------------------------------------------
+; Reordena la mano y escribe las cuatro fichas del kan detras de la parte cerrada, salvo en el kan anadido, que ya estaba escrito. Si el kan es cerrado, las dos de fuera se escriben como 0x38, el DORSO: asi es como se ve un ankan.
+; ----------------------------------------------------------------------
+coloca_el_cuarteto:
 	ld a,(0e20ah)		;6db9
 	ld b,a			;6dbc
 	ld a,(0e22ch)		;6dbd
 	or a			;6dc0
 	jr z,L_6DC4		;6dc1
-	inc b			;6dc3
+	inc b			;6dc3   ; con ficha propia hay una mas que ordenar
 L_6DC4:
 	ld hl,0e32bh		;6dc4
-	call L_4F9B		;6dc7
+	call L_4F9B		;6dc7   ; reordena
 	ld a,(0e12bh)		;6dca
 	dec a			;6dcd
-	jr z,L_6DED		;6dce
+	jr z,remata_el_kan		;6dce   ; el kan anadido no se vuelve a escribir
 	ld a,(0e20bh)		;6dd0
 	ld hl,0e32bh		;6dd3
-	call suma_a_a_hl		;6dd6
+	call suma_a_a_hl		;6dd6   ; las cuatro, detras de la parte cerrada
 	ld a,(0e128h)		;6dd9
 	ld b,a			;6ddc
 	ld c,a			;6ddd
 	ld a,(0e22ch)		;6dde
 	or a			;6de1
 	jr z,L_6DE6		;6de2
-	ld c,038h		;6de4
+	ld c,038h		;6de4   ; 0x38: las dos de fuera BOCA ABAJO si el kan es cerrado
 L_6DE6:
-	ld (hl),c			;6de6
+	ld (hl),c			;6de6   ; dorso o ficha, ficha, ficha, dorso o ficha
 	inc hl			;6de7
 	ld (hl),b			;6de8
 	inc hl			;6de9
 	ld (hl),b			;6dea
 	inc hl			;6deb
 	ld (hl),c			;6dec
-L_6DED:
-	ld a,(0e209h)		;6ded
+
+; ----------------------------------------------------------------------
+; Guarda 0xE209/0xE20A por si hay que deshacer, quita tres fichas de la parte cerrada (cuatro fuera y una de reposicion que vendra) y, si es la maquina o el jugador esta en riichi, comprueba que las esperas no cambien (0x6E87); si cambian, se rechaza. Al final la mano vuelve al jugador, la fase pasa a 0xFF (robar la ficha de reposicion), suena el 11 y 0xE1CF = 1 marca esa ficha para el rinshan kaihou.
+; ----------------------------------------------------------------------
+remata_el_kan:
+	ld a,(0e209h)		;6ded   ; guarda hueco e indice por si hay que deshacer
 	ld (0e12ch),a		;6df0
 	ld a,(0e20ah)		;6df3
 	ld (0e12dh),a		;6df6
 	ld a,(0e12bh)		;6df9
-	dec a			;6dfc
+	dec a			;6dfc   ; el kan anadido no cambia la parte cerrada
 	jr z,L_6E20		;6dfd
 	ld a,(0e20ah)		;6dff
-	sub 003h		;6e02
+	sub 003h		;6e02   ; los demas: tres fichas menos, cuatro fuera y una de reposicion
 	ld (0e209h),a		;6e04
 	ld (0e20ah),a		;6e07
 	ld b,000h		;6e0a
 	ld a,(0e206h)		;6e0c
-	rra			;6e0f
+	rra			;6e0f   ; la maquina siempre comprueba las esperas
 	jr c,L_6E18		;6e10
 	ld a,(0e33eh)		;6e12
-	rra			;6e15
+	rra			;6e15   ; el jugador solo en riichi
 	jr nc,L_6E1B		;6e16
 L_6E18:
-	call L_6E87		;6e18
+	call comprueba_que_las_esperas_no_cambien		;6e18   ; comprueba que las esperas no cambien
 L_6E1B:
 	ld a,b			;6e1b
 	dec a			;6e1c
-	jp z,L_6E4D		;6e1d
+	jp z,rechaza_kan		;6e1d   ; han cambiado: se rechaza
 L_6E20:
 	ld a,(0e206h)		;6e20
 	rra			;6e23
 	jr c,L_6E2E		;6e24
-	call L_68FF		;6e26
-	call L_6F2E		;6e29
+	call devuelve_la_mano_al_jugador_1		;6e26   ; la mano vuelve al jugador 1
+	call pinta_la_mano_del_jugador_1		;6e29
 	jr L_6E31		;6e2c
 L_6E2E:
-	call L_690B		;6e2e
+	call devuelve_la_mano_al_jugador_2		;6e2e   ; o al 2
 L_6E31:
 	ld c,000h		;6e31
 	ld a,(0e206h)		;6e33
 	rra			;6e36
 	jr c,L_6E5A		;6e37
 	ld a,0ffh		;6e39
-	ld (0e1aah),a		;6e3b
+	ld (0e1aah),a		;6e3b   ; fase 0xFF: hay que robar la ficha de reposicion
 	ld a,00bh		;6e3e
-	call L_9C4A		;6e40
+	call L_9C4A		;6e40   ; sonido 11
 	ld a,001h		;6e43
-	ld (0e1cfh),a		;6e45
-	call para_un_momento		;6e48
+	ld (0e1cfh),a		;6e45   ; 0xE1CF = 1: la ficha siguiente es la de reposicion, el rinshan
+	call para_un_momento		;6e48   ; y una pausa a pelo
 	jr L_6E5A		;6e4b
-L_6E4D:
-	ld c,001h		;6e4d
+rechaza_kan:
+	ld c,001h		;6e4d   ; C = 1: no se ha hecho
 	ld a,(0e206h)		;6e4f
 	rra			;6e52
 	jr c,L_6E5A		;6e53
 	ld a,002h		;6e55
-	call pinta_uno_de_los_tres_dibujos		;6e57
+	call pinta_uno_de_los_tres_dibujos		;6e57   ; el dibujo 2
 L_6E5A:
 	jp L_66D5		;6e5a
-L_6E5D:
+
+; ----------------------------------------------------------------------
+; Devuelve en HL el primer hueco de la mano (desde HL, 0xE20A fichas) que tiene la ficha A; si no esta, HL se queda en el ultimo. La usan pon, chi, kan y la IA (0x53A8).
+; ----------------------------------------------------------------------
+busca_en_la_mano:
 	push hl			;6e5d
 	ld hl,0e20ah		;6e5e
-	ld b,(hl)			;6e61
+	ld b,(hl)			;6e61   ; cuantas fichas mirar
 	pop hl			;6e62
 L_6E63:
 	cp (hl)			;6e63
-	ret z			;6e64
+	ret z			;6e64   ; encontrada
 	inc hl			;6e65
 	djnz L_6E63		;6e66
 	ret			;6e68
-L_6E69:
+
+; ----------------------------------------------------------------------
+; Cuenta iguales seguidas en la mano de 0xE32B (o, por 0x6E6F, en la que digan DE y HL): C sube con cada ficha igual a la anterior y vuelve a cero al cambiar. En cuanto llega a 3 -cuatro fichas iguales- vuelve con HL en la cuarta; si no las hay, C queda por debajo de 3.
+; ----------------------------------------------------------------------
+busca_cuatro_iguales:
 	ld de,0e32bh		;6e69
 	ld hl,0e32ch		;6e6c
 L_6E6F:
-	ld c,000h		;6e6f
+	ld c,000h		;6e6f   ; C cuenta las iguales seguidas
 	ld a,(0e20ah)		;6e71
 	ld b,a			;6e74
 L_6E75:
 	ld a,(de)			;6e75
-	cp (hl)			;6e76
+	cp (hl)			;6e76   ; igual que la anterior
 	jr nz,L_6E7C		;6e77
 	inc c			;6e79
 	jr L_6E7E		;6e7a
 L_6E7C:
-	ld c,000h		;6e7c
+	ld c,000h		;6e7c   ; distinta: la cuenta vuelve a cero
 L_6E7E:
 	ld a,c			;6e7e
-	cp 003h		;6e7f
+	cp 003h		;6e7f   ; tres iguales seguidas son cuatro fichas
 	ret z			;6e81
 	inc hl			;6e82
 	inc de			;6e83
 	djnz L_6E75		;6e84
 	ret			;6e86
-L_6E87:
+
+; ----------------------------------------------------------------------
+; LA REGLA DEL KAN EN RIICHI. Guarda las esperas de antes (12 bytes a 0xE12E), las recalcula con la mano ya sin el kan (0x66E7) y las compara. Iguales: B = 0 y el kan vale. Distintas: lo DESHACE -repone las esperas, la mano de 0xE348, 0xE209/0xE20A, quita el cuarteto (0xE2F0--, registro a cero)- y vuelve con B = 1 para que 0x6E1B lo rechace.
+; ----------------------------------------------------------------------
+comprueba_que_las_esperas_no_cambien:
 	ld a,(0e206h)		;6e87
 	rra			;6e8a
 	push af			;6e8b
-	ld hl,0e1f5h		;6e8c
+	ld hl,0e1f5h		;6e8c   ; las esperas del jugador 1
 	jr nc,L_6E94		;6e8f
-	ld hl,0e20eh		;6e91
+	ld hl,0e20eh		;6e91   ; o del 2
 L_6E94:
 	ld de,0e12eh		;6e94
-	ld bc,0000ch		;6e97
+	ld bc,0000ch		;6e97   ; doce bytes
 	ldir		;6e9a
-	call L_66E7		;6e9c
+	call L_66E7		;6e9c   ; y se recalculan con la mano de despues del kan
 	pop af			;6e9f
 	ld hl,0e1f5h		;6ea0
 	jr nc,L_6EA8		;6ea3
 	ld hl,0e20eh		;6ea5
 L_6EA8:
 	ld de,0e12eh		;6ea8
-	ld b,00ch		;6eab
+	ld b,00ch		;6eab   ; doce esperas que comparar
 L_6EAD:
 	ld a,(de)			;6ead
 	cp (hl)			;6eae
-	jr nz,L_6EB6		;6eaf
+	jr nz,L_6EB6		;6eaf   ; una distinta: a deshacer
 	inc hl			;6eb1
 	inc de			;6eb2
 	djnz L_6EAD		;6eb3
-	ret			;6eb5
+	ret			;6eb5   ; iguales: el kan vale
 L_6EB6:
 	ld a,(0e206h)		;6eb6
-	rra			;6eb9
+	rra			;6eb9   ; bit 0 de 0xE206: las esperas del 2
 	ld hl,0e12eh		;6eba
 	ld de,0e1f5h		;6ebd
 	jr nc,L_6EC5		;6ec0
 	ld de,0e20eh		;6ec2
 L_6EC5:
-	ld bc,0000ch		;6ec5
+	ld bc,0000ch		;6ec5   ; las esperas de antes, de vuelta
 	ldir		;6ec8
 	ld hl,0e348h		;6eca
-	ld de,0e32bh		;6ecd
+	ld de,0e32bh		;6ecd   ; la mano de antes
 	ld bc,00012h		;6ed0
 	ldir		;6ed3
 	ld a,(0e12ch)		;6ed5
@@ -6842,96 +7104,124 @@ L_6EC5:
 	ld a,(0e12dh)		;6edb
 	ld (0e20ah),a		;6ede
 	ld hl,0e2f0h		;6ee1
-	dec (hl)			;6ee4
+	dec (hl)			;6ee4   ; un cuarteto menos
 	xor a			;6ee5
 	ld (0e128h),a		;6ee6
 	ld de,0e128h		;6ee9
-	call L_61C5		;6eec
+	call L_61C5		;6eec   ; y su registro a cero
 	ld (hl),000h		;6eef
-	ld b,001h		;6ef1
+	ld b,001h		;6ef1   ; B = 1: el kan no vale
 	ret			;6ef3
-L_6EF4:
+
+; ----------------------------------------------------------------------
+; Para el recuento, la mano ganadora se pinta en el sitio del jugador 1: si gano el 2 (bit 1 de 0xE302), 0x5754 la destapa y se copia entera sobre 0xE13A; si gano el 1, se le mete la ficha que cierra (0xE1E8) en el hueco de la robada (0xE1C3). Y a pintarla.
+; ----------------------------------------------------------------------
+pinta_la_mano_ganadora_abajo:
 	ld a,(0e302h)		;6ef4
 	rra			;6ef7
-	rra			;6ef8
+	rra			;6ef8   ; bit 1 de 0xE302: gano el jugador 2
 	jr nc,L_6F0C		;6ef9
 	call L_5754		;6efb
-	ld hl,0e14ch		;6efe
+	ld hl,0e14ch		;6efe   ; su mano, copiada sobre la del 1
 	ld de,0e13ah		;6f01
 	ld bc,00012h		;6f04
 	ldir		;6f07
-	jp L_6F2E		;6f09
+	jp pinta_la_mano_del_jugador_1		;6f09
 L_6F0C:
-	ld de,0e1e8h		;6f0c
-	ld a,(0e1c3h)		;6f0f
+	ld de,0e1e8h		;6f0c   ; la ficha que cierra
+	ld a,(0e1c3h)		;6f0f   ; al hueco de la robada del jugador 1
 	ld hl,0e13ah		;6f12
 	call suma_a_a_hl		;6f15
 	ld a,(de)			;6f18
 	ld (hl),a			;6f19
-	jr L_6F2E		;6f1a
-L_6F1C:
+	jr pinta_la_mano_del_jugador_1		;6f1a
+
+; ----------------------------------------------------------------------
+; Tres entradas que pintan un tile suelto en la fila 11: 0x6F1C el 0x0A en 0x3971, 0x6F23 el 0x22 en 0x3974 y 0x6F27 el 0x1A en el mismo sitio. 0x7018 y 0x701E las combinan de dos en dos para el recuento.
+; ----------------------------------------------------------------------
+pinta_el_tile_de_0x3971:
 	ld a,00ah		;6f1c
 	ld de,03971h		;6f1e
 	jr L_6F78		;6f21
-L_6F23:
+pinta_el_tile_0x22_en_0x3974:
 	ld a,022h		;6f23
 	jr L_6F29		;6f25
-L_6F27:
+pinta_el_tile_0x1a_en_0x3974:
 	ld a,01ah		;6f27
 L_6F29:
 	ld de,03974h		;6f29
 	jr L_6F78		;6f2c
-L_6F2E:
+
+; ----------------------------------------------------------------------
+; La mano del jugador 1, abajo: catorce fichas desde 0xE13A en la fila 21 (0x3AA2), y los cuatro huecos de figuras declaradas en la fila 18 (0x3A56).
+; ----------------------------------------------------------------------
+pinta_la_mano_del_jugador_1:
 	ld hl,0e13ah		;6f2e
-	ld de,03aa2h		;6f31
-	call L_6FA3		;6f34
-	ld de,03a56h		;6f37
+	ld de,03aa2h		;6f31   ; fila 21, columna 2: la mano
+	call pinta_una_fila_de_fichas		;6f34
+	ld de,03a56h		;6f37   ; fila 18: las figuras declaradas, cuatro huecos
 	ld c,004h		;6f3a
 	jr L_6FA5		;6f3c
-L_6F3E:
+
+; ----------------------------------------------------------------------
+; La mano del jugador 2, arriba: catorce desde 0xE14C en la fila 0 (0x381C) y de derecha a izquierda, mas sus figuras en la fila 3 (0x3868).
+; ----------------------------------------------------------------------
+pinta_la_mano_del_jugador_2:
 	ld hl,0e14ch		;6f3e
-	ld de,0381ch		;6f41
-	call L_6FB2		;6f44
-	ld de,03868h		;6f47
+	ld de,0381ch		;6f41   ; fila 0, columna 28, y de derecha a izquierda
+	call pinta_una_fila_de_fichas_hacia_la_izquierda		;6f44
+	ld de,03868h		;6f47   ; fila 3: las figuras
 	ld c,004h		;6f4a
 	jr L_6FB4		;6f4c
-L_6F4E:
+
+; ----------------------------------------------------------------------
+; Los descartes del jugador 1 (0xE15E): dos filas de diez, la primera en 0x39E2 (fila 15) y la segunda en 0x3A42 (fila 18).
+; ----------------------------------------------------------------------
+pinta_el_rio_del_jugador_1:
 	ld hl,0e15eh		;6f4e
 	ld de,039e2h		;6f51
-	ld c,00ah		;6f54
+	ld c,00ah		;6f54   ; diez por fila
 	call L_6FA5		;6f56
-	ld de,03a42h		;6f59
+	ld de,03a42h		;6f59   ; la segunda fila
 	ld c,00ah		;6f5c
 	jr L_6FA5		;6f5e
-L_6F60:
+
+; ----------------------------------------------------------------------
+; Los descartes del jugador 2 (0xE172): dos filas de diez en 0x38DC (fila 6) y 0x387C (fila 3), de derecha a izquierda.
+; ----------------------------------------------------------------------
+pinta_el_rio_del_jugador_2:
 	ld hl,0e172h		;6f60
 	ld de,038dch		;6f63
-	ld c,00ah		;6f66
+	ld c,00ah		;6f66   ; diez por fila
 	call L_6FB4		;6f68
-	ld de,0387ch		;6f6b
+	ld de,0387ch		;6f6b   ; la segunda fila
 	ld c,00ah		;6f6e
 	jr L_6FB4		;6f70
-L_6F72:
+
+; ----------------------------------------------------------------------
+; Pinta una ficha: entra por 0x6F72 con HL en el codigo, por 0x6F74 con A = codigo (lo pasa por la tabla de 0x4735 para sacar el tile) o por 0x6F78 con el tile ya en A. Son tres filas de dos tiles seguidos -A y A+1, luego A+2 y A+3, luego A+4 y A+5-, bajando 0x20 por fila; el tile 0 se queda en 0. Escribe al puerto con las interrupciones quitadas.
+; ----------------------------------------------------------------------
+pinta_una_ficha:
 	di			;6f72
 	ld a,(hl)			;6f73
 L_6F74:
 	di			;6f74
-	call saca_una_posicion		;6f75
+	call primer_tile_de_la_ficha		;6f75   ; del codigo de ficha al primer tile de su dibujo
 L_6F78:
 	di			;6f78
 	ld (0e127h),a		;6f79
-	ld b,003h		;6f7c
+	ld b,003h		;6f7c   ; tres filas de dos tiles
 L_6F7E:
 	call prepara_escritura_vram		;6f7e
 	ld a,(0e127h)		;6f81
 	exx			;6f84
-	out (c),a		;6f85
+	out (c),a		;6f85   ; el tile de la izquierda
 	exx			;6f87
-	or a			;6f88
+	or a			;6f88   ; el 0 se queda en 0
 	jr z,L_6F8C		;6f89
-	inc a			;6f8b
+	inc a			;6f8b   ; el de la derecha es el siguiente
 L_6F8C:
-	call L_6FA2		;6f8c
+	call L_6FA2		;6f8c   ; un call a un ret pelado: una pausa entre los dos bytes
 	exx			;6f8f
 	out (c),a		;6f90
 	exx			;6f92
@@ -6940,50 +7230,66 @@ L_6F8C:
 	inc a			;6f96
 L_6F97:
 	ld (0e127h),a		;6f97
-	ld a,020h		;6f9a
+	ld a,020h		;6f9a   ; una fila mas abajo
 	call suma_a_a_de		;6f9c
 	djnz L_6F7E		;6f9f
 	ei			;6fa1
 L_6FA2:
 	ret			;6fa2
-L_6FA3:
-	ld c,00eh		;6fa3
+
+; ----------------------------------------------------------------------
+; Pinta C fichas seguidas desde HL (catorce por 0x6FA3), cada una con su dibujo de 2x3 tiles y avanzando dos columnas: la resta de 0x5E deshace las tres filas de 0x20 y suma dos. Es la mano del jugador 1 y los dos rios.
+; ----------------------------------------------------------------------
+pinta_una_fila_de_fichas:
+	ld c,00eh		;6fa3   ; catorce fichas: una mano entera
 L_6FA5:
-	call L_6F72		;6fa5
-	ld a,05eh		;6fa8
+	call pinta_una_ficha		;6fa5
+	ld a,05eh		;6fa8   ; 0x5E: tres filas arriba y dos columnas a la derecha
 	call resta_a_de_de		;6faa
 	inc hl			;6fad
 	dec c			;6fae
 	jr nz,L_6FA5		;6faf
 	ret			;6fb1
-L_6FB2:
-	ld c,00eh		;6fb2
+
+; ----------------------------------------------------------------------
+; La gemela de 0x6FA3 para la mano de arriba: resta 0x62, tres filas arriba y dos columnas a la IZQUIERDA. La mano del jugador 2 se pinta de derecha a izquierda.
+; ----------------------------------------------------------------------
+pinta_una_fila_de_fichas_hacia_la_izquierda:
+	ld c,00eh		;6fb2   ; catorce fichas
 L_6FB4:
-	call L_6F72		;6fb4
-	ld a,062h		;6fb7
+	call pinta_una_ficha		;6fb4
+	ld a,062h		;6fb7   ; 0x62: tres filas arriba y dos columnas a la izquierda
 	call resta_a_de_de		;6fb9
 	inc hl			;6fbc
 	dec c			;6fbd
 	jr nz,L_6FB4		;6fbe
 	ret			;6fc0
-L_6FC1:
-	ld hl,08ad7h		;6fc1
+
+; ----------------------------------------------------------------------
+; Los bloques del tablero: 0x8AD7 y 0x90D4 en formato B, los 56 bytes de 0x8A9F tal cual a 0x2818 y el bloque de 0x90CF. Lo llama 0x4C66 al montar la mano.
+; ----------------------------------------------------------------------
+pinta_el_tablero:
+	ld hl,08ad7h		;6fc1   ; el primer bloque del tablero
 	call pinta_lista_formato_b		;6fc4
 	ld hl,090d4h		;6fc7
 	call pinta_lista_formato_b		;6fca
 	ld hl,08a9fh		;6fcd
-	ld de,02818h		;6fd0
+	ld de,02818h		;6fd0   ; 56 bytes sin comprimir a 0x2818
 	ld bc,00038h		;6fd3
 	call L_460B		;6fd6
 	ld hl,090cfh		;6fd9
 	jp pinta_lista_formato_b		;6fdc
-L_6FDF:
-	ld hl,093aah		;6fdf
+
+; ----------------------------------------------------------------------
+; Monta las dos manos dibujadas del tablero: la de enfrente GIRADA (0x46B1 leyendo desde 0x93AA) a 0x2140 y la de este lado (0x46DC desde 0x9A05) a 0x0140, mas los bloques 0x92E3, 0x9343, 0x99F4 y 0x99F9.
+; ----------------------------------------------------------------------
+pinta_las_dos_manos_del_tablero:
+	ld hl,093aah		;6fdf   ; el bloque de 0x9343, entrando por 0x93AA
 	ld (0e05bh),hl		;6fe2
-	ld de,02140h		;6fe5
+	ld de,02140h		;6fe5   ; 0x2140: la mano de enfrente, girada
 	call pinta_la_mano_del_espejo		;6fe8
 	ld hl,09a05h		;6feb
-	ld de,00140h		;6fee
+	ld de,00140h		;6fee   ; 0x0140: la de este lado
 	ld (0e05bh),hl		;6ff1
 	call vuelca_la_mano_de_este_lado		;6ff4
 	ld hl,092e3h		;6ff7
@@ -6996,20 +7302,28 @@ L_6FDF:
 	call pinta_lista_formato_b		;700c
 	ld hl,099f9h		;700f
 	jp pinta_lista_formato_b		;7012
-L_7015:
-	call L_7024		;7015
-L_7018:
-	call L_6F1C		;7018
-	jp L_6F23		;701b
-L_701E:
-	call L_6F1C		;701e
-	jp L_6F27		;7021
-L_7024:
-	ld a,(0e1d3h)		;7024
+
+; ----------------------------------------------------------------------
+; Pinta los dos indicadores (0x7024) y cae en 0x7018.
+; ----------------------------------------------------------------------
+pinta_los_indicadores_y_la_marca_a:
+	call pinta_los_dos_indicadores		;7015
+pinta_la_marca_a:
+	call pinta_el_tile_de_0x3971		;7018
+	jp pinta_el_tile_0x22_en_0x3974		;701b
+pinta_la_marca_b:
+	call pinta_el_tile_de_0x3971		;701e
+	jp pinta_el_tile_0x1a_en_0x3974		;7021
+
+; ----------------------------------------------------------------------
+; Pinta en grande las dos fichas de 0xE1D3 y 0xE1D4: 48 bytes cada una, los patrones a 0x2850 y 0x28D0 por 0x461C y los colores a 0x0850 y 0x08D0 por 0x462F. 0xE1D3 es el INDICADOR DE DORA y 0xE1D4 el del URA-DORA: lo dice 0x81A9, que es quien los cuenta (el ura solo con riichi). Las dos se pintan igual.
+; ----------------------------------------------------------------------
+pinta_los_dos_indicadores:
+	ld a,(0e1d3h)		;7024   ; el indicador de dora
 	ld de,02850h		;7027
 	ld hl,03000h		;702a
 	call L_7053		;702d
-	ld a,(0e1d4h)		;7030
+	ld a,(0e1d4h)		;7030   ; y el de ura-dora
 	ld de,028d0h		;7033
 	ld hl,03000h		;7036
 	call L_7053		;7039
@@ -7022,23 +7336,23 @@ L_7024:
 	ld hl,01000h		;704e
 	jr L_706B		;7051
 L_7053:
-	push de			;7053
-	call saca_una_posicion		;7054
+	push de			;7053   ; el primer tile del dibujo de la ficha
+	call primer_tile_de_la_ficha		;7054
 	ex de,hl			;7057
 	ld l,a			;7058
 	ld h,000h		;7059
-	add hl,hl			;705b
+	add hl,hl			;705b   ; por ocho: donde estan sus patrones
 	add hl,hl			;705c
 	add hl,hl			;705d
 	add hl,de			;705e
 	ex de,hl			;705f
-	ld bc,00030h		;7060
+	ld bc,00030h		;7060   ; 48 bytes: seis tiles de ocho
 	ld hl,0e2b6h		;7063
 	call L_461C		;7066
 	jr L_7081		;7069
 L_706B:
 	push de			;706b
-	call saca_una_posicion		;706c
+	call primer_tile_de_la_ficha		;706c   ; lo mismo para los colores
 	ex de,hl			;706f
 	ld l,a			;7070
 	ld h,000h		;7071
@@ -7049,210 +7363,230 @@ L_706B:
 	ex de,hl			;7077
 	ld bc,00030h		;7078
 	ld hl,0e2b6h		;707b
-	call L_462F		;707e
+	call L_462F		;707e   ; 48 bytes de colores, por 0x462F
 L_7081:
 	pop de			;7081
 	ld hl,0e2b6h		;7082
 	ld bc,00030h		;7085
 	jp L_460B		;7088
-L_708B:
+
+; ----------------------------------------------------------------------
+; Los dos bloques de 0x8832 y 0x8A78: los patrones de la fuente katakana (tiles 0x30-0x7F, a 0x2180) y sus colores (0x0180). Lo llama 0x5A46 al montar el recuento, que es donde se escriben los nombres de las jugadas.
+; ----------------------------------------------------------------------
+pinta_la_fuente_katakana:
 	ld hl,08832h		;708b
 	call pinta_lista_formato_b		;708e
 	ld hl,08a78h		;7091
 	jp pinta_lista_formato_b		;7094
-L_7097:
-	call L_6EF4		;7097
-	ld hl,07376h		;709a
+
+; ----------------------------------------------------------------------
+; La cabecera del recuento: la mano ganadora abajo (0x6EF4), el dibujo de 0x7376, y 0xE04E = si el ganador NO es el que reparte (el bit 1 de 0xE302 contra 0xE04D): 0 si reparte, 1 si no. Es lo que elige entre las dos tablas de pago (0x5B36) y entre los rotulos 0x7404 y 0x7416.
+; ----------------------------------------------------------------------
+monta_la_cabecera_del_recuento:
+	call pinta_la_mano_ganadora_abajo		;7097
+	ld hl,07376h		;709a   ; el dibujo de la cabecera
 	call pinta_lista_formato_b		;709d
-	ld a,(0e04dh)		;70a0
+	ld a,(0e04dh)		;70a0   ; quien reparte
 	ld c,a			;70a3
 	ld a,(0e302h)		;70a4
-	rra			;70a7
+	rra			;70a7   ; bit 1 de 0xE302: quien ha ganado
 	and 001h		;70a8
 	xor c			;70aa
-	ld a,000h		;70ab
+	ld a,000h		;70ab   ; 0xE04E = 0: el ganador es el que reparte
 	ld (0e04eh),a		;70ad
 	ld hl,07404h		;70b0
 	jr z,L_70BC		;70b3
 	inc a			;70b5
-	ld (0e04eh),a		;70b6
-	ld hl,07416h		;70b9
+	ld (0e04eh),a		;70b6   ; 0xE04E = 1: el ganador es el otro
+	ld hl,07416h		;70b9   ; y su rotulo
 L_70BC:
 	jp L_409D		;70bc
-L_70BF:
-	ld a,(0e315h)		;70bf
+
+; ----------------------------------------------------------------------
+; Escribe UN nombre de jugada por llamada, de la lista de 0xE305 (0xE319 apunta al siguiente y 0xE315 dice cuantos quedan), en la fila de VRAM de 0xE317, que baja 0x20 cada vez. Si la jugada es un yakuman (indice 1-11) y la siguiente no lo es, se corta ahi: con yakuman no se escribe nada mas. Luego, once celdas a la derecha del nombre, pinta el numero que toque con 0x457E: los yakuhai (0x22) llevan su cuenta en 0xE1D6, los dora (0x26) la suya en 0xE1D7, y con la mano CERRADA las jugadas que valen mas cerradas se sobreescriben: chinitsu (0x11) pasa a 6, honitsu y junchan (0x15 y 0x17) a 3, ittsu, sanshoku y chanta (0x1F-0x21) a 2. El han abierto va escrito dentro del nombre, en su ultimo tile.
+; ----------------------------------------------------------------------
+escribe_una_jugada:
+	ld a,(0e315h)		;70bf   ; cuantas jugadas quedan por escribir
 	and a			;70c2
-	jp z,L_7156		;70c3
+	jp z,escribe_el_total_de_han		;70c3   ; ninguna: al total
 	dec a			;70c6
 	ld (0e315h),a		;70c7
 	ld hl,(0e319h)		;70ca
 	ld a,(hl)			;70cd
 	ex de,hl			;70ce
-	cp 00ch		;70cf
+	cp 00ch		;70cf   ; indice 12 en adelante: jugada normal
 	jr nc,L_70E0		;70d1
 	inc de			;70d3
 	ld a,(de)			;70d4
 	dec de			;70d5
-	cp 00ch		;70d6
+	cp 00ch		;70d6   ; la siguiente es normal: esta se escribe y se sigue
 	ld a,(de)			;70d8
 	jr c,L_70E0		;70d9
 	ld hl,0e315h		;70db
-	ld (hl),000h		;70de
+	ld (hl),000h		;70de   ; la siguiente es un yakuman: esta es la ultima
 L_70E0:
 	inc de			;70e0
 	ld (0e319h),de		;70e1
 	push af			;70e5
-	add a,a			;70e6
-	ld hl,07642h		;70e7
+	add a,a			;70e6   ; dos bytes por puntero
+	ld hl,07642h		;70e7   ; la tabla de punteros de 0x7642
 	call suma_a_a_hl		;70ea
 	ld e,(hl)			;70ed
 	inc hl			;70ee
 	ld d,(hl)			;70ef
 	ex de,hl			;70f0
-	ld de,(0e317h)		;70f1
+	ld de,(0e317h)		;70f1   ; donde va escrito
 	push de			;70f5
 	ld c,0ffh		;70f6
-	call L_40A3		;70f8
+	call L_40A3		;70f8   ; pinta el nombre por la puerta de formato A que no borra
 	pop de			;70fb
 	pop af			;70fc
 	push de			;70fd
-	cp 022h		;70fe
+	cp 022h		;70fe   ; 0x22, yakuhai: su cuenta
 	jr nz,L_7107		;7100
 	ld hl,0e1d6h		;7102
 	jr L_7143		;7105
 L_7107:
-	cp 026h		;7107
+	cp 026h		;7107   ; 0x26, dora: la suya
 	jr nz,L_7110		;7109
 	ld hl,0e1d7h		;710b
 	jr L_7143		;710e
 L_7110:
 	ld c,a			;7110
-	ld a,(0e2b6h)		;7111
+	ld a,(0e2b6h)		;7111   ; con alguna llamada la mano esta abierta: el han va como esta escrito
 	or a			;7114
 	jr nz,L_714B		;7115
 	ld a,c			;7117
-	cp 011h		;7118
+	cp 011h		;7118   ; 0x11, chinitsu: 6 cerrado
 	jr nz,L_7123		;711a
 	ld hl,0e127h		;711c
-	ld (hl),006h		;711f
+	ld (hl),006h		;711f   ; el 6
 	jr L_7143		;7121
 L_7123:
-	cp 015h		;7123
+	cp 015h		;7123   ; 0x15 y 0x17, honitsu y junchan
 	jr c,L_7136		;7125
 	cp 018h		;7127
 	jr nc,L_7136		;7129
-	cp 016h		;712b
+	cp 016h		;712b   ; el 0x16 de en medio, toitoi, se queda como esta
 	jr z,L_7136		;712d
 	ld hl,0e127h		;712f
-	ld (hl),003h		;7132
+	ld (hl),003h		;7132   ; 3 cerrado
 	jr L_7143		;7134
 L_7136:
-	cp 01fh		;7136
+	cp 01fh		;7136   ; 0x1F-0x21: ittsu, sanshoku y chanta
 	jr c,L_714B		;7138
 	cp 022h		;713a
 	jr nc,L_714B		;713c
 	ld hl,0e127h		;713e
-	ld (hl),002h		;7141
+	ld (hl),002h		;7141   ; 2 cerrado
 L_7143:
-	ld a,00bh		;7143
+	ld a,00bh		;7143   ; once celdas a la derecha del nombre
 	call suma_a_a_de		;7145
-	call L_457E		;7148
+	call L_457E		;7148   ; y el numero, dos cifras
 L_714B:
 	pop de			;714b
-	ld a,020h		;714c
+	ld a,020h		;714c   ; la fila siguiente, para el nombre que venga
 	call suma_a_a_de		;714e
 	ld (0e317h),de		;7151
 	ret			;7155
-L_7156:
+
+; ----------------------------------------------------------------------
+; Cuando no quedan nombres: si la jugada mas alta no es yakuman (0xE305 de 12 en adelante) escribe el total de han de 0xE316 en 0x386C, pasado a BCD con un daa. Y baja el bit 2 de 0xE1A8: la jugada esta cantada y el submodo 5 puede seguir.
+; ----------------------------------------------------------------------
+escribe_el_total_de_han:
 	ld a,(0e305h)		;7156
-	cp 00ch		;7159
+	cp 00ch		;7159   ; con yakuman no hay total que escribir
 	jr c,L_7170		;715b
 	ld hl,0e316h		;715d
 	ld a,(hl)			;7160
-	add a,000h		;7161
+	add a,000h		;7161   ; a BCD
 	daa			;7163
 	ld (0e127h),a		;7164
 	ld hl,0e127h		;7167
-	ld de,0386ch		;716a
+	ld de,0386ch		;716a   ; 0x386C, donde va el total
 	call L_457E		;716d
 L_7170:
 	ld hl,0e1a8h		;7170
-	res 2,(hl)		;7173
+	res 2,(hl)		;7173   ; bit 2 de 0xE1A8 abajo: la jugada esta cantada
 	ret			;7175
-L_7176:
+
+; ----------------------------------------------------------------------
+; EL RECUENTO DE FU, figura a figura, una cada 64 fotogramas y con sonido 9. 0xE1D8 cuenta las filas que quedan y la tabla de 0x7690 dice en que fila de VRAM va cada una. Primero los trios (0xE2C9, contados en 0xE1D9): se pinta y su fu va a la lista de 0xE322: 2 si es de fichas de en medio y abierto, 4 cerrado; 4 si es de terminales u honores y abierto, 8 cerrado. Luego los cuartetos (0x71DD): 8/16 y 16/32, con los dos dorsos pintados encima si es cerrado. Luego las escaleras (0x724C): 0 fu. Y al final la pareja (0x727A): 2 fu si es de dragon, de viento de la ronda (0x31 + 0xE04C) o de viento del asiento (0x31 + 0xE04D, el del que reparte, sea quien sea el ganador), y 4 si es los dos vientos. Todo en BCD, que es lo que suma 0x7320.
+; ----------------------------------------------------------------------
+pinta_una_figura_y_sus_fu:
 	ld a,(0e003h)		;7176
-	and 03fh		;7179
+	and 03fh		;7179   ; una figura cada 64 fotogramas
 	ret nz			;717b
-	ld a,009h		;717c
+	ld a,009h		;717c   ; sonido 9
 	call L_9C4A		;717e
 	ld hl,0e1d8h		;7181
-	dec (hl)			;7184
+	dec (hl)			;7184   ; una fila menos
 	ld a,(hl)			;7185
-	ld hl,07690h		;7186
+	ld hl,07690h		;7186   ; la fila de VRAM de esta figura
 	add a,a			;7189
 	call suma_a_a_hl		;718a
 	ld e,(hl)			;718d
 	inc hl			;718e
 	ld d,(hl)			;718f
 	ld a,(0e1d8h)		;7190
-	or a			;7193
+	or a			;7193   ; sin filas: la pareja
 	jp z,L_727A		;7194
-	ld a,(0e2dah)		;7197
+	ld a,(0e2dah)		;7197   ; cuantos trios
 	or a			;719a
 	ld c,a			;719b
 	jr z,L_71DD		;719c
 	ld a,(0e1d9h)		;719e
-	cp c			;71a1
+	cp c			;71a1   ; todos pintados: a los cuartetos
 	jr z,L_71DD		;71a2
 	inc a			;71a4
 	ld (0e1d9h),a		;71a5
-	ld hl,0e2c5h		;71a8
+	ld hl,0e2c5h		;71a8   ; el registro del trio
 	sla a		;71ab
 	sla a		;71ad
 	call suma_a_a_hl		;71af
 	ld c,003h		;71b2
-	call L_6FA5		;71b4
-	ld c,(hl)			;71b7
+	call L_6FA5		;71b4   ; sus tres fichas
+	ld c,(hl)			;71b7   ; la marca: abierto o cerrado
 	ex de,hl			;71b8
 	dec de			;71b9
 	ld b,002h		;71ba
 	ld a,(de)			;71bc
-	cp 030h		;71bd
+	cp 030h		;71bd   ; un honor
 	jr nc,L_71D3		;71bf
 	and 00fh		;71c1
-	cp 001h		;71c3
+	cp 001h		;71c3   ; o un uno
 	jr z,L_71D3		;71c5
-	cp 009h		;71c7
+	cp 009h		;71c7   ; o un nueve: por 0x71D3
 	jr z,L_71D3		;71c9
 	ld a,c			;71cb
-	rra			;71cc
+	rra			;71cc   ; abierto: 2 fu
 	jr c,L_723E		;71cd
-	ld b,004h		;71cf
+	ld b,004h		;71cf   ; cerrado: 4
 	jr L_723E		;71d1
 L_71D3:
-	ld b,004h		;71d3
+	ld b,004h		;71d3   ; terminal u honor: 4 abierto
 	ld a,c			;71d5
 	rra			;71d6
 	jr c,L_723E		;71d7
-	ld b,008h		;71d9
+	ld b,008h		;71d9   ; 8 cerrado
 	jr L_723E		;71db
 L_71DD:
-	ld a,(0e2f0h)		;71dd
+	ld a,(0e2f0h)		;71dd   ; cuantos cuartetos
 	or a			;71e0
 	ld c,a			;71e1
 	jr z,L_724C		;71e2
 	ld a,(0e1dah)		;71e4
-	cp c			;71e7
+	cp c			;71e7   ; todos pintados: a las escaleras
 	jr z,L_724C		;71e8
 	inc a			;71ea
 	ld (0e1dah),a		;71eb
 	ld hl,0e2d6h		;71ee
 	ld b,a			;71f1
-	sla a		;71f2
+	sla a		;71f2   ; por cinco
 	sla a		;71f4
 	add a,b			;71f6
 	call suma_a_a_hl		;71f7
-	ld c,004h		;71fa
+	ld c,004h		;71fa   ; cuatro fichas
 	dec de			;71fc
 	dec de			;71fd
 	push de			;71fe
@@ -7260,22 +7594,22 @@ L_71DD:
 	pop de			;7202
 	ld c,(hl)			;7203
 	ld a,(hl)			;7204
-	rra			;7205
+	rra			;7205   ; marca a cero: cerrado
 	jr c,L_721B		;7206
 	push hl			;7208
 	push de			;7209
-	ld a,038h		;720a
+	ld a,038h		;720a   ; el dorso encima de la primera
 	call L_6F74		;720c
 	pop de			;720f
 	ld a,006h		;7210
 	call suma_a_a_de		;7212
-	ld a,038h		;7215
+	ld a,038h		;7215   ; y de la ultima
 	call L_6F74		;7217
 	pop hl			;721a
 L_721B:
 	ex de,hl			;721b
 	dec de			;721c
-	ld b,008h		;721d
+	ld b,008h		;721d   ; 8 fu: cuarteto abierto de fichas de en medio
 	ld a,(de)			;721f
 	cp 030h		;7220
 	jr nc,L_7236		;7222
@@ -7287,16 +7621,16 @@ L_721B:
 	ld a,c			;722e
 	rra			;722f
 	jr c,L_723E		;7230
-	ld b,016h		;7232
+	ld b,016h		;7232   ; 16 cerrado
 	jr L_723E		;7234
 L_7236:
-	ld b,016h		;7236
+	ld b,016h		;7236   ; terminal u honor: 16 abierto
 	ld a,c			;7238
 	rra			;7239
 	jr c,L_723E		;723a
-	ld b,032h		;723c
+	ld b,032h		;723c   ; 32 cerrado
 L_723E:
-	ld de,0e322h		;723e
+	ld de,0e322h		;723e   ; la lista de fu, 0xE322, con la cuenta en 0xE32A
 	ld hl,0e32ah		;7241
 	ld a,(hl)			;7244
 	call suma_a_a_de		;7245
@@ -7305,13 +7639,13 @@ L_723E:
 	inc (hl)			;724a
 	ret			;724b
 L_724C:
-	ld a,(0e2c8h)		;724c
+	ld a,(0e2c8h)		;724c   ; cuantas escaleras
 	or a			;724f
 	ld c,a			;7250
 	jr z,L_727A		;7251
 	ld a,(0e1dbh)		;7253
 	cp c			;7256
-	jr z,L_727A		;7257
+	jr z,L_727A		;7257   ; todas pintadas: a la pareja
 	inc a			;7259
 	ld (0e1dbh),a		;725a
 	ld hl,0e2b3h		;725d
@@ -7319,17 +7653,17 @@ L_724C:
 	sla a		;7262
 	call suma_a_a_hl		;7264
 	ld c,003h		;7267
-	call L_6FA5		;7269
+	call L_6FA5		;7269   ; sus tres fichas
 	ld de,0e322h		;726c
 	ld hl,0e32ah		;726f
 	ld a,(hl)			;7272
 	call suma_a_a_de		;7273
-	xor a			;7276
+	xor a			;7276   ; 0 fu
 	ld (de),a			;7277
 	inc (hl)			;7278
 	ret			;7279
 L_727A:
-	ld b,012h		;727a
+	ld b,012h		;727a   ; la mano de abajo se vacia, 0x39 en los 18 huecos
 	ld hl,0e13ah		;727c
 	ld a,039h		;727f
 	push de			;7281
@@ -7337,54 +7671,58 @@ L_7282:
 	ld (hl),a			;7282
 	inc hl			;7283
 	djnz L_7282		;7284
-	call L_6F2E		;7286
+	call pinta_la_mano_del_jugador_1		;7286   ; y se repinta
 	pop de			;7289
 	ld hl,0e300h		;728a
 	ld c,002h		;728d
-	call L_6FA5		;728f
+	call L_6FA5		;728f   ; la pareja, dos fichas
 	ex de,hl			;7292
 	dec de			;7293
 	ld b,000h		;7294
 	ld a,(de)			;7296
 	ld c,a			;7297
-	cp 035h		;7298
+	cp 035h		;7298   ; 0x35 en adelante, un dragon: 2 fu
 	jr nc,L_72B0		;729a
-	ld hl,0e04ch		;729c
+	ld hl,0e04ch		;729c   ; el viento de la ronda, 0x31 + 0xE04C
 	ld a,(hl)			;729f
 	add a,031h		;72a0
 	cp c			;72a2
 	jr nz,L_72A7		;72a3
-	inc b			;72a5
+	inc b			;72a5   ; 2 fu
 	inc b			;72a6
 L_72A7:
-	ld hl,0e04dh		;72a7
+	ld hl,0e04dh		;72a7   ; el viento del asiento, 0x31 + 0xE04D
 	ld a,(hl)			;72aa
 	add a,031h		;72ab
 	cp c			;72ad
 	jr nz,L_72B2		;72ae
 L_72B0:
-	inc b			;72b0
+	inc b			;72b0   ; 2 fu, y 4 si es los dos
 	inc b			;72b1
 L_72B2:
 	call L_723E		;72b2
-	jp L_5B51		;72b5
-L_72B8:
+	jp siguiente_paso_del_recuento		;72b5   ; y al paso siguiente del recuento
+
+; ----------------------------------------------------------------------
+; El tipo de espera y los fu de base. 0xE1D2 (que calculo 0x5BDB al evaluar la mano) elige el rotulo y sus fu, que van a la sexta entrada de la lista (0xE327): bit 0 ryanmen, 0x7428, 2; bit 1 kanchan, 0x742F, 4; bit 2 penchan, 0x7436, 4; bit 3 tanki, 0x743D, 4; sin bits, shanpon, 0x7444, 2. Esos valores llevan dentro los 2 fu del tsumo: con RON (bit 0 de 0xE1D1 a cero) se restan 2 y sale el rotulo 0x744E en vez del 0x744B. Quedan 0/2/2/2/0, los del riichi de cuatro. Luego los marcos de 0x7451 y la base: 20 fu, o 30 con la mano cerrada y ron.
+; ----------------------------------------------------------------------
+pinta_la_espera_y_los_fu_base:
 	ld c,0ffh		;72b8
 	ld a,(0e1d2h)		;72ba
-	rra			;72bd
+	rra			;72bd   ; bit 0: ryanmen
 	jr c,L_72CE		;72be
-	rra			;72c0
+	rra			;72c0   ; bit 1: kanchan
 	jr c,L_72D5		;72c1
-	rra			;72c3
+	rra			;72c3   ; bit 2: penchan
 	jr c,L_72DA		;72c4
-	rra			;72c6
+	rra			;72c6   ; bit 3: tanki
 	jr c,L_72DF		;72c7
-	ld hl,07444h		;72c9
+	ld hl,07444h		;72c9   ; sin bits: shanpon
 	jr L_72D1		;72cc
 L_72CE:
 	ld hl,07428h		;72ce
 L_72D1:
-	ld b,002h		;72d1
+	ld b,002h		;72d1   ; 2 fu, con el tsumo dentro
 	jr L_72E4		;72d3
 L_72D5:
 	ld hl,0742fh		;72d5
@@ -7396,47 +7734,51 @@ L_72DD:
 L_72DF:
 	ld hl,0743dh		;72df
 L_72E2:
-	ld b,004h		;72e2
+	ld b,004h		;72e2   ; 4 fu
 L_72E4:
 	ex de,hl			;72e4
 	ld hl,0e327h		;72e5
-	ld (hl),b			;72e8
+	ld (hl),b			;72e8   ; a la sexta entrada de la lista
 	ld hl,0e32ah		;72e9
-	inc (hl)			;72ec
+	inc (hl)			;72ec   ; una entrada mas
 	ex de,hl			;72ed
-	ld de,03acfh		;72ee
+	ld de,03acfh		;72ee   ; 0x3ACF: donde va el rotulo de la espera
 	call L_40A3		;72f1
 	ld a,(0e1d1h)		;72f4
-	rra			;72f7
-	ld hl,0744bh		;72f8
+	rra			;72f7   ; bit 0 de 0xE1D1: tsumo
+	ld hl,0744bh		;72f8   ; el rotulo del tsumo
 	jr c,L_7305		;72fb
 	ld hl,0e327h		;72fd
-	dec (hl)			;7300
+	dec (hl)			;7300   ; ron: los 2 fu del tsumo se quitan
 	dec (hl)			;7301
-	ld hl,0744eh		;7302
+	ld hl,0744eh		;7302   ; y el rotulo del ron
 L_7305:
 	call L_40A3		;7305
-	ld hl,07451h		;7308
+	ld hl,07451h		;7308   ; los seis marcos
 	call L_409D		;730b
 	ld a,(0e2b6h)		;730e
 	or a			;7311
 	ld hl,0e1e1h		;7312
-	ld (hl),020h		;7315
-	ret nz			;7317
+	ld (hl),020h		;7315   ; 20 fu de base
+	ret nz			;7317   ; con alguna llamada se queda en 20
 	ld a,(0e1d1h)		;7318
 	or a			;731b
-	ret nz			;731c
-	ld (hl),030h		;731d
+	ret nz			;731c   ; con tsumo tambien
+	ld (hl),030h		;731d   ; cerrada y ron: 30
 	ret			;731f
-L_7320:
+
+; ----------------------------------------------------------------------
+; Suma en BCD, entrada a entrada, la lista de fu de 0xE322 sobre 0xE1E1/0xE1E2, escribiendo cada una en la fila que dice la tabla de 0x769A. Una entrada por llamada; cuando 0xE32A llega a cero, al total (0x7356).
+; ----------------------------------------------------------------------
+suma_los_fu:
 	ld hl,0769ah		;7320
-	ld a,(0e32ah)		;7323
+	ld a,(0e32ah)		;7323   ; cuantas entradas quedan
 	or a			;7326
-	jr z,L_7356		;7327
+	jr z,escribe_el_total_de_fu		;7327   ; ninguna: al total
 	dec a			;7329
 	ld (0e32ah),a		;732a
 	add a,a			;732d
-	call suma_a_a_hl		;732e
+	call suma_a_a_hl		;732e   ; la fila de VRAM de esta entrada
 	ld e,(hl)			;7331
 	inc hl			;7332
 	ld d,(hl)			;7333
@@ -7444,35 +7786,39 @@ L_7320:
 	inc (hl)			;7337
 	ld a,(hl)			;7338
 	ld hl,0e321h		;7339
-	call suma_a_a_hl		;733c
+	call suma_a_a_hl		;733c   ; la entrada, contando desde 0xE322
 	ld a,(0e1e1h)		;733f
 	ld c,(hl)			;7342
 	add a,c			;7343
-	daa			;7344
+	daa			;7344   ; en BCD
 	ld (0e1e1h),a		;7345
-	jr nc,L_7353		;7348
+	jr nc,L_7353		;7348   ; con acarreo, el byte alto
 	ld a,(0e1e2h)		;734a
 	add a,001h		;734d
 	daa			;734f
 	ld (0e1e2h),a		;7350
 L_7353:
-	jp L_457E		;7353
-L_7356:
+	jp L_457E		;7353   ; y se escribe
+
+; ----------------------------------------------------------------------
+; El total de fu, REDONDEADO HACIA ARRIBA A LA DECENA: si la cifra de las unidades no es cero se suman 10 y se tiran las unidades. Se escribe en 0x382B/0x382C y se pasa al paso siguiente del recuento.
+; ----------------------------------------------------------------------
+escribe_el_total_de_fu:
 	ld hl,0e1e2h		;7356
-	ld de,0382bh		;7359
+	ld de,0382bh		;7359   ; el byte alto, en 0x382B
 	call L_459C		;735c
 	ld hl,0e1e1h		;735f
 	ld a,(hl)			;7362
-	and 00fh		;7363
+	and 00fh		;7363   ; las unidades
 	ld a,(hl)			;7365
-	jr z,L_736A		;7366
-	add a,010h		;7368
+	jr z,L_736A		;7366   ; a cero: no hay que redondear
+	add a,010h		;7368   ; diez mas
 L_736A:
-	and 0f0h		;736a
+	and 0f0h		;736a   ; y sin unidades: redondeado a la decena de arriba
 	ld (hl),a			;736c
-	ld de,0382ch		;736d
+	ld de,0382ch		;736d   ; el byte bajo, en 0x382C
 	call L_457E		;7370
-	jp L_5B51		;7373
+	jp siguiente_paso_del_recuento		;7373
 
 ; ----------------------------------------------------------------------
 ; DATOS dibujo_de_la_cabecera: Formato B desde 0x709D: nueve destinos, las
@@ -7490,48 +7836,69 @@ DATA_dibujo_de_la_cabecera:
 	defb 080h,003h,079h,00bh,0dfh,081h,000h,00ah,0dfh,081h,000h,003h,0dfh,000h	; 73f6  ..y...........
 
 ; ----------------------------------------------------------------------
-; DATOS rotulo_de_tres_filas_b: Formato A: tres tiles en cada una de las filas
-;   1, 2 y 3, la version alterna del bloque de 0x7416.
+; DATOS kanji_del_que_reparte: Formato A: los nueve tiles 0x70-0x78 de la
+;   fuente katakana, tres por fila en las filas 1, 2 y 3, columna 3: un
+;   caracter de 24x24. Lo pinta 0x70B0 cuando el ganador ES el que reparte
+;   (0xE04E = 0). SUPOSICION por el uso: el kanji de oya, el que reparte.
 ;   0x7404..0x7416  (18 bytes)
-DATA_rotulo_de_tres_filas_b:
+DATA_kanji_del_que_reparte:
 	defb 023h,038h,070h,071h,072h,0feh,043h,038h,073h,074h,075h,0feh,063h,038h,076h,077h	; 7404  #8pqr.C8stu.c8vw
 	defb 078h,0ffh	; 7414
 
 ; ----------------------------------------------------------------------
-; DATOS rotulo_de_tres_filas: Formato A desde 0x70BC: tres tiles en cada una
-;   de las filas 1, 2 y 3.
+; DATOS kanji_del_que_no_reparte: Formato A: los tiles 0x79-0x7F en el mismo
+;   sitio, el caracter de 24x24 que 0x70B9 elige cuando el ganador NO es el
+;   que reparte (0xE04E = 1). SUPOSICION por el uso: el kanji de ko, el hijo.
 ;   0x7416..0x7428  (18 bytes)
-DATA_rotulo_de_tres_filas:
+DATA_kanji_del_que_no_reparte:
 	defb 023h,038h,079h,07ah,07bh,0feh,043h,038h,07ch,07dh,07eh,0feh,063h,038h,001h,07fh	; 7416  #8yz{.C8|}~.c8..
 	defb 001h,0ffh	; 7426
 
 ; ----------------------------------------------------------------------
-; DATOS siete_rotulos_cortos: Siete tiras de numeros de tile terminadas en
-;   0xFF, cada una apuntada por su cuenta desde 0x72C9-0x7302: 0x7428, 0x742F,
-;   0x7436, 0x743D, 0x7444, 0x744B y 0x744E.
+; DATOS rotulos_de_la_espera: Siete tiras de numeros de tile terminadas en
+;   0xFF, de la fuente de trozos (tiles 0x0C-0x27) y no de la katakana, asi
+;   que no se leen letra a letra. Las cinco primeras son el TIPO DE ESPERA que
+;   elige 0x72B8 por los bits de 0xE1D2: 0x7428 ryanmen (bit 0), 0x742F
+;   kanchan (bit 1), 0x7436 penchan (bit 2), 0x743D tanki (bit 3) y 0x7444
+;   shanpon (sin bits). Las dos ultimas, de dos tiles, son la marca del TSUMO
+;   (0x744B) y la del RON (0x744E), que 0x72F4 elige por el bit 0 de 0xE1D1.
 ;   0x7428..0x7451  (41 bytes)
-DATA_siete_rotulos_cortos:
+DATA_rotulos_de_la_espera:
 	defb 00ch,00dh,00eh,00fh,00eh,001h,0ffh,01ah,00eh,01bh,00dh,00eh,001h,0ffh,01ch,025h	; 7428  ...............%
 	defb 00eh,01bh,00dh,00eh,0ffh,01dh,00eh,01eh,001h,001h,001h,0ffh,01fh,00dh,020h,024h	; 7438  .............. $
 	defb 00eh,001h,0ffh,021h,022h,0ffh,023h,00eh,0ffh	; 7448  ...!".#..
 
 ; ----------------------------------------------------------------------
-; DATOS rotulo_repetido_seis_veces: Formato A desde 0x730B: el mismo grupo de
-;   cuatro tiles en seis sitios de las filas 16, 19 y 22.
+; DATOS marcos_de_los_fu: Formato A desde 0x730B: el mismo marco de cuatro
+;   celdas -tile 0x26, dos blancos, tile 0x27- en seis sitios de las filas 16,
+;   19 y 22, columnas 10 y 22. Son los huecos donde 0x7320 escribe los fu de
+;   cada figura del recuento.
 ;   0x7451..0x747b  (42 bytes)
-DATA_rotulo_repetido_seis_veces:
+DATA_marcos_de_los_fu:
 	defb 00ah,03ah,026h,001h,001h,027h,0feh,016h,03ah,026h,001h,001h,027h,0feh,06ah,03ah	; 7451  .:&..'..:&..'.j:
 	defb 026h,001h,001h,027h,0feh,076h,03ah,026h,001h,001h,027h,0feh,0cah,03ah,026h,001h	; 7461  &..'.v:&..'..:&.
 	defb 001h,027h,0feh,0d7h,03ah,026h,001h,001h,027h,0ffh	; 7471  .'..:&..'.
 
 ; ----------------------------------------------------------------------
-; DATOS nombres_de_las_jugadas: Treinta y nueve registros de texto en la
-;   fuente katakana (tiles 0x30-0x7F), cada uno terminado en 0xFF. El primero
-;   (indice 0) es un registro VACIO -un solo 0xFF-, la entrada "ninguna
-;   jugada". Dentro de cada registro los bytes 0x01 y 0x00 aparecen como
-;   separadores, y el byte que va justo antes del 0xFF final toma solo los
-;   valores 0x11, 0x12, 0x13 o 0x15 segun el registro: es SUPOSICION, sin
-;   confirmar, que sea el numero de han de la jugada.
+; DATOS nombres_de_las_jugadas: LOS 39 NOMBRES DE JUGADA, en la fuente
+;   katakana de 0x8832 (tiles 0x30-0x7F: 0x30-0x5D son ア a ン en orden gojuon,
+;   0x5E y 0x5F el dakuten y el handakuten como tile aparte, 0x60 el punto,
+;   0x61 el alargamiento, 0x63-0x66 las pequenas ッ ャ ュ ョ), cada registro
+;   terminado en 0xFF y el 0 vacio. Leidos tile a tile, y el indice es el que
+;   usa 0x82E6 al apuntar la jugada: 1 テンホー tenhou, 2 チーホー chiihou (y tambien
+;   el renhou de 0x82E3), 3 コクシムソウ kokushi musou, 4 ツーイーソウ tsuuiisou, 5 ダイスウシー
+;   daisuushii, 6 ダイサンゲン daisangen, 7 チューレンポートー chuuren poutou, 8 チンロートウ
+;   chinroutou, 9 リューイーソウ ryuuiisou, 10 スーアンコウ suuankou, 11 スーカンツ suukantsu; y
+;   del 12 en adelante, con su han ABIERTO como ultimo tile (0x11 = 1, 0x12 =
+;   2, 0x13 = 3, 0x15 = 5): 12 ダブルリーチ 2, 13 リーチ 1, 14 リーチソク 2 (riichi con
+;   ippatsu, que el cartucho llama soku), 15 ダブルリーチソク 3, 16 メンゼン ツモ 1, 17 チンイツ
+;   5, 18 リャンペイコウ 3, 19 サンシキドウコウ 3, 20 チートイ 2, 21 ホンイツ 2, 22 トイトイ 2, 23 ジュンチャン
+;   2, 24 サンアンコウ 2, 25 サンカンツ 2, 26 ショウサンゲン 2, 27 ホンロートウ 2, 28 ピンフ 1, 29 タンヤオ
+;   1, 30 イーペーコウ 1, 31 イッツウ 1, 32 サンシキ 1, 33 チャンタ 1, 34 ヤクハイ 1, 35 ハイテイ ツモ 2,
+;   36 ハイテイ フリコミ 1, 37 リンシャンカイホウ 1 y 38 ドラ・ウラドラ sin numero. Los del 12 al 37
+;   van rellenos con blancos (0x01) hasta diez celdas y luego 0x00, 0x01 y el
+;   han. Los indices 1-11 son los yakuman: 0x70BF corta la lista al llegar a
+;   uno y 0x5B01 los cuenta para pagar la mano limite.
 ;   0x747b..0x7642  (455 bytes)
 DATA_nombres_de_las_jugadas:
 	defb 0ffh,057h,061h,040h,001h,001h,001h,001h,001h,001h,001h,000h,001h,011h,0ffh,03fh	; 747b  .Wa@...........?
@@ -7611,12 +7978,13 @@ DATA_tabla_de_punteros_de_jugadas:
 	defb 038h,076h	; 768e
 
 ; ----------------------------------------------------------------------
-; DATOS tabla_de_filas_del_marcador: Once palabras con direcciones de VRAM
-;   (fila de nombres), de 0x39E4 a 0x3AA6. 0x7186 la indexa con (0xE1D8)
-;   doblado; el mismo bloque, desde su quinta entrada (0x769A), lo vuelve a
-;   indexar 0x7320 con (0xE32A) doblado.
+; DATOS filas_de_las_figuras_del_recuento: Once palabras con direcciones de
+;   VRAM (fila de nombres), de 0x39E4 a 0x3AA6. 0x7186 la indexa con (0xE1D8)
+;   doblado para saber en que fila pinta cada figura del recuento; el mismo
+;   bloque, desde su quinta entrada (0x769A), lo vuelve a indexar 0x7320 con
+;   (0xE32A) doblado para escribir los fu de cada una.
 ;   0x7690..0x76a6  (22 bytes)
-DATA_tabla_de_filas_del_marcador:
+DATA_filas_de_las_figuras_del_recuento:
 	defb 0a6h,03ah	; 7690
 	defb 050h,03ah	; 7692
 	defb 044h,03ah	; 7694
@@ -7634,120 +8002,136 @@ DATA_tabla_de_filas_del_marcador:
 ; ======================================================================
 
 
-L_76A6:
+
+; ----------------------------------------------------------------------
+; LA MANO ACABA SIN GANADOR (la llama el submodo 2 cuando 0xE302 trae el bit 2). Sube 0xE062 -manos seguidas sin ganar el jugador 1, lo que dispara la siembra de 0x48E1-, pinta el panel de 0x782C y recalcula las esperas del 1. En las dificultades 2 y 3 (bits 1 y 2 de 0xE040), si el 1 estaba en riichi (bit 0 de 0xE1CD) comprueba el furiten (0x47FB y 0x4833) y, si lo hay, 0x76D9 lo castiga. Si no, 0x7713 mira quien esta en tenpai.
+; ----------------------------------------------------------------------
+cierra_la_mano_sin_ganador:
 	ld hl,0e062h		;76a6
-	inc (hl)			;76a9
-	ld hl,0782ch		;76aa
+	inc (hl)			;76a9   ; una mano mas sin ganar el jugador 1
+	ld hl,0782ch		;76aa   ; el panel del final
 	call pinta_lista_formato_b		;76ad
 	xor a			;76b0
-	ld (0e206h),a		;76b1
+	ld (0e206h),a		;76b1   ; el jugador 1 como jugador actual
 	ld a,(0e302h)		;76b4
 	push af			;76b7
-	call L_66E1		;76b8
+	call calcula_las_esperas		;76b8   ; sus esperas, de nuevo
 	pop af			;76bb
 	ld (0e302h),a		;76bc
 	ld a,(0e040h)		;76bf
-	and 006h		;76c2
-	jr z,L_7713		;76c4
+	and 006h		;76c2   ; solo en las dificultades 2 y 3
+	jr z,mira_quien_esta_en_tenpai		;76c4
 	ld a,(0e1cdh)		;76c6
-	rra			;76c9
-	jr nc,L_7713		;76ca
-	call L_47FB		;76cc
-	call busca_en_las_dos_listas		;76cf
+	rra			;76c9   ; y solo si el 1 estaba en riichi
+	jr nc,mira_quien_esta_en_tenpai		;76ca
+	call L_47FB		;76cc   ; furiten tras el riichi
+	call busca_en_las_dos_listas		;76cf   ; y furiten sobre el propio rio
 	ld a,(0e1cdh)		;76d2
-	and 060h		;76d5
-	jr z,L_7713		;76d7
-L_76D9:
+	and 060h		;76d5   ; bits 5 y 6 de 0xE1CD: hay furiten
+	jr z,mira_quien_esta_en_tenpai		;76d7
+
+; ----------------------------------------------------------------------
+; LA PENALIZACION, y la paga siempre el jugador 1: 0xE302 = 5 (sin ganador y con castigo), bit 7 de 0xE1AC si el 1 es el que reparte o bit 6 si no -que 0x428B convierte en 12.000 u 8.000, la mano limite del que reparte o del otro- y 0xE1AD = 2, como si solo el 2 estuviera en tenpai. Pinta el aviso de la fila 11 que dice 0xE1AC & 7 (tabla de 0x7853) y el rotulo de la fila 12, suena el 0x90 y sigue por 0x77CD. Se llega desde el furiten (0x4279, 0x76D5) y desde cantar sin jugada (0x7B08).
+; ----------------------------------------------------------------------
+penaliza:
 	ld hl,0e302h		;76d9
-	ld (hl),005h		;76dc
+	ld (hl),005h		;76dc   ; 0xE302 = 5: sin ganador, y con castigo
 	ld hl,0e1ach		;76de
-	set 7,(hl)		;76e1
+	set 7,(hl)		;76e1   ; bit 7: paga el que reparte
 	ld a,(0e04dh)		;76e3
-	rra			;76e6
+	rra			;76e6   ; si reparte el 2
 	jr nc,L_76ED		;76e7
 	res 7,(hl)		;76e9
-	set 6,(hl)		;76eb
+	set 6,(hl)		;76eb   ; bit 6: paga el que no reparte
 L_76ED:
 	ld hl,0e1adh		;76ed
-	ld (hl),002h		;76f0
+	ld (hl),002h		;76f0   ; 0xE1AD = 2: como si solo el 2 estuviera en tenpai
 	ld a,(0e1ach)		;76f2
-	and 007h		;76f5
+	and 007h		;76f5   ; los tres bits bajos eligen el aviso
 	add a,a			;76f7
-	ld hl,07853h		;76f8
+	ld hl,07853h		;76f8   ; la tabla de punteros de 0x7853
 	call suma_a_a_hl		;76fb
 	ld e,(hl)			;76fe
 	inc hl			;76ff
 	ld d,(hl)			;7700
 	ex de,hl			;7701
-	call L_409D		;7702
-	ld hl,0785bh		;7705
+	call L_409D		;7702   ; el aviso de la fila 11
+	ld hl,0785bh		;7705   ; y el rotulo de la fila 12
 	call L_409D		;7708
 	ld a,090h		;770b
-	call L_9C4A		;770d
-	jp L_77CD		;7710
-L_7713:
-	ld a,096h		;7713
+	call L_9C4A		;770d   ; sonido 0x90
+	jp paga_el_tenpai_y_pasa_la_mano		;7710
+
+; ----------------------------------------------------------------------
+; QUIEN ESTA EN TENPAI al acabarse la mano, y lo que se le pide. Sonido 0x96. Con menos de 5 honba (0xE04B) al jugador 1 le basta el bit 7 de 0xE1CD, tener esperas. De 5 honba en adelante CADA ESPERA tiene que valer: se copian a 0xE348 y, una a una, se mete en la mano (0x66EB con C = 0xFF), se evaluan las jugadas con 0xE302 = 4 (0x7AF8) y hace falta que vuelva con acarreo, 3 han o mas; una que no llegue y no hay tenpai. El resultado va al bit 0 de 0xE1AD. Luego 0x7761 hace lo mismo con el 2.
+; ----------------------------------------------------------------------
+mira_quien_esta_en_tenpai:
+	ld a,096h		;7713   ; sonido 0x96
 	call L_9C4A		;7715
 	ld a,(0e04bh)		;7718
-	cp 005h		;771b
+	cp 005h		;771b   ; menos de 5 honba: basta con tener esperas
 	jr c,L_7756		;771d
-	call L_781E		;771f
-	ld a,(0e1c3h)		;7722
+	call copia_las_esperas_a_e348		;771f   ; las esperas del 1, copiadas a 0xE348
+	ld a,(0e1c3h)		;7722   ; el hueco de la robada
 	ld (0e20ah),a		;7725
 	ld (0e209h),a		;7728
 	ld a,(de)			;772b
-	or a			;772c
-	jr z,L_7761		;772d
+	or a			;772c   ; sin esperas no hay tenpai
+	jr z,mira_si_el_2_esta_en_tenpai		;772d
 L_772F:
-	ld (0e382h),de		;772f
-	ld c,0ffh		;7733
+	ld (0e382h),de		;772f   ; la espera que se prueba
+	ld c,0ffh		;7733   ; C = 0xFF: solo esa ficha
 	ld b,001h		;7735
 	push de			;7737
-	call L_66EB		;7738
+	call L_66EB		;7738   ; se mete en la mano y se analiza
 	ld a,004h		;773b
-	ld (0e302h),a		;773d
-	call L_7AF8		;7740
+	ld (0e302h),a		;773d   ; 0xE302 = 4: sin ganador
+	call evalua_y_decide_la_jugada		;7740   ; las jugadas de esa mano
 	push af			;7743
-	call L_67A1		;7744
+	call limpia_el_analisis		;7744   ; y se limpia
 	xor a			;7747
-	ld (0e316h),a		;7748
+	ld (0e316h),a		;7748   ; los han a cero para la siguiente
 	pop af			;774b
 	pop de			;774c
 	inc de			;774d
-	jr nc,L_7761		;774e
+	jr nc,mira_si_el_2_esta_en_tenpai		;774e   ; sin acarreo la espera no vale: no hay tenpai
 	ld a,(de)			;7750
 	or a			;7751
-	jr nz,L_772F		;7752
+	jr nz,L_772F		;7752   ; la espera siguiente
 	jr L_775C		;7754
 L_7756:
 	ld a,(0e1cdh)		;7756
-	rla			;7759
-	jr nc,L_7761		;775a
+	rla			;7759   ; bit 7 de 0xE1CD: tiene esperas
+	jr nc,mira_si_el_2_esta_en_tenpai		;775a
 L_775C:
 	ld hl,0e1adh		;775c
-	set 0,(hl)		;775f
-L_7761:
+	set 0,(hl)		;775f   ; bit 0 de 0xE1AD: EL JUGADOR 1 ESTA EN TENPAI
+
+; ----------------------------------------------------------------------
+; Lo mismo para el jugador 2: carga sus figuras (59 bytes de 0xE27B a 0xE2B6) y su mano (0xE14C) en la zona de trabajo, calcula sus esperas y, con 5 honba o mas, exige que cada espera valga por 0x7796 (con 0xE302 = 6: el 2, sin ganador). El resultado, al bit 1 de 0xE1AD.
+; ----------------------------------------------------------------------
+mira_si_el_2_esta_en_tenpai:
 	ld hl,0e1cdh		;7761
-	res 7,(hl)		;7764
-	ld a,(0e208h)		;7766
+	res 7,(hl)		;7764   ; el bit 7 se limpia: ahora toca el 2
+	ld a,(0e208h)		;7766   ; el hueco de la robada del 2
 	ld (0e209h),a		;7769
 	ld (0e20ah),a		;776c
-	ld hl,0e27bh		;776f
+	ld hl,0e27bh		;776f   ; sus figuras, 59 bytes
 	ld de,0e2b6h		;7772
 	ld bc,0003bh		;7775
 	ldir		;7778
-	ld hl,0e14ch		;777a
+	ld hl,0e14ch		;777a   ; y su mano
 	ld de,0e32bh		;777d
 	ld bc,0000eh		;7780
 	ldir		;7783
-	call L_66E1		;7785
+	call calcula_las_esperas		;7785   ; sus esperas
 	ld a,(0e04bh)		;7788
-	cp 005h		;778b
+	cp 005h		;778b   ; menos de 5 honba
 	jr c,L_77C2		;778d
-	call L_781E		;778f
+	call copia_las_esperas_a_e348		;778f   ; las esperas, copiadas
 	ld a,(de)			;7792
-	or a			;7793
-	jr z,L_77CD		;7794
+	or a			;7793   ; sin esperas
+	jr z,paga_el_tenpai_y_pasa_la_mano		;7794
 L_7796:
 	ld (0e382h),de		;7796
 	ld c,0ffh		;779a
@@ -7755,82 +8139,102 @@ L_7796:
 	push de			;779e
 	call L_66EB		;779f
 	ld a,006h		;77a2
-	ld (0e302h),a		;77a4
-	call L_7AF8		;77a7
+	ld (0e302h),a		;77a4   ; 0xE302 = 6: el 2, sin ganador
+	call evalua_y_decide_la_jugada		;77a7   ; las jugadas
 	ld a,004h		;77aa
 	ld (0e302h),a		;77ac
 	push af			;77af
-	call L_67A1		;77b0
+	call limpia_el_analisis		;77b0
 	xor a			;77b3
 	ld (0e316h),a		;77b4
 	pop af			;77b7
 	pop de			;77b8
 	inc de			;77b9
-	jr nc,L_77CD		;77ba
+	jr nc,paga_el_tenpai_y_pasa_la_mano		;77ba   ; sin acarreo no hay tenpai
 	ld a,(de)			;77bc
 	or a			;77bd
 	jr nz,L_7796		;77be
 	jr L_77C8		;77c0
 L_77C2:
 	ld a,(0e1cdh)		;77c2
-	rla			;77c5
-	jr nc,L_77CD		;77c6
+	rla			;77c5   ; bit 7: tiene esperas
+	jr nc,paga_el_tenpai_y_pasa_la_mano		;77c6
 L_77C8:
 	ld hl,0e1adh		;77c8
-	set 1,(hl)		;77cb
-L_77CD:
+	set 1,(hl)		;77cb   ; bit 1 de 0xE1AD: EL 2 ESTA EN TENPAI
+
+; ----------------------------------------------------------------------
+; EL CIERRE DE LA MANO SIN GANADOR. 0xE302 = 4 y un honba mas (0xE04B, en BCD). Con los dos en tenpai (0xE1AD = 3) no se paga ni se mueve nada. Con uno solo, 0x7814 carga 1.500 puntos y 0x5DF9 los mueve del que no esta al que esta. Y el reparto: si reparte el 1 (0xE04D a cero) y esta en tenpai, sigue; si no, en la ronda del este pasa al 2 (0x77F7) y en la del sur SE QUEDA. Si reparte el 2 y esta en tenpai, sigue; si no, en el este cambian ronda y reparto (0x77EF) y en el sur se queda tambien.
+; ----------------------------------------------------------------------
+paga_el_tenpai_y_pasa_la_mano:
 	ld a,004h		;77cd
-	ld (0e302h),a		;77cf
-	call L_780A		;77d2
+	ld (0e302h),a		;77cf   ; 0xE302 = 4: sin ganador
+	call suma_un_honba		;77d2   ; un honba mas
 	ld a,(0e1adh)		;77d5
-	cp 003h		;77d8
+	cp 003h		;77d8   ; los dos en tenpai: nadie paga y nada cambia
 	ret z			;77da
 	or a			;77db
-	call nz,L_7814		;77dc
+	call nz,carga_el_pago_del_tenpai		;77dc   ; uno solo: 1.500 puntos
 	ld c,a			;77df
 	ld a,(0e04dh)		;77e0
-	rra			;77e3
-	jr nc,L_7800		;77e4
+	rra			;77e3   ; bit 0 de 0xE04D: reparte el 2
+	jr nc,pasa_el_reparto_si_toca		;77e4
 	ld a,c			;77e6
-	rra			;77e7
+	rra			;77e7   ; bit 1 de 0xE1AD: el 2 esta en tenpai y sigue repartiendo
 	rra			;77e8
 	ret c			;77e9
 	ld a,(0e04ch)		;77ea
-	rra			;77ed
+	rra			;77ed   ; en la ronda del sur el reparto no cambia
 	ret c			;77ee
-L_77EF:
-	ld a,(0e04ch)		;77ef
-	xor 001h		;77f2
+
+; ----------------------------------------------------------------------
+; Cambia la ronda (0xE04C: 0 este, 1 sur) y cae en 0x77F7, que cambia quien reparte (0xE04D: 0 el jugador 1, 1 el 2). Los dos son bits que se invierten. Ronda y reparto solo avanzan asi: este-1, este-2, sur-1, sur-2, y de ahi no se pasa: la partida se cierra por 0x5F00.
+; ----------------------------------------------------------------------
+cambia_la_ronda:
+	ld a,(0e04ch)		;77ef   ; del este al sur
+	xor 001h		;77f2   ; xor 1: la otra ronda
 	ld (0e04ch),a		;77f4
-L_77F7:
-	ld a,(0e04dh)		;77f7
-	xor 001h		;77fa
+cambia_el_reparto:
+	ld a,(0e04dh)		;77f7   ; y reparte el otro
+	xor 001h		;77fa   ; xor 1: reparte el otro
 	ld (0e04dh),a		;77fc
 	ret			;77ff
-L_7800:
+pasa_el_reparto_si_toca:
 	ld a,c			;7800
-	rra			;7801
+	rra			;7801   ; bit 0: el 1 esta en tenpai y sigue repartiendo
 	ret c			;7802
 	ld a,(0e04ch)		;7803
-	rra			;7806
-	jr nc,L_77F7		;7807
+	rra			;7806   ; en el este pasa al 2; en el sur se queda
+	jr nc,cambia_el_reparto		;7807
 	ret			;7809
-L_780A:
+
+; ----------------------------------------------------------------------
+; Un honba mas, en BCD (0xE04B). Sube con cada mano sin ganador y con cada mano que gana el que reparte (0x5F0F), y vuelve a cero cuando cambia el reparto (0x5EEB, 0x5F08). 0x5C7F lo convierte en 300 puntos por honba en el ron y 0x5BB5 en 100 en el tsumo, y a partir de 5 exige jugadas de mas (0x7B11, 0x771B).
+; ----------------------------------------------------------------------
+suma_un_honba:
 	ld a,(0e04bh)		;780a
 	add a,001h		;780d
-	daa			;780f
+	daa			;780f   ; en BCD
 	ld (0e04bh),a		;7810
 	ret			;7813
-L_7814:
+
+; ----------------------------------------------------------------------
+; 0x0015 en pasos de cien, 1.500 puntos, en los dos pendientes de 0x5DF9: lo que paga el que no esta en tenpai al que si lo esta.
+; ----------------------------------------------------------------------
+carga_el_pago_del_tenpai:
 	ld hl,00015h		;7814
 	ld (0e1b1h),hl		;7817
 	ld (0e1e4h),hl		;781a
 	ret			;781d
-L_781E:
+
+; ----------------------------------------------------------------------
+; Copia las doce esperas del jugador 1 (0xE1F5) a 0xE348 y deja DE apuntando alli.
+; ----------------------------------------------------------------------
+copia_las_esperas_a_e348:
 	ld hl,0e1f5h		;781e
 	ld de,0e348h		;7821
 	push de			;7824
-	ld bc,0000ch		;7825
+	ld bc,0000ch		;7825   ; doce esperas
 	ldir		;7828
 	pop de			;782a
 	ret			;782b
@@ -7845,26 +8249,34 @@ DATA_dibujo_de_cinco_filas:
 	defb 001h,080h,0b1h,079h,007h,001h,000h	; 784c
 
 ; ----------------------------------------------------------------------
-; DATOS rotulo_largo (tramo): Formato A desde 0x7702: quince tiles seguidos en
-;   la fila 3.
-;   0x7853..0x785b  (8 bytes)  de 0x7853..0x7865 (18 bytes)
-DATA_rotulo_largo:
-	defb 065h,078h,06fh,078h,079h,078h,079h,078h	; 7853  exoxyxyx
+; DATOS punteros_de_los_avisos_del_final: Cuatro palabras -0x7865, 0x786F,
+;   0x7879 y otra vez 0x7879- que 0x76F8 indexa con (0xE1AC & 7) doblado para
+;   elegir el aviso de la fila 11 cuando la mano acaba con penalizacion
+;   (0x76D9). CORRIGE la lectura anterior, que lo tomaba por un rotulo de
+;   quince tiles.
+;   0x7853..0x785b  (8 bytes)
+DATA_punteros_de_los_avisos_del_final:
+	defb 065h,078h	; 7853
+	defb 06fh,078h	; 7855
+	defb 079h,078h	; 7857
+	defb 079h,078h	; 7859
 
 ; ----------------------------------------------------------------------
-; DATOS rotulo_corto: Formato A desde 0x7708: los siete ultimos tiles del
-;   bloque anterior, en la fila 12. Los dos rotulos COMPARTEN los mismos
-;   bytes; el corto entra por en medio del largo.
+; DATOS rotulo_de_la_fila_12: Formato A desde 0x7705: siete tiles en la fila
+;   12, columna 2, que salen debajo del aviso de la fila 11 cuando la mano
+;   acaba con penalizacion.
 ;   0x785b..0x7865  (10 bytes)
-DATA_rotulo_corto:
+DATA_rotulo_de_la_fila_12:
 	defb 082h,039h,002h,002h,0f1h,049h,0f0h,0f7h,0e4h,0ffh	; 785b  .9...I....
 
 ; ----------------------------------------------------------------------
-; DATOS tres_dibujos_de_la_fila_11: Tres listas de formato A de diez bytes,
-;   las tres al mismo destino 0x3962. No las apunta ningun inmediato: se llega
-;   a ellas calculando.
+; DATOS tres_avisos_de_la_fila_11: Tres listas de formato A de diez bytes, las
+;   tres al mismo destino 0x3962 (fila 11, columna 2), apuntadas por la tabla
+;   de 0x7853: el aviso 0 para 0xE1AC = 0 (furiten sobre el propio rio,
+;   0x4833), el 1 para 0xE1AC = 1 (furiten tras el riichi, 0x47FB) y el 2 para
+;   0xE1AC = 2 y 3 (sin jugada al cantar, 0x7B08).
 ;   0x7865..0x7883  (30 bytes)
-DATA_tres_dibujos_de_la_fila_11:
+DATA_tres_avisos_de_la_fila_11:
 	defb 062h,039h,002h,004h,0f6h,06dh,0f0h,002h,002h,0ffh,062h,039h,002h,005h,003h,0fdh	; 7865  b9...m....b9....
 	defb 0e4h,006h,002h,0ffh,062h,039h,002h,007h,008h,009h,006h,002h,002h,0ffh	; 7875  ....b9........
 
@@ -7873,34 +8285,38 @@ DATA_tres_dibujos_de_la_fila_11:
 ; ======================================================================
 
 
-L_7883:
+
+; ----------------------------------------------------------------------
+; El lector de formato B sin destino: desde (0xE05B) saca ordenes a 0xE2B6 hasta juntar 0x30 bytes (0xE05A los cuenta), y deja el puntero donde se quedo para la tanda siguiente. Es lo que alimenta a 0x46B1 y 0x46DC, columna a columna.
+; ----------------------------------------------------------------------
+descomprime_para_el_volcado_girado:
 	ld hl,(0e05bh)		;7883
 	ld de,0e2b6h		;7886
 L_7889:
-	ld a,(hl)			;7889
+	ld a,(hl)			;7889   ; los siete bits bajos son la cuenta
 	and 07fh		;788a
 	ld c,a			;788c
 	ld a,(hl)			;788d
 	inc hl			;788e
-	ret z			;788f
+	ret z			;788f   ; byte cero: se acabo
 	ld b,000h		;7890
 	cp c			;7892
 	push af			;7893
-	call nz,L_78AA		;7894
+	call nz,copia_literal_al_volcado		;7894   ; con el bit 7 puesto, copia literal
 	pop af			;7897
-	call z,L_78BA		;7898
+	call z,repite_un_byte_al_volcado		;7898   ; sin el, repite un byte
 	ld a,(0e05ah)		;789b
-	cp 030h		;789e
+	cp 030h		;789e   ; 0x30 bytes: una columna entera
 	jr nz,L_7889		;78a0
 	xor a			;78a2
 	ld (0e05ah),a		;78a3
-	ld (0e05bh),hl		;78a6
+	ld (0e05bh),hl		;78a6   ; y el puntero se guarda para la columna siguiente
 	ret			;78a9
-L_78AA:
+copia_literal_al_volcado:
 	ld a,(hl)			;78aa
-	ld (de),a			;78ab
+	ld (de),a			;78ab   ; al volcado
 	push hl			;78ac
-	ld hl,0e05ah		;78ad
+	ld hl,0e05ah		;78ad   ; uno mas en la tanda
 	inc (hl)			;78b0
 	pop hl			;78b1
 	inc hl			;78b2
@@ -7908,17 +8324,17 @@ L_78AA:
 	dec bc			;78b4
 	ld a,b			;78b5
 	or c			;78b6
-	jr nz,L_78AA		;78b7
+	jr nz,copia_literal_al_volcado		;78b7
 	ret			;78b9
-L_78BA:
+repite_un_byte_al_volcado:
 	ld a,(hl)			;78ba
 	inc hl			;78bb
 	push hl			;78bc
 	push af			;78bd
 L_78BE:
 	pop af			;78be
-	ld (de),a			;78bf
-	ld hl,0e05ah		;78c0
+	ld (de),a			;78bf   ; el mismo byte, repetido
+	ld hl,0e05ah		;78c0   ; uno mas en la tanda
 	inc (hl)			;78c3
 	inc de			;78c4
 	dec bc			;78c5
@@ -7929,91 +8345,95 @@ L_78BE:
 	pop af			;78cb
 	pop hl			;78cc
 	ret			;78cd
-L_78CE:
+
+; ----------------------------------------------------------------------
+; LA MANO DE LA MAQUINA NO SE ROBA: SE CONSTRUYE. Es lo primero que hace el reparto (0x4DA6) y llena 0xE21C con catorce fichas a medida. En el demo copia la mano fija de 0x7AEA y la ordena. En partida decide un PLAN en 0xE058 -segun si el 2 va en numeros rojos (0xE100), si esta por debajo de 10.000 (0xE046), los honba y un sorteo-, elige un palo (0xE059) y un objetivo 0xE057: cuantas fichas van en TRIOS (0x7992); el resto van en ESCALERAS del mismo palo (0x79D5) o en PAREJAS (0x7A27), y una pareja al final (0x7A69). Cada ficha que coloca la descuenta de los contadores de 0xE186, como si la hubiera robado. Y al final (0x7A93) QUITA UNA: la maquina empieza a una ficha de la mano completa.
+; ----------------------------------------------------------------------
+construye_la_mano_de_la_maquina:
 	ld a,(0e002h)		;78ce
-	bit 6,a		;78d1
+	bit 6,a		;78d1   ; bit 6 de 0xE002: hay partida
 	jr nz,L_78E8		;78d3
 	ld hl,0e058h		;78d5
-	ld (hl),081h		;78d8
+	ld (hl),081h		;78d8   ; en el demo el plan es 0x81
 	ld de,0e21ch		;78da
-	ld hl,07aeah		;78dd
+	ld hl,07aeah		;78dd   ; la mano fija de 0x7AEA
 	ld bc,0000eh		;78e0
 	ldir		;78e3
-	jp L_7AAF		;78e5
+	jp L_7AAF		;78e5   ; y ordenada
 L_78E8:
 	ld hl,0e056h		;78e8
-	ld (hl),000h		;78eb
+	ld (hl),000h		;78eb   ; 0xE056: fichas colocadas
 	inc hl			;78ed
-	ld (hl),000h		;78ee
+	ld (hl),000h		;78ee   ; 0xE057: cuantas van en trios
 	ld hl,0e058h		;78f0
-	ld (hl),000h		;78f3
+	ld (hl),000h		;78f3   ; 0xE058: el plan
 	ld a,(0e100h)		;78f5
-	rla			;78f8
+	rla			;78f8   ; bits 7 y 6 de 0xE100: el 2 va en numeros rojos
 	rla			;78f9
-	ld (hl),004h		;78fa
+	ld (hl),004h		;78fa   ; plan 4
 	jr c,L_7944		;78fc
-	ld a,(0e046h)		;78fe
+	ld a,(0e046h)		;78fe   ; 0xE046: el byte alto del marcador del 2
 	or a			;7901
-	ld (hl),002h		;7902
+	ld (hl),002h		;7902   ; a cero, por debajo de 10.000: plan 2
 	jr z,L_7944		;7904
 	ld a,(0e04bh)		;7906
-	cp 005h		;7909
+	cp 005h		;7909   ; con 5 honba o mas
 	jr c,L_7938		;790b
 	ld c,a			;790d
 	ld a,(0e04dh)		;790e
 	rra			;7911
 	jr nc,L_7919		;7912
 	ld a,c			;7914
-	cp 008h		;7915
+	cp 008h		;7915   ; y con 8 si reparte el 2
 	jr nc,L_7938		;7917
 L_7919:
-	call L_7AE5		;7919
-	cp 021h		;791c
+	call numero_al_azar		;7919   ; un sorteo
+	cp 021h		;791c   ; 33: plan 4
 	ld hl,0e058h		;791e
 	ld (hl),004h		;7921
 	jr z,L_7950		;7923
-	sra (hl)		;7925
-	cp 019h		;7927
+	sra (hl)		;7925   ; si no, plan 2
+	cp 019h		;7927   ; de 25 para arriba, a elegir palo
 	jr nc,L_7950		;7929
-	cp 00fh		;792b
-	jp nc,L_7A27		;792d
-	ld (hl),001h		;7930
-	cp 008h		;7932
+	cp 00fh		;792b   ; de 15 a 24, parejas
+	jp nc,coloca_parejas		;792d
+	ld (hl),001h		;7930   ; plan 1
+	cp 008h		;7932   ; de 8 a 14, doce fichas en trios
 	jr nc,L_7987		;7934
-	ld (hl),002h		;7936
+	ld (hl),002h		;7936   ; por debajo, plan 2
 L_7938:
-	call L_7AE5		;7938
+	call numero_al_azar		;7938
 	ld hl,0e058h		;793b
-	cp 01eh		;793e
+	cp 01eh		;793e   ; otro sorteo: 30 o mas, a elegir palo
 	jr nc,L_7944		;7940
-	sra (hl)		;7942
+	sra (hl)		;7942   ; si no, el plan se parte
 L_7944:
-	call L_7AE5		;7944
-	cp 021h		;7947
+	call numero_al_azar		;7944
+	cp 021h		;7947   ; 33: plan 9
 	jr c,L_7950		;7949
 	ld hl,0e058h		;794b
 	ld (hl),009h		;794e
 L_7950:
-	call L_7AE5		;7950
-	ld hl,04fbfh		;7953
+	call numero_al_azar		;7950
+	ld hl,04fbfh		;7953   ; un tipo de ficha al azar
 	call suma_a_a_hl		;7956
 	ld a,(hl)			;7959
-	cp 030h		;795a
+	cp 030h		;795a   ; un honor no vale de palo: otra
 	jr nc,L_7944		;795c
 	and 0f0h		;795e
-	ld (0e059h),a		;7960
-	call L_7AE5		;7963
-	cp 021h		;7966
+	ld (0e059h),a		;7960   ; 0xE059: EL PALO de la mano
+	call numero_al_azar		;7963
+	cp 021h		;7966   ; otro sorteo: 33, doce fichas en trios
 	jr z,L_7987		;7968
-	cp 020h		;796a
+	cp 020h		;796a   ; 32, nueve
 	jr z,L_7983		;796c
-	cp 01fh		;796e
-	jp z,L_7A27		;7970
-	cp 017h		;7973
-	jr nc,L_79D5		;7975
-	cp 008h		;7977
+	cp 01fh		;796e   ; 31, parejas
+	jp z,coloca_parejas		;7970
+	cp 017h		;7973   ; de 23 a 30, escaleras
+	jr nc,coloca_escaleras		;7975
+	cp 008h		;7977   ; de 8 a 22, tres
 	jr nc,L_797F		;7979
-	ld a,006h		;797b
+	ld a,006h		;797b   ; por debajo, seis
 	jr L_798E		;797d
 L_797F:
 	ld a,003h		;797f
@@ -8024,18 +8444,22 @@ L_7983:
 L_7987:
 	ld a,00ch		;7987
 	ld hl,0e058h		;7989
-	set 5,(hl)		;798c
+	set 5,(hl)		;798c   ; bit 5 del plan
 L_798E:
-	ld hl,0e057h		;798e
+	ld hl,0e057h		;798e   ; 0xE057 = cuantas fichas van en trios
 	ld (hl),a			;7991
-L_7992:
-	call L_7AB8		;7992
-	call L_7ADA		;7995
+
+; ----------------------------------------------------------------------
+; Trios hasta llegar a 0xE057: una ficha que cuadre con el plan (0x7AB8) y con menos de dos copias gastadas; con el bit 3 del plan, solo terminales y honores. Tres copias, contadas en 0xE186 y escritas seguidas en 0xE21C. Con doce fichas en trios, a la pareja; si no, a las escaleras.
+; ----------------------------------------------------------------------
+coloca_trios:
+	call saca_una_ficha_del_plan		;7992   ; una ficha que cuadre con el plan
+	call apunta_al_contador_de_la_ficha		;7995   ; sus copias gastadas
 	ld a,(hl)			;7998
-	cp 002h		;7999
-	jr nc,L_7992		;799b
+	cp 002h		;7999   ; con dos o mas, otra
+	jr nc,coloca_trios		;799b
 	ld a,(0e058h)		;799d
-	bit 3,a		;79a0
+	bit 3,a		;79a0   ; bit 3 del plan: solo terminales y honores
 	jr z,L_79B3		;79a2
 	ld a,c			;79a4
 	cp 030h		;79a5
@@ -8044,14 +8468,14 @@ L_7992:
 	cp 001h		;79ab
 	jr z,L_79B3		;79ad
 	cp 009h		;79af
-	jr nz,L_7992		;79b1
+	jr nz,coloca_trios		;79b1
 L_79B3:
 	ex de,hl			;79b3
-	inc (hl)			;79b4
+	inc (hl)			;79b4   ; tres copias gastadas
 	inc (hl)			;79b5
 	inc (hl)			;79b6
 	ld hl,(0e054h)		;79b7
-	ld (hl),c			;79ba
+	ld (hl),c			;79ba   ; las tres, seguidas
 	inc hl			;79bb
 	ld (hl),c			;79bc
 	inc hl			;79bd
@@ -8059,49 +8483,53 @@ L_79B3:
 	inc hl			;79bf
 	ld (0e054h),hl		;79c0
 	ld hl,0e056h		;79c3
-	inc (hl)			;79c6
+	inc (hl)			;79c6   ; tres fichas mas
 	inc (hl)			;79c7
 	inc (hl)			;79c8
 	ld a,(hl)			;79c9
 	ld hl,0e057h		;79ca
-	cp (hl)			;79cd
-	jr nz,L_7992		;79ce
-	cp 00ch		;79d0
-	jp z,L_7A69		;79d2
-L_79D5:
-	call L_7AB8		;79d5
+	cp (hl)			;79cd   ; hasta el objetivo
+	jr nz,coloca_trios		;79ce
+	cp 00ch		;79d0   ; doce en trios: a la pareja
+	jp z,coloca_la_pareja		;79d2
+
+; ----------------------------------------------------------------------
+; Escaleras del palo hasta doce fichas: una ficha de numero 1 a 7 con menos de cuatro copias gastadas en ella y en las dos siguientes; con el bit 3 del plan, solo las que empiezan en 1 o en 7, las que tocan terminal. Las tres, seguidas, y sus copias descontadas.
+; ----------------------------------------------------------------------
+coloca_escaleras:
+	call saca_una_ficha_del_plan		;79d5
 	ld a,b			;79d8
-	cp 030h		;79d9
-	jr nc,L_79D5		;79db
+	cp 030h		;79d9   ; un honor no vale
+	jr nc,coloca_escaleras		;79db
 	and 00fh		;79dd
-	cp 008h		;79df
-	jr nc,L_79D5		;79e1
-	call L_7ADA		;79e3
+	cp 008h		;79df   ; del 8 para arriba no caben dos encima
+	jr nc,coloca_escaleras		;79e1
+	call apunta_al_contador_de_la_ficha		;79e3
 	ld b,003h		;79e6
 L_79E8:
 	ld a,(hl)			;79e8
-	cp 004h		;79e9
-	jr nc,L_79D5		;79eb
+	cp 004h		;79e9   ; cuatro copias gastadas: otra
+	jr nc,coloca_escaleras		;79eb
 	inc hl			;79ed
 	djnz L_79E8		;79ee
 	ld a,(0e058h)		;79f0
-	bit 3,a		;79f3
+	bit 3,a		;79f3   ; bit 3 del plan: solo 1-2-3 y 7-8-9
 	jr z,L_7A02		;79f5
 	ld a,c			;79f7
 	and 00fh		;79f8
 	cp 001h		;79fa
 	jr z,L_7A02		;79fc
 	cp 007h		;79fe
-	jr nz,L_79D5		;7a00
+	jr nz,coloca_escaleras		;7a00
 L_7A02:
 	ex de,hl			;7a02
-	inc (hl)			;7a03
+	inc (hl)			;7a03   ; una copia mas gastada de cada una de las tres
 	inc hl			;7a04
 	inc (hl)			;7a05
 	inc hl			;7a06
 	inc (hl)			;7a07
 	ld hl,(0e054h)		;7a08
-	ld (hl),c			;7a0b
+	ld (hl),c			;7a0b   ; la ficha y las dos siguientes
 	inc hl			;7a0c
 	inc c			;7a0d
 	ld (hl),c			;7a0e
@@ -8115,19 +8543,23 @@ L_7A02:
 	inc (hl)			;7a1a
 	inc (hl)			;7a1b
 	ld a,(hl)			;7a1c
-	cp 00ch		;7a1d
-	jr nz,L_79D5		;7a1f
+	cp 00ch		;7a1d   ; doce: a la pareja
+	jr nz,coloca_escaleras		;7a1f
 	xor a			;7a21
 	ld (0e056h),a		;7a22
-	jr L_7A69		;7a25
-L_7A27:
-	call L_7AB8		;7a27
-	call L_7ADA		;7a2a
+	jr coloca_la_pareja		;7a25
+
+; ----------------------------------------------------------------------
+; Seis parejas (fichas con menos de dos copias gastadas; con el bit 3, solo terminales y honores) y el bit 7 del plan puesto: la mano va de siete parejas.
+; ----------------------------------------------------------------------
+coloca_parejas:
+	call saca_una_ficha_del_plan		;7a27
+	call apunta_al_contador_de_la_ficha		;7a2a
 	ld a,(hl)			;7a2d
-	cp 002h		;7a2e
-	jr nc,L_7A27		;7a30
+	cp 002h		;7a2e   ; con dos o mas copias gastadas, otra
+	jr nc,coloca_parejas		;7a30
 	ld a,(0e058h)		;7a32
-	bit 3,a		;7a35
+	bit 3,a		;7a35   ; bit 3: solo terminales y honores
 	jr z,L_7A48		;7a37
 	ld a,c			;7a39
 	cp 030h		;7a3a
@@ -8136,9 +8568,9 @@ L_7A27:
 	cp 001h		;7a40
 	jr z,L_7A48		;7a42
 	cp 009h		;7a44
-	jr nz,L_7A27		;7a46
+	jr nz,coloca_parejas		;7a46
 L_7A48:
-	inc (hl)			;7a48
+	inc (hl)			;7a48   ; dos copias
 	inc (hl)			;7a49
 	ld hl,(0e054h)		;7a4a
 	ld (hl),c			;7a4d
@@ -8149,103 +8581,122 @@ L_7A48:
 	ld a,(0e056h)		;7a54
 	add a,002h		;7a57
 	ld (0e056h),a		;7a59
-	cp 00ch		;7a5c
-	jr nz,L_7A27		;7a5e
+	cp 00ch		;7a5c   ; doce fichas: seis parejas
+	jr nz,coloca_parejas		;7a5e
 	xor a			;7a60
 	ld (0e056h),a		;7a61
 	ld hl,0e058h		;7a64
-	set 7,(hl)		;7a67
-L_7A69:
-	call L_7AB8		;7a69
-	call L_7ADA		;7a6c
+	set 7,(hl)		;7a67   ; bit 7 del plan: siete parejas
+
+; ----------------------------------------------------------------------
+; La pareja del final: una ficha con menos de dos copias gastadas (terminal u honor con el bit 3), dos copias en los huecos 12 y 13. Y cae en 0x7A93.
+; ----------------------------------------------------------------------
+coloca_la_pareja:
+	call saca_una_ficha_del_plan		;7a69
+	call apunta_al_contador_de_la_ficha		;7a6c
 	ld a,(hl)			;7a6f
-	cp 002h		;7a70
-	jr nc,L_7A69		;7a72
+	cp 002h		;7a70   ; con dos o mas gastadas, otra
+	jr nc,coloca_la_pareja		;7a72
 	ld a,(0e058h)		;7a74
 	bit 3,a		;7a77
 	jr z,L_7A8A		;7a79
 	ld a,c			;7a7b
-	cp 030h		;7a7c
+	cp 030h		;7a7c   ; un honor pasa
 	jr nc,L_7A8A		;7a7e
 	and 00fh		;7a80
 	cp 001h		;7a82
 	jr z,L_7A8A		;7a84
 	cp 009h		;7a86
-	jr nz,L_7A69		;7a88
+	jr nz,coloca_la_pareja		;7a88
 L_7A8A:
 	ex de,hl			;7a8a
-	inc (hl)			;7a8b
+	inc (hl)			;7a8b   ; dos copias
 	inc (hl)			;7a8c
-	ld hl,(0e054h)		;7a8d
+	ld hl,(0e054h)		;7a8d   ; los huecos 12 y 13
 	ld (hl),c			;7a90
 	inc hl			;7a91
 	ld (hl),c			;7a92
-L_7A93:
-	call L_7AE5		;7a93
-	cp 00eh		;7a96
-	jr nc,L_7A93		;7a98
+
+; ----------------------------------------------------------------------
+; LA FICHA QUE FALTA. Sortea un hueco por debajo de 14; con la tecla 3 (bit 1 de 0xE040) el hueco es SIEMPRE el 11, y con las otras dos lo es solo si el sorteo da 12 o 13. Escribe 0x39 ahi -la mano se queda a una ficha- y la ordena por 0x7AAF, que ademas apunta 0xE054 al principio.
+; ----------------------------------------------------------------------
+quita_una_ficha:
+	call numero_al_azar		;7a93
+	cp 00eh		;7a96   ; un hueco por debajo de 14
+	jr nc,quita_una_ficha		;7a98
 	ld hl,0e040h		;7a9a
-	bit 1,(hl)		;7a9d
+	bit 1,(hl)		;7a9d   ; bit 1 de 0xE040: la tecla 3
 	jr nz,L_7AA5		;7a9f
-	cp 00ch		;7aa1
+	cp 00ch		;7aa1   ; 12 o 13 caen en el 11
 	jr nc,L_7AA7		;7aa3
 L_7AA5:
-	ld a,00bh		;7aa5
+	ld a,00bh		;7aa5   ; el hueco 11
 L_7AA7:
 	ld hl,0e21ch		;7aa7
 	call suma_a_a_hl		;7aaa
-	ld (hl),039h		;7aad
+	ld (hl),039h		;7aad   ; 0x39: la ficha que falta
 L_7AAF:
 	ld hl,0e21ch		;7aaf
-	ld (0e054h),hl		;7ab2
-	jp L_4F99		;7ab5
-L_7AB8:
-	call L_7AE5		;7ab8
-	ld c,a			;7abb
+	ld (0e054h),hl		;7ab2   ; 0xE054 apunta al principio
+	jp L_4F99		;7ab5   ; y ordenada
+
+; ----------------------------------------------------------------------
+; Una ficha al azar que cuadre con el plan de 0xE058: con el bit 0 vale cualquiera; con el bit 1 valen los honores; y si no, tiene que ser del palo de 0xE059. Sale con C = indice y B = codigo.
+; ----------------------------------------------------------------------
+saca_una_ficha_del_plan:
+	call numero_al_azar		;7ab8
+	ld c,a			;7abb   ; el indice
 	ld de,04fbfh		;7abc
 	call suma_a_a_de		;7abf
-	ld a,(de)			;7ac2
+	ld a,(de)			;7ac2   ; y el codigo
 	ld b,a			;7ac3
 	and 0f0h		;7ac4
 	ld d,a			;7ac6
 	ld a,(0e058h)		;7ac7
-	rra			;7aca
+	rra			;7aca   ; bit 0 del plan: cualquiera vale
 	ret c			;7acb
-	rra			;7acc
+	rra			;7acc   ; bit 1: un honor vale
 	jr nc,L_7AD3		;7acd
 	ld a,d			;7acf
 	cp 030h		;7ad0
 	ret z			;7ad2
 L_7AD3:
 	ld a,(0e059h)		;7ad3
-	cp d			;7ad6
+	cp d			;7ad6   ; o del palo elegido
 	ret z			;7ad7
-	jr L_7AB8		;7ad8
-L_7ADA:
+	jr saca_una_ficha_del_plan		;7ad8   ; y si no, otra
+
+; ----------------------------------------------------------------------
+; Deja HL y DE en el contador de copias de 0xE186 del indice C, y pasa el codigo de B a C.
+; ----------------------------------------------------------------------
+apunta_al_contador_de_la_ficha:
 	ld a,c			;7ada
 	ld c,b			;7adb
-	ld hl,0e186h		;7adc
+	ld hl,0e186h		;7adc   ; los contadores de copias
 	call suma_a_a_hl		;7adf
 	ld d,h			;7ae2
 	ld e,l			;7ae3
 	ret			;7ae4
-L_7AE5:
+
+; ----------------------------------------------------------------------
+; Un numero de 0 a 33 en A, de 0x4F2B.
+; ----------------------------------------------------------------------
+numero_al_azar:
 	call saca_un_numero_al_azar		;7ae5
 	ld a,h			;7ae8
 	ret			;7ae9
 
 ; ----------------------------------------------------------------------
-; DATOS mano_de_ejemplo_2: Catorce bytes que 0x78DD copia con LDIR a partir de
-;   0xE21C, el mismo formato de mano que 0x4968: 0x32 0x39 0x08 0x08 0x17 0x17
-;   0x25 0x25 0x33 0x33 0x13 0x13 0x21 0x21. El byte 0x39 en la segunda
-;   posicion NO es un codigo de ficha valido (el 0x38 ya es "hueco vacio"), y
-;   justo despues 0x7AAD sobreescribe el hueco de indice 11 con otro 0x39: dos
-;   huecos de los catorce quedan marcados igual, y los otros doce forman SEIS
-;   parejas (0x08, 0x17, 0x25, 0x33, 0x13, 0x21, cada uno dos veces). Es
-;   SUPOSICION, no confirmada: podria ser una mano de siete parejas
-;   (chiitoitsu) con dos huecos por rellenar en tiempo real.
+; DATOS mano_de_la_maquina_en_el_demo: LA MANO DEL JUGADOR 2 EN EL DEMO:
+;   catorce bytes que 0x78DD copia a 0xE21C sin sortear nada, y que 0x4DA9
+;   pasa a la mano de trabajo. Seis parejas (0x08, 0x17, 0x25, 0x33, 0x13 y
+;   0x21), un sur (0x32) y un 0x39, el hueco vacio, que al ordenar cae al
+;   final: trece fichas, siete parejas a falta de la del sur. En el demo no
+;   pasa por 0x7AAD, que solo corre con partida, asi que el hueco es este y no
+;   el de indice 11. CORRIGE la nota anterior, que lo tomaba por un ejemplo
+;   con dos huecos.
 ;   0x7aea..0x7af8  (14 bytes)
-DATA_mano_de_ejemplo_2:
+DATA_mano_de_la_maquina_en_el_demo:
 	defb 032h,039h,008h,008h,017h,017h,025h,025h,033h,033h,013h,013h,021h,021h	; 7aea  29....%%33..!!
 
 ; ======================================================================
@@ -8253,93 +8704,105 @@ DATA_mano_de_ejemplo_2:
 ; ======================================================================
 
 
-L_7AF8:
-	call L_7B3F		;7af8
+
+; ----------------------------------------------------------------------
+; Evalua las jugadas (0x7B3F) y decide. Con 0xE302 en "sin ganador" (bit 2) devuelve el acarreo puesto si hay 3 han o mas: es la pregunta del tenpai de 0x7740. Si no hay NINGUNA jugada (0xE305 a cero), 0xE1AC = 3 y sale a lo bruto -pop del retorno- hacia 0x4280: cantar sin jugada se castiga. Con 5 honba o mas ordena la lista y, si la mejor no es yakuman y solo hay UN han, castiga tambien: dos han minimo, contados antes de los dora. Luego anade los dora (0x81A9) y ordena la lista de jugadas de menor indice a mayor, que es de mas valor a menos.
+; ----------------------------------------------------------------------
+evalua_y_decide_la_jugada:
+	call evalua_las_jugadas		;7af8   ; todas las jugadas de la mano
 	ld a,(0e302h)		;7afb
-	bit 2,a		;7afe
+	bit 2,a		;7afe   ; bit 2 de 0xE302: se pregunta por un tenpai, no por una mano ganada
 	jr nz,L_7B38		;7b00
 	ld a,(0e305h)		;7b02
-	or a			;7b05
+	or a			;7b05   ; ninguna jugada
 	jr nz,L_7B11		;7b06
 L_7B08:
 	ld hl,0e1ach		;7b08
-	ld (hl),003h		;7b0b
-	pop hl			;7b0d
-	jp L_4280		;7b0e
+	ld (hl),003h		;7b0b   ; 0xE1AC = 3: sin jugada
+	pop hl			;7b0d   ; se come el retorno
+	jp L_4280		;7b0e   ; y al castigo
 L_7B11:
 	ld a,(0e04bh)		;7b11
-	cp 005h		;7b14
+	cp 005h		;7b14   ; con menos de 5 honba vale con una jugada
 	jr c,L_7B28		;7b16
-	call L_7B2E		;7b18
+	call L_7B2E		;7b18   ; ordena para ver la mejor
 	ld a,(0e305h)		;7b1b
-	cp 00ch		;7b1e
+	cp 00ch		;7b1e   ; un yakuman vale siempre
 	jr c,L_7B28		;7b20
 	ld a,(0e316h)		;7b22
-	dec a			;7b25
+	dec a			;7b25   ; un solo han: no vale, DOS HAN MINIMO
 	jr z,L_7B08		;7b26
 L_7B28:
-	call L_81A9		;7b28
-	call L_82F9		;7b2b
+	call dora		;7b28   ; los dora, que no cuentan para el minimo
+	call limpia_el_borrador		;7b2b   ; y el borrador limpio
 L_7B2E:
-	ld hl,0e305h		;7b2e
+	ld hl,0e305h		;7b2e   ; la lista de jugadas, ordenada por indice
 	ld a,(0e315h)		;7b31
 	ld b,a			;7b34
 	jp L_4F9B		;7b35
 L_7B38:
 	ld a,(0e316h)		;7b38
-	cp 003h		;7b3b
+	cp 003h		;7b3b   ; acarreo = 3 han o mas
 	ccf			;7b3d
 	ret			;7b3e
-L_7B3F:
+
+; ----------------------------------------------------------------------
+; EL EVALUADOR DE JUGADAS. Limpia 0xE1D2 y el borrador, saca el tipo de espera (0x5BDB, 0x5C1B, 0x5C42) y pasa por los detectores uno a uno; 0x82F9 limpia el borrador entre grupos. El kokushi (bit 1 de 0xE205) corta en seco: solo el. Lo llaman 0x7AF8 (la decision) y 0x5767 (la maquina, para saber si su mano tiene jugada antes de cantar).
+; ----------------------------------------------------------------------
+evalua_las_jugadas:
 	xor a			;7b3f
-	ld (0e1d2h),a		;7b40
+	ld (0e1d2h),a		;7b40   ; 0xE1D2: el tipo de espera, a cero
 	ld (0e127h),a		;7b43
-	call L_5BDB		;7b46
-	call L_5C1B		;7b49
-	call L_5C42		;7b4c
+	call espera_ryanmen_o_penchan		;7b46   ; ryanmen o penchan
+	call espera_kanchan		;7b49   ; kanchan
+	call espera_tanki_o_shanpon		;7b4c   ; tanki o shanpon
 	ld a,(0e205h)		;7b4f
-	bit 1,a		;7b52
-	ld bc,00003h		;7b54
-	jp nz,L_7BF9		;7b57
-	rra			;7b5a
-	ld bc,00214h		;7b5b
-	call c,L_82E6		;7b5e
-	call L_7C48		;7b61
-	call L_8290		;7b64
-	call L_82F9		;7b67
-	call L_7DAB		;7b6a
-	call L_7EC1		;7b6d
-	call L_7EE0		;7b70
-	call L_80BC		;7b73
-	call L_7BAF		;7b76
-	call L_7BFC		;7b79
-	call L_82F9		;7b7c
-	call L_7C7C		;7b7f
-	call L_7D83		;7b82
-	call L_7D98		;7b85
-	call L_7EB1		;7b88
-	call L_82F9		;7b8b
-	call L_7F0C		;7b8e
-	call L_80F2		;7b91
-	call L_82F9		;7b94
-	call L_7F4C		;7b97
-	call L_8016		;7b9a
-	call L_8053		;7b9d
-	call L_8118		;7ba0
-	call L_82F9		;7ba3
-	call L_813E		;7ba6
-	call L_818C		;7ba9
-	jp L_82A4		;7bac
-L_7BAF:
+	bit 1,a		;7b52   ; bit 1 de 0xE205: trece huerfanos
+	ld bc,00003h		;7b54   ; indice 3, yakuman
+	jp nz,L_7BF9		;7b57   ; y nada mas
+	rra			;7b5a   ; bit 0: siete parejas
+	ld bc,00214h		;7b5b   ; 2 han, indice 20
+	call c,apunta_la_jugada		;7b5e
+	call haitei_y_houtei		;7b61   ; haitei y houtei
+	call menzen_tsumo		;7b64   ; menzen tsumo
+	call limpia_el_borrador		;7b67
+	call toitoi_y_los_trios_ocultos		;7b6a   ; toitoi, sanankou, suuankou y sanshoku doukou
+	call tanyao		;7b6d   ; tanyao
+	call chinitsu_y_tsuuiisou		;7b70   ; chinitsu y tsuuiisou
+	call honitsu		;7b73   ; honitsu
+	call riichi_del_jugador_1		;7b76   ; el riichi del jugador 1
+	call riichi_del_jugador_2		;7b79   ; y el del 2
+	call limpia_el_borrador		;7b7c
+	call ittsu_sanshoku_y_pinfu		;7b7f   ; ittsu, sanshoku doujun y pinfu
+	call iipeikou_y_ryanpeikou		;7b82   ; iipeikou y ryanpeikou
+	call sankantsu_y_suukantsu		;7b85   ; sankantsu y suukantsu
+	call rinshan_kaihou		;7b88   ; rinshan kaihou
+	call limpia_el_borrador		;7b8b
+	call chuuren_poutou		;7b8e   ; chuuren poutou
+	call honroutou		;7b91   ; honroutou
+	call limpia_el_borrador		;7b94
+	call chanta_y_junchan		;7b97   ; chanta y junchan
+	call daisuushii		;7b9a   ; daisuushii
+	call yakuhai		;7b9d   ; yakuhai
+	call ryuuiisou		;7ba0   ; ryuuiisou
+	call limpia_el_borrador		;7ba3
+	call shousangen_y_daisangen		;7ba6   ; shousangen y daisangen
+	call chinroutou		;7ba9   ; chinroutou
+	jp tenhou_chiihou_y_renhou		;7bac   ; y tenhou, chiihou y renhou
+
+; ----------------------------------------------------------------------
+; Las cuatro jugadas del riichi del jugador 1 (bit 1 de 0xE302 a cero). Con el bit 0 de 0xE1CD (en riichi): si se declaro con el descarte 0 (0xE1CC) es DOBLE RIICHI (bit 1); si el descarte de ahora es el de la declaracion (0xE1BE = 0xE1CC) la mano se ha cerrado en la primera vuelta: IPPATSU (bit 2). De los tres bits sale la jugada: 1 riichi (indice 13, 1 han), 3 doble (12, 2), 5 riichi con ippatsu (14, 2), 7 doble con ippatsu (15, 3).
+; ----------------------------------------------------------------------
+riichi_del_jugador_1:
 	ld a,(0e302h)		;7baf
-	bit 1,a		;7bb2
+	bit 1,a		;7bb2   ; bit 1 de 0xE302: esta es del jugador 1
 	ret nz			;7bb4
 	ld hl,0e1cdh		;7bb5
 	ld a,(hl)			;7bb8
-	rra			;7bb9
+	rra			;7bb9   ; bit 0 de 0xE1CD: en riichi
 	ret nc			;7bba
 	ld a,(0e1cch)		;7bbb
-	or a			;7bbe
+	or a			;7bbe   ; declarado con el descarte 0: DOBLE RIICHI
 	jr nz,L_7BC3		;7bbf
 	set 1,(hl)		;7bc1
 L_7BC3:
@@ -8347,15 +8810,15 @@ L_7BC3:
 	ld de,0e15eh		;7bc4
 	call suma_a_a_de		;7bc7
 	ld a,(de)			;7bca
-	cp 039h		;7bcb
+	cp 039h		;7bcb   ; sin descarte despues del riichi
 	jr z,L_7BD7		;7bcd
 	ld a,(0e1beh)		;7bcf
-	cp c			;7bd2
+	cp c			;7bd2   ; el descarte de ahora es el de la declaracion: IPPATSU
 	jr nz,L_7BD7		;7bd3
 	set 2,(hl)		;7bd5
 L_7BD7:
 	ld a,(hl)			;7bd7
-	and 007h		;7bd8
+	and 007h		;7bd8   ; los tres bits
 	or a			;7bda
 	ret z			;7bdb
 	dec a			;7bdc
@@ -8366,30 +8829,34 @@ L_7BD7:
 	dec a			;7be3
 	dec a			;7be4
 	jr z,L_7BF6		;7be5
-	ld bc,0030fh		;7be7
+	ld bc,0030fh		;7be7   ; doble riichi con ippatsu: 3 han, indice 15
 	jr L_7BEF		;7bea
 L_7BEC:
-	ld bc,0010dh		;7bec
+	ld bc,0010dh		;7bec   ; riichi: 1 han, indice 13
 L_7BEF:
 	jr L_7BF4		;7bef
 L_7BF1:
-	ld bc,0020ch		;7bf1
+	ld bc,0020ch		;7bf1   ; doble riichi: 2 han, indice 12
 L_7BF4:
 	jr L_7BF9		;7bf4
 L_7BF6:
-	ld bc,0020eh		;7bf6
+	ld bc,0020eh		;7bf6   ; riichi con ippatsu: 2 han, indice 14
 L_7BF9:
-	jp L_82E6		;7bf9
-L_7BFC:
+	jp apunta_la_jugada		;7bf9
+
+; ----------------------------------------------------------------------
+; Lo mismo para el jugador 2, con 0xE1AE (su riichi), 0xE1BB (el descarte con el que lo declaro), 0xE172 y 0xE1BF.
+; ----------------------------------------------------------------------
+riichi_del_jugador_2:
 	ld a,(0e302h)		;7bfc
-	bit 1,a		;7bff
+	bit 1,a		;7bff   ; esta es del jugador 2
 	ret z			;7c01
 	ld hl,0e1aeh		;7c02
 	ld a,(hl)			;7c05
-	rra			;7c06
+	rra			;7c06   ; bit 0 de 0xE1AE: en riichi
 	ret nc			;7c07
 	ld a,(0e1bbh)		;7c08
-	or a			;7c0b
+	or a			;7c0b   ; 0xE1BB, el descarte de su riichi: 0 es doble
 	jr nz,L_7C10		;7c0c
 	set 1,(hl)		;7c0e
 L_7C10:
@@ -8400,12 +8867,12 @@ L_7C10:
 	cp 039h		;7c18
 	jr z,L_7C24		;7c1a
 	ld a,(0e1bfh)		;7c1c
-	cp c			;7c1f
+	cp c			;7c1f   ; IPPATSU
 	jr nz,L_7C24		;7c20
 	set 2,(hl)		;7c22
 L_7C24:
 	ld a,(hl)			;7c24
-	and 007h		;7c25
+	and 007h		;7c25   ; los tres bits, igual que en 0x7BD7
 	or a			;7c27
 	ret z			;7c28
 	dec a			;7c29
@@ -8416,101 +8883,113 @@ L_7C24:
 	dec a			;7c30
 	dec a			;7c31
 	jr z,L_7C43		;7c32
-	ld bc,0030fh		;7c34
+	ld bc,0030fh		;7c34   ; 3 han
 	jr L_7C3C		;7c37
 L_7C39:
-	ld bc,0010dh		;7c39
+	ld bc,0010dh		;7c39   ; 1 han
 L_7C3C:
 	jr L_7C41		;7c3c
 L_7C3E:
-	ld bc,0020ch		;7c3e
+	ld bc,0020ch		;7c3e   ; 2 han
 L_7C41:
 	jr L_7C46		;7c41
 L_7C43:
-	ld bc,0020eh		;7c43
+	ld bc,0020eh		;7c43   ; 2 han
 L_7C46:
 	jr L_7BF9		;7c46
-L_7C48:
+
+; ----------------------------------------------------------------------
+; LA ULTIMA FICHA. Cuenta los descartes: los del que reparte (0xE1BE o 0xE1BF, segun 0xE04D) tienen que llegar a 20 -19 con tsumo-, o los del otro a uno menos y ser ron. Con tsumo es HAITEI (indice 35, 2 han: lleva dentro el han del tsumo, y 0xE1D0 = 1 le dice a 0x8290 que no lo sume otra vez); con ron, HOUTEI (indice 36, 1 han).
+; ----------------------------------------------------------------------
+haitei_y_houtei:
 	ld a,(0e04dh)		;7c48
-	rra			;7c4b
+	rra			;7c4b   ; bit 0 de 0xE04D: reparte el 2
 	ld hl,0e1beh		;7c4c
 	ld de,0e1bfh		;7c4f
 	jr nc,L_7C55		;7c52
-	ex de,hl			;7c54
+	ex de,hl			;7c54   ; HL = descartes del que reparte, DE = del otro
 L_7C55:
 	ld a,(0e1d1h)		;7c55
 	ld b,a			;7c58
-	rra			;7c59
-	ld c,014h		;7c5a
+	rra			;7c59   ; bit 0 de 0xE1D1: tsumo
+	ld c,014h		;7c5a   ; 20 descartes, o 19 con tsumo
 	jr nc,L_7C5F		;7c5c
 	dec c			;7c5e
 L_7C5F:
 	ld a,(hl)			;7c5f
 	cp c			;7c60
-	jr nc,L_7C6A		;7c61
+	jr nc,L_7C6A		;7c61   ; el que reparte ha llegado: ultima ficha
 	ld a,(de)			;7c63
 	dec c			;7c64
 	cp c			;7c65
-	ret c			;7c66
+	ret c			;7c66   ; el otro no llega a uno menos: no es la ultima
 	ld a,b			;7c67
 	rra			;7c68
-	ret c			;7c69
+	ret c			;7c69   ; con tsumo tampoco
 L_7C6A:
 	ld a,b			;7c6a
-	ld bc,00124h		;7c6b
+	ld bc,00124h		;7c6b   ; houtei: 1 han, indice 36
 	rra			;7c6e
 	jr nc,L_7C79		;7c6f
-	ld bc,00223h		;7c71
+	ld bc,00223h		;7c71   ; haitei: 2 han, indice 35, con el tsumo dentro
 	ld hl,0e1d0h		;7c74
-	ld (hl),001h		;7c77
+	ld (hl),001h		;7c77   ; 0xE1D0 = 1: que 0x8290 no sume el tsumo otra vez
 L_7C79:
-	jp L_82E6		;7c79
-L_7C7C:
+	jp apunta_la_jugada		;7c79
+
+; ----------------------------------------------------------------------
+; Tres jugadas de escaleras. Con tres o mas: ITTSU (0x7CC4: 1-2-3, 4-5-6 y 7-8-9 del mismo palo; indice 31, 1 han abierto y 2 cerrado) y SANSHOKU DOUJUN (0x7D17: la misma escalera en los tres palos; indice 32, 1 y 2). Con las CUATRO y la mano cerrada, PINFU (indice 28, 1 han) si es RON, la pareja no es de dragon ni del viento de la ronda ni del asiento (el del que reparte, invertido para el 2), y la espera es ryanmen (bit 0 de 0xE1D2). El cartucho NO da pinfu con tsumo.
+; ----------------------------------------------------------------------
+ittsu_sanshoku_y_pinfu:
 	ld a,(0e2c8h)		;7c7c
-	cp 003h		;7c7f
+	cp 003h		;7c7f   ; menos de tres escaleras: nada
 	ret c			;7c81
-	call L_7CC4		;7c82
-	call L_82F9		;7c85
-	call L_7D17		;7c88
+	call busca_el_ittsu		;7c82   ; ittsu
+	call limpia_el_borrador		;7c85
+	call busca_el_sanshoku		;7c88   ; sanshoku doujun
 	ld a,(0e2c8h)		;7c8b
-	cp 004h		;7c8e
+	cp 004h		;7c8e   ; pinfu solo con cuatro escaleras
 	ret nz			;7c90
 	ld a,(0e2b6h)		;7c91
-	or a			;7c94
+	or a			;7c94   ; y mano cerrada
 	ret nz			;7c95
 	ld a,(0e1d1h)		;7c96
-	or a			;7c99
+	or a			;7c99   ; y RON: con tsumo no hay pinfu
 	ret nz			;7c9a
 	ld a,(0e300h)		;7c9b
-	cp 035h		;7c9e
+	cp 035h		;7c9e   ; pareja de dragon: no
 	ret nc			;7ca0
-	sub 031h		;7ca1
+	sub 031h		;7ca1   ; viento menos 0x31
 	ld hl,0e04ch		;7ca3
-	cp (hl)			;7ca6
+	cp (hl)			;7ca6   ; el de la ronda: no
 	ret z			;7ca7
 	ld c,a			;7ca8
 	ld a,(0e302h)		;7ca9
-	bit 1,a		;7cac
+	bit 1,a		;7cac   ; bit 1 de 0xE302: el jugador
 	ld hl,0e04dh		;7cae
 	ld a,(hl)			;7cb1
 	jr z,L_7CB6		;7cb2
-	xor 001h		;7cb4
+	xor 001h		;7cb4   ; el asiento del 2 es el contrario del que reparte
 L_7CB6:
 	cp c			;7cb6
-	ret z			;7cb7
+	ret z			;7cb7   ; el del asiento: no
 	ld hl,0e1d2h		;7cb8
-	bit 0,(hl)		;7cbb
+	bit 0,(hl)		;7cbb   ; bit 0 de 0xE1D2: ryanmen
 	ret z			;7cbd
-	ld bc,0011ch		;7cbe
-	jp L_82E6		;7cc1
-L_7CC4:
+	ld bc,0011ch		;7cbe   ; PINFU: 1 han, indice 28
+	jp apunta_la_jugada		;7cc1
+
+; ----------------------------------------------------------------------
+; Por cada palo, las tres escaleras de la tabla de 0x7CD5 (1, 4 y 7): 0x7CDE las cuenta en 0xE127 y da la jugada si estan las tres.
+; ----------------------------------------------------------------------
+busca_el_ittsu:
 	ld hl,07cd5h		;7cc4
-	ld b,003h		;7cc7
+	ld b,003h		;7cc7   ; tres palos
 L_7CC9:
 	push bc			;7cc9
 	xor a			;7cca
-	ld (0e127h),a		;7ccb
-	call L_7CDE		;7cce
+	ld (0e127h),a		;7ccb   ; la cuenta de escaleras encontradas, a cero
+	call cuenta_las_tres_escaleras		;7cce
 	pop bc			;7cd1
 	djnz L_7CC9		;7cd2
 	ret			;7cd4
@@ -8528,35 +9007,39 @@ DATA_los_nueve_comienzos_de_escalera:
 ; ======================================================================
 
 
-L_7CDE:
-	ld c,003h		;7cde
+cuenta_las_tres_escaleras:
+	ld c,003h		;7cde   ; las tres de un palo
 L_7CE0:
-	call L_7CFE		;7ce0
+	call esta_la_escalera		;7ce0
 	inc hl			;7ce3
 	dec c			;7ce4
 	jr nz,L_7CE0		;7ce5
 	ld a,(0e127h)		;7ce7
-	cp 003h		;7cea
+	cp 003h		;7cea   ; menos de tres: no es ittsu
 	ret c			;7cec
 	ld a,(0e2b6h)		;7ced
 	or a			;7cf0
-	ld bc,0011fh		;7cf1
+	ld bc,0011fh		;7cf1   ; ITTSU: 1 han abierto, indice 31
 	jr nz,L_7CF8		;7cf4
-	ld b,002h		;7cf6
+	ld b,002h		;7cf6   ; 2 cerrado
 L_7CF8:
-	call L_82E6		;7cf8
-	pop bc			;7cfb
+	call apunta_la_jugada		;7cf8
+	pop bc			;7cfb   ; se come dos retornos: ya no hay que mirar mas palos
 	pop bc			;7cfc
 	ret			;7cfd
-L_7CFE:
+
+; ----------------------------------------------------------------------
+; Busca la escalera que empieza en (HL) entre las de 0xE2B7 y, si esta, sube 0xE127.
+; ----------------------------------------------------------------------
+esta_la_escalera:
 	ld de,0e2b7h		;7cfe
 	ld b,004h		;7d01
 L_7D03:
 	ld a,(de)			;7d03
 	cp (hl)			;7d04
-	jr nz,L_7D0F		;7d05
+	jr nz,L_7D0F		;7d05   ; no es esta
 	ld a,(0e127h)		;7d07
-	inc a			;7d0a
+	inc a			;7d0a   ; encontrada: una mas
 	ld (0e127h),a		;7d0b
 	ret			;7d0e
 L_7D0F:
@@ -8564,7 +9047,11 @@ L_7D0F:
 	call suma_a_a_de		;7d11
 	djnz L_7D03		;7d14
 	ret			;7d16
-L_7D17:
+
+; ----------------------------------------------------------------------
+; SANSHOKU DOUJUN: apunta en 0xE127 las escaleras del palo 0 (nibble alto a cero) y 0x7D4A mira si la misma esta en el palo 1 (+0x10) y en el 2 (+0x20). Indice 32: 1 han abierto, 2 cerrado.
+; ----------------------------------------------------------------------
+busca_el_sanshoku:
 	ld a,(0e2c8h)		;7d17
 	ld b,a			;7d1a
 	ld hl,0e2b7h		;7d1b
@@ -8572,7 +9059,7 @@ L_7D17:
 	ld c,000h		;7d21
 L_7D23:
 	ld a,(hl)			;7d23
-	and 0f0h		;7d24
+	and 0f0h		;7d24   ; solo las del palo 0
 	jr nz,L_7D2C		;7d26
 	ld a,(hl)			;7d28
 	ld (de),a			;7d29
@@ -8583,21 +9070,21 @@ L_7D2C:
 	call suma_a_a_hl		;7d2e
 	djnz L_7D23		;7d31
 	ld a,c			;7d33
-	or a			;7d34
+	or a			;7d34   ; ninguna
 	ret z			;7d35
-	cp 003h		;7d36
+	cp 003h		;7d36   ; con tres del palo 0 no queda sitio para los otros
 	ret nc			;7d38
-	call L_7D4A		;7d39
+	call la_misma_en_los_otros_palos		;7d39
 	ld a,(0e2b6h)		;7d3c
 	or a			;7d3f
-	ld bc,00120h		;7d40
+	ld bc,00120h		;7d40   ; 1 han abierto, indice 32
 	jr nz,L_7D47		;7d43
-	ld b,002h		;7d45
+	ld b,002h		;7d45   ; 2 cerrado
 L_7D47:
-	jp L_82E6		;7d47
-L_7D4A:
+	jp apunta_la_jugada		;7d47
+la_misma_en_los_otros_palos:
 	ld de,0e127h		;7d4a
-	ld c,002h		;7d4d
+	ld c,002h		;7d4d   ; dos candidatas como mucho
 L_7D4F:
 	ld a,(0e2c8h)		;7d4f
 	or a			;7d52
@@ -8606,7 +9093,7 @@ L_7D4F:
 	ld hl,0e2b7h		;7d55
 L_7D58:
 	ld a,(de)			;7d58
-	add a,010h		;7d59
+	add a,010h		;7d59   ; la misma escalera un palo mas arriba
 	cp (hl)			;7d5b
 	jr z,L_7D6B		;7d5c
 	ld a,004h		;7d5e
@@ -8615,10 +9102,10 @@ L_7D58:
 	inc de			;7d65
 	dec c			;7d66
 	jr nz,L_7D4F		;7d67
-	pop hl			;7d69
+	pop hl			;7d69   ; no esta: se come el retorno, no hay sanshoku
 	ret			;7d6a
 L_7D6B:
-	ld (de),a			;7d6b
+	ld (de),a			;7d6b   ; encontrada en el palo 1: ahora el 2
 	ld a,(0e2c8h)		;7d6c
 	or a			;7d6f
 	ret z			;7d70
@@ -8626,7 +9113,7 @@ L_7D6B:
 	ld hl,0e2b7h		;7d72
 L_7D75:
 	ld a,(de)			;7d75
-	add a,010h		;7d76
+	add a,010h		;7d76   ; y un palo mas
 	cp (hl)			;7d78
 	ret z			;7d79
 	ld a,004h		;7d7a
@@ -8634,95 +9121,111 @@ L_7D75:
 	djnz L_7D75		;7d7f
 	pop hl			;7d81
 	ret			;7d82
-L_7D83:
+
+; ----------------------------------------------------------------------
+; Solo con la mano cerrada: 0xE303, las parejas de escaleras iguales que apunto el motor. Una es IIPEIKOU (indice 30, 1 han); dos, RYANPEIKOU (indice 18, 3 han).
+; ----------------------------------------------------------------------
+iipeikou_y_ryanpeikou:
 	ld a,(0e2b6h)		;7d83
-	or a			;7d86
+	or a			;7d86   ; con llamadas no hay
 	ret nz			;7d87
 	ld a,(0e303h)		;7d88
-	or a			;7d8b
+	or a			;7d8b   ; ninguna pareja de escaleras
 	ret z			;7d8c
 	dec a			;7d8d
-	ld bc,0011eh		;7d8e
+	ld bc,0011eh		;7d8e   ; iipeikou: 1 han, indice 30
 	jr z,L_7D96		;7d91
-	ld bc,00312h		;7d93
+	ld bc,00312h		;7d93   ; ryanpeikou: 3 han, indice 18
 L_7D96:
 	jr L_7D47		;7d96
-L_7D98:
+
+; ----------------------------------------------------------------------
+; Tres cuartetos, SANKANTSU (indice 25, 2 han); cuatro, SUUKANTSU (indice 11, yakuman).
+; ----------------------------------------------------------------------
+sankantsu_y_suukantsu:
 	ld a,(0e2f0h)		;7d98
-	cp 003h		;7d9b
+	cp 003h		;7d9b   ; menos de tres
 	ret c			;7d9d
 	cp 004h		;7d9e
-	ld bc,0000bh		;7da0
+	ld bc,0000bh		;7da0   ; cuatro: yakuman, indice 11
 	jr z,L_7DA8		;7da3
-	ld bc,00219h		;7da5
+	ld bc,00219h		;7da5   ; tres: 2 han, indice 25
 L_7DA8:
-	jp L_82E6		;7da8
-L_7DAB:
-	ld a,(0e2dah)		;7dab
+	jp apunta_la_jugada		;7da8
+
+; ----------------------------------------------------------------------
+; Con tres o mas trios y cuartetos. Primero 0x7DE7 mira el sanshoku doukou. Con cuatro, TOITOI (indice 22, 2 han, y 0xE1E0 = 1 para el daisuushii), y segun cuantos esten abiertos (0xE2D9 mas los kan abiertos de 0xE2EF): ninguno, SUUANKOU (indice 10, yakuman); uno, SANANKOU (indice 24, 2 han). Con tres justos y ninguno abierto, sanankou tambien. El trio cerrado con la ficha de ron cuenta como abierto (0x6185).
+; ----------------------------------------------------------------------
+toitoi_y_los_trios_ocultos:
+	ld a,(0e2dah)		;7dab   ; trios mas cuartetos
 	ld hl,0e2f0h		;7dae
 	add a,(hl)			;7db1
 	cp 003h		;7db2
-	ret c			;7db4
+	ret c			;7db4   ; menos de tres
 	push af			;7db5
-	call L_7DE7		;7db6
+	call busca_el_sanshoku_doukou		;7db6   ; el sanshoku doukou, de paso
 	pop af			;7db9
-	jr z,L_7DD9		;7dba
-	ld bc,00216h		;7dbc
+	jr z,L_7DD9		;7dba   ; tres justos
+	ld bc,00216h		;7dbc   ; TOITOI: 2 han, indice 22
 	ld hl,0e1e0h		;7dbf
-	ld (hl),001h		;7dc2
-	call L_82E6		;7dc4
-	ld a,(0e2d9h)		;7dc7
+	ld (hl),001h		;7dc2   ; 0xE1E0 = 1, para el daisuushii
+	call apunta_la_jugada		;7dc4
+	ld a,(0e2d9h)		;7dc7   ; los abiertos: trios mas kan
 	ld hl,0e2efh		;7dca
 	add a,(hl)			;7dcd
-	cp 002h		;7dce
+	cp 002h		;7dce   ; dos o mas abiertos: nada mas
 	ret nc			;7dd0
 	or a			;7dd1
-	ld bc,0000ah		;7dd2
+	ld bc,0000ah		;7dd2   ; ninguno abierto: SUUANKOU, yakuman, indice 10
 	jr z,L_7DE4		;7dd5
 	jr L_7DE1		;7dd7
 L_7DD9:
-	ld a,(0e2d9h)		;7dd9
+	ld a,(0e2d9h)		;7dd9   ; con tres: ninguno abierto
 	ld hl,0e2efh		;7ddc
 	add a,(hl)			;7ddf
 	ret nz			;7de0
 L_7DE1:
-	ld bc,00218h		;7de1
+	ld bc,00218h		;7de1   ; SANANKOU: 2 han, indice 24
 L_7DE4:
-	jp L_82E6		;7de4
-L_7DE7:
+	jp apunta_la_jugada		;7de4
+
+; ----------------------------------------------------------------------
+; SANSHOKU DOUKOU: los trios y cuartetos del palo 0 van a 0xE128 (0x7E9F), y 0x7E22 busca el mismo numero en el palo 1 y en el 2, entre trios y cuartetos. Indice 19 y 3 HAN: aqui el cartucho da uno mas que el riichi de cuatro, donde son dos.
+; ----------------------------------------------------------------------
+busca_el_sanshoku_doukou:
 	ld a,(0e2dah)		;7de7
-	or a			;7dea
+	or a			;7dea   ; sin trios
 	jr z,L_7DFE		;7deb
 	ld b,a			;7ded
 	ld hl,0e2c9h		;7dee
 	ld de,0e128h		;7df1
 	ld c,000h		;7df4
-	ld a,004h		;7df6
+	ld a,004h		;7df6   ; registros de cuatro bytes
 	ld (0e127h),a		;7df8
-	call L_7E9F		;7dfb
+	call apunta_los_del_palo_0		;7dfb
 L_7DFE:
 	ld a,(0e2f0h)		;7dfe
-	or a			;7e01
+	or a			;7e01   ; sin cuartetos
 	jr z,L_7E12		;7e02
 	ld b,a			;7e04
 	ld hl,0e2dbh		;7e05
 	ld c,000h		;7e08
-	ld a,005h		;7e0a
+	ld a,005h		;7e0a   ; de cinco
 	ld (0e127h),a		;7e0c
-	call L_7E9F		;7e0f
+	call apunta_los_del_palo_0		;7e0f
 L_7E12:
 	ld a,c			;7e12
-	or a			;7e13
+	or a			;7e13   ; ninguno del palo 0
 	ret z			;7e14
-	cp 003h		;7e15
+	cp 003h		;7e15   ; tres del palo 0: no cabe
 	ret nc			;7e17
 	ld c,a			;7e18
-	call L_7E22		;7e19
-	ld bc,00313h		;7e1c
-	jp L_82E6		;7e1f
-L_7E22:
+	call el_mismo_trio_en_los_otros_palos		;7e19
+	ld bc,00313h		;7e1c   ; 3 han, indice 19
+	jp apunta_la_jugada		;7e1f
+el_mismo_trio_en_los_otros_palos:
 	ld de,0e128h		;7e22
-	ld c,002h		;7e25
+	ld c,002h		;7e25   ; dos candidatos
 L_7E27:
 	ld a,(0e2dah)		;7e27
 	or a			;7e2a
@@ -8731,7 +9234,7 @@ L_7E27:
 	ld hl,0e2c9h		;7e2e
 L_7E31:
 	ld a,(de)			;7e31
-	add a,010h		;7e32
+	add a,010h		;7e32   ; un palo mas arriba
 	cp (hl)			;7e34
 	jr z,L_7E64		;7e35
 	ld a,004h		;7e37
@@ -8751,10 +9254,10 @@ L_7E47:
 	ld hl,0e2dbh		;7e4e
 L_7E51:
 	ld a,(de)			;7e51
-	add a,010h		;7e52
+	add a,010h		;7e52   ; un palo mas arriba, entre los cuartetos
 	cp (hl)			;7e54
 	jr z,L_7E64		;7e55
-	ld a,005h		;7e57
+	ld a,005h		;7e57   ; cinco bytes por cuarteto
 	call suma_a_a_hl		;7e59
 	djnz L_7E51		;7e5c
 	inc de			;7e5e
@@ -8762,7 +9265,7 @@ L_7E51:
 	jr nz,L_7E47		;7e60
 	jr L_7E9D		;7e62
 L_7E64:
-	ld (de),a			;7e64
+	ld (de),a			;7e64   ; encontrado en el palo 1: ahora el 2
 	ld c,002h		;7e65
 L_7E67:
 	ld a,(0e2dah)		;7e67
@@ -8772,7 +9275,7 @@ L_7E67:
 	ld hl,0e2c9h		;7e6e
 L_7E71:
 	ld a,(de)			;7e71
-	add a,010h		;7e72
+	add a,010h		;7e72   ; y en el palo 2, entre los trios
 	cp (hl)			;7e74
 	ret z			;7e75
 	ld a,004h		;7e76
@@ -8791,7 +9294,7 @@ L_7E83:
 	ld hl,0e2dbh		;7e8a
 L_7E8D:
 	ld a,(de)			;7e8d
-	add a,010h		;7e8e
+	add a,010h		;7e8e   ; o entre los cuartetos
 	cp (hl)			;7e90
 	ret z			;7e91
 	ld a,005h		;7e92
@@ -8801,88 +9304,104 @@ L_7E8D:
 	dec c			;7e9a
 	jr nz,L_7E83		;7e9b
 L_7E9D:
-	pop hl			;7e9d
+	pop hl			;7e9d   ; no esta: se come el retorno
 	ret			;7e9e
-L_7E9F:
+apunta_los_del_palo_0:
 	ld a,(hl)			;7e9f
-	and 0f0h		;7ea0
+	and 0f0h		;7ea0   ; nibble alto a cero: palo 0
 	jr nz,L_7EA8		;7ea2
 	ld a,(hl)			;7ea4
 	ld (de),a			;7ea5
 	inc de			;7ea6
 	inc c			;7ea7
 L_7EA8:
-	ld a,(0e127h)		;7ea8
+	ld a,(0e127h)		;7ea8   ; al registro siguiente
 	call suma_a_a_hl		;7eab
-	djnz L_7E9F		;7eae
+	djnz apunta_los_del_palo_0		;7eae
 	ret			;7eb0
-L_7EB1:
+
+; ----------------------------------------------------------------------
+; RINSHAN KAIHOU: la ficha que cierra es la de reposicion de un kan (0xE1CF, que puso 0x6E45) y es tsumo. Indice 37, 1 han.
+; ----------------------------------------------------------------------
+rinshan_kaihou:
 	ld a,(0e1cfh)		;7eb1
-	rra			;7eb4
+	rra			;7eb4   ; bit 0 de 0xE1CF: la ficha de reposicion
 	ret nc			;7eb5
 	ld a,(0e1d1h)		;7eb6
-	rra			;7eb9
+	rra			;7eb9   ; y tsumo
 	ret nc			;7eba
-	ld bc,00125h		;7ebb
-	jp L_82E6		;7ebe
-L_7EC1:
+	ld bc,00125h		;7ebb   ; 1 han, indice 37
+	jp apunta_la_jugada		;7ebe
+
+; ----------------------------------------------------------------------
+; TANYAO: ninguna de las catorce fichas es honor, uno ni nueve. Indice 29, 1 han, y 0xE1DD = 1. No mira 0xE2B6: el tanyao abierto vale.
+; ----------------------------------------------------------------------
+tanyao:
 	ld b,00eh		;7ec1
 	ld de,0e2f1h		;7ec3
 L_7EC6:
 	ld a,(de)			;7ec6
-	cp 030h		;7ec7
+	cp 030h		;7ec7   ; un honor: no
 	ret nc			;7ec9
 	and 00fh		;7eca
-	cp 001h		;7ecc
+	cp 001h		;7ecc   ; un uno: no
 	ret z			;7ece
-	cp 009h		;7ecf
+	cp 009h		;7ecf   ; un nueve: no
 	ret z			;7ed1
 	inc de			;7ed2
 	djnz L_7EC6		;7ed3
-	ld bc,0011dh		;7ed5
+	ld bc,0011dh		;7ed5   ; 1 han, indice 29
 	ld hl,0e1ddh		;7ed8
 	ld (hl),001h		;7edb
-	jp L_82E6		;7edd
-L_7EE0:
+	jp apunta_la_jugada		;7edd
+
+; ----------------------------------------------------------------------
+; Las catorce fichas con el mismo nibble alto. Si es 0x30 es TSUUIISOU, todo honores (indice 4, yakuman); si no, CHINITSU (indice 17, 5 han abierto y 6 cerrado) y 0xE1DE = 1, que es lo que le abre la puerta al chuuren y se la cierra al honitsu.
+; ----------------------------------------------------------------------
+chinitsu_y_tsuuiisou:
 	ld b,00eh		;7ee0
 	ld de,0e2f1h		;7ee2
 	ld a,(de)			;7ee5
-	and 0f0h		;7ee6
+	and 0f0h		;7ee6   ; el palo de la primera
 	ld c,a			;7ee8
 L_7EE9:
 	ld a,(de)			;7ee9
 	and 0f0h		;7eea
 	cp c			;7eec
-	ret nz			;7eed
+	ret nz			;7eed   ; una de otro palo: no
 	inc de			;7eee
 	djnz L_7EE9		;7eef
 	ld a,c			;7ef1
-	cp 030h		;7ef2
-	ld bc,00004h		;7ef4
+	cp 030h		;7ef2   ; 0x30: todo honores
+	ld bc,00004h		;7ef4   ; yakuman, indice 4
 	jr z,L_7F09		;7ef7
 	ld a,(0e2b6h)		;7ef9
 	or a			;7efc
-	ld bc,00511h		;7efd
+	ld bc,00511h		;7efd   ; 5 han abierto, indice 17
 	jr nz,L_7F04		;7f00
-	ld b,006h		;7f02
+	ld b,006h		;7f02   ; 6 cerrado
 L_7F04:
 	ld hl,0e1deh		;7f04
-	ld (hl),001h		;7f07
+	ld (hl),001h		;7f07   ; 0xE1DE = 1: un solo palo
 L_7F09:
-	jp L_82E6		;7f09
-L_7F0C:
+	jp apunta_la_jugada		;7f09
+
+; ----------------------------------------------------------------------
+; CHUUREN POUTOU: mano cerrada de un solo palo (0xE1DE) con tres unos, tres nueves y del dos al ocho al menos una. Cuenta las fichas por numero en 0xE128-0xE130 sumando el CODIGO a 0xE127, y eso solo cabe si el palo es el 0: con el palo 1 o el 2 el cp de 0x7F1A la descarta. Solo se detecta en el primer palo. Indice 7, yakuman.
+; ----------------------------------------------------------------------
+chuuren_poutou:
 	ld a,(0e205h)		;7f0c
-	rra			;7f0f
+	rra			;7f0f   ; siete parejas: no
 	ret c			;7f10
 	ld a,(0e1deh)		;7f11
-	rra			;7f14
+	rra			;7f14   ; sin un solo palo: no
 	ret nc			;7f15
 	ld de,0e2f1h		;7f16
 	ld a,(de)			;7f19
-	cp 00ah		;7f1a
+	cp 00ah		;7f1a   ; solo el palo 0: los codigos 0x11 y 0x21 no pasan
 	ret nc			;7f1c
 	ld a,(0e2b6h)		;7f1d
-	or a			;7f20
+	or a			;7f20   ; y cerrada
 	ret nz			;7f21
 	ld b,00eh		;7f22
 	ld hl,0e127h		;7f24
@@ -8890,80 +9409,84 @@ L_7F27:
 	push hl			;7f27
 	ld a,(de)			;7f28
 	call suma_a_a_hl		;7f29
-	inc (hl)			;7f2c
+	inc (hl)			;7f2c   ; una ficha mas de ese numero
 	pop hl			;7f2d
 	inc de			;7f2e
 	djnz L_7F27		;7f2f
 	ld hl,0e128h		;7f31
 	ld a,(hl)			;7f34
-	cp 003h		;7f35
+	cp 003h		;7f35   ; menos de tres unos
 	ret c			;7f37
 	inc hl			;7f38
-	ld bc,00700h		;7f39
+	ld bc,00700h		;7f39   ; del dos al ocho
 L_7F3C:
 	ld a,(hl)			;7f3c
 	or c			;7f3d
-	ret z			;7f3e
+	ret z			;7f3e   ; uno que falte y no es
 	inc hl			;7f3f
 	djnz L_7F3C		;7f40
 	ld a,(hl)			;7f42
-	cp 003h		;7f43
+	cp 003h		;7f43   ; menos de tres nueves
 	ret c			;7f45
-	ld bc,00007h		;7f46
-	jp L_82E6		;7f49
-L_7F4C:
+	ld bc,00007h		;7f46   ; yakuman, indice 7
+	jp apunta_la_jugada		;7f49
+
+; ----------------------------------------------------------------------
+; CHANTA y JUNCHAN. Si ya es honroutou (0xE238) no hay nada que mirar. Cuenta los honores en 0xE127: la pareja tiene que ser honor o terminal; cada escalera, 1-2-3 o 7-8-9; cada trio y cuarteto, terminal u honor. Con siete parejas (0x7FF7), las siete de terminal u honor. Con algun honor, CHANTA (indice 33, 1 han abierto y 2 cerrado); sin ninguno, JUNCHAN (indice 23, 2 y 3).
+; ----------------------------------------------------------------------
+chanta_y_junchan:
 	ld a,(0e238h)		;7f4c
-	rra			;7f4f
+	rra			;7f4f   ; honroutou: no
 	ret c			;7f50
 	xor a			;7f51
-	ld (0e127h),a		;7f52
+	ld (0e127h),a		;7f52   ; la cuenta de honores
 	ld a,(0e205h)		;7f55
 	rra			;7f58
-	jp c,L_7FF7		;7f59
+	jp c,siete_parejas_de_terminal_u_honor		;7f59   ; siete parejas: por 0x7FF7
 	ld a,(0e300h)		;7f5c
-	cp 030h		;7f5f
+	cp 030h		;7f5f   ; la pareja, honor
 	jr c,L_7F69		;7f61
 	ld hl,0e127h		;7f63
 	inc (hl)			;7f66
 	jr L_7F72		;7f67
 L_7F69:
 	and 00fh		;7f69
-	cp 009h		;7f6b
+	cp 009h		;7f6b   ; o nueve
 	jr z,L_7F72		;7f6d
-	cp 001h		;7f6f
+	cp 001h		;7f6f   ; o uno, y si no, nada
 	ret nz			;7f71
 L_7F72:
 	ld a,(0e2c8h)		;7f72
-	or a			;7f75
+	or a			;7f75   ; sin escaleras
 	jr z,L_7F9F		;7f76
-	add a,a			;7f78
+	add a,a			;7f78   ; dos comprobaciones por escalera
 	ld b,a			;7f79
 	ld de,0e2b7h		;7f7a
 L_7F7D:
 	ld a,(de)			;7f7d
 	cp 030h		;7f7e
-	jr c,L_7F85		;7f80
+	jr c,L_7F85		;7f80   ; empieza en honor
 	inc (hl)			;7f82
 	jr L_7F94		;7f83
 L_7F85:
 	and 00fh		;7f85
-	cp 009h		;7f87
+	cp 009h		;7f87   ; empieza en nueve
 	jr z,L_7F94		;7f89
-	cp 001h		;7f8b
+	cp 001h		;7f8b   ; o en uno
 	jr z,L_7F94		;7f8d
 	ld a,b			;7f8f
-	rra			;7f90
+	rra			;7f90   ; si era la segunda comprobacion, no cuadra
 	ret c			;7f91
 	jr L_7F9B		;7f92
 L_7F94:
 	ld a,b			;7f94
 	rra			;7f95
 	jr c,L_7F9B		;7f96
-	dec b			;7f98
+	dec b			;7f98   ; la escalera vale: a la siguiente
 	inc de			;7f99
 	inc de			;7f9a
 L_7F9B:
-	inc de			;7f9b
+	inc de			;7f9b   ; la tercera ficha
 	inc de			;7f9c
 	djnz L_7F7D		;7f9d
 L_7F9F:
@@ -8972,78 +9495,82 @@ L_7F9F:
 	jr z,L_7FAE		;7fa3
 	ld b,a			;7fa5
 	ld de,0e2c9h		;7fa6
-	ld c,004h		;7fa9
-	call L_7FDC		;7fab
+	ld c,004h		;7fa9   ; registros de cuatro: los trios
+	call todos_de_terminal_u_honor		;7fab
 L_7FAE:
 	ld a,(0e2f0h)		;7fae
 	or a			;7fb1
 	jr z,L_7FBD		;7fb2
 	ld b,a			;7fb4
 	ld de,0e2dbh		;7fb5
-	ld c,005h		;7fb8
-	call L_7FDC		;7fba
+	ld c,005h		;7fb8   ; de cinco: los cuartetos
+	call todos_de_terminal_u_honor		;7fba
 L_7FBD:
 	ld a,(hl)			;7fbd
-	or a			;7fbe
+	or a			;7fbe   ; sin honores: junchan
 	jr z,L_7FCE		;7fbf
 	ld a,(0e2b6h)		;7fc1
 	or a			;7fc4
-	ld bc,00121h		;7fc5
+	ld bc,00121h		;7fc5   ; chanta: 1 han abierto, indice 33
 	jr nz,L_7FCC		;7fc8
-	ld b,002h		;7fca
+	ld b,002h		;7fca   ; 2 cerrado
 L_7FCC:
 	jr L_7FD9		;7fcc
 L_7FCE:
 	ld a,(0e2b6h)		;7fce
 	or a			;7fd1
-	ld bc,00217h		;7fd2
+	ld bc,00217h		;7fd2   ; junchan: 2 han abierto, indice 23
 	jr nz,L_7FD9		;7fd5
-	ld b,003h		;7fd7
+	ld b,003h		;7fd7   ; 3 cerrado
 L_7FD9:
-	jp L_82E6		;7fd9
-L_7FDC:
+	jp apunta_la_jugada		;7fd9
+todos_de_terminal_u_honor:
 	ld a,(de)			;7fdc
-	cp 030h		;7fdd
+	cp 030h		;7fdd   ; un honor cuenta
 	jr c,L_7FE4		;7fdf
 	inc (hl)			;7fe1
 	jr L_7FF0		;7fe2
 L_7FE4:
 	and 00fh		;7fe4
-	cp 009h		;7fe6
+	cp 009h		;7fe6   ; nueve
 	jr z,L_7FF0		;7fe8
-	cp 001h		;7fea
+	cp 001h		;7fea   ; o uno
 	jr z,L_7FF0		;7fec
-	pop de			;7fee
+	pop de			;7fee   ; ni una cosa ni otra: se come el retorno
 	ret			;7fef
 L_7FF0:
 	ld a,c			;7ff0
 	call suma_a_a_de		;7ff1
-	djnz L_7FDC		;7ff4
+	djnz todos_de_terminal_u_honor		;7ff4
 	ret			;7ff6
-L_7FF7:
+siete_parejas_de_terminal_u_honor:
 	ld hl,0e127h		;7ff7
 	ld de,0e2f1h		;7ffa
-	ld b,007h		;7ffd
+	ld b,007h		;7ffd   ; siete parejas
 L_7FFF:
 	ld a,(de)			;7fff
-	cp 030h		;8000
+	cp 030h		;8000   ; honor
 	jr c,L_8007		;8002
 	inc (hl)			;8004
 	jr L_8010		;8005
 L_8007:
 	and 00fh		;8007
-	cp 009h		;8009
+	cp 009h		;8009   ; nueve
 	jr z,L_8010		;800b
-	cp 001h		;800d
+	cp 001h		;800d   ; o uno, y si no, nada
 	ret nz			;800f
 L_8010:
 	inc de			;8010
 	inc de			;8011
 	djnz L_7FFF		;8012
 	jr L_7FBD		;8014
-L_8016:
+
+; ----------------------------------------------------------------------
+; DAISUUSHII: con toitoi (0xE1E0) y todos los trios y cuartetos de VIENTO (honor con numero menor que 5). Indice 5, yakuman.
+; ----------------------------------------------------------------------
+daisuushii:
 	ld a,(0e1e0h)		;8016
-	rra			;8019
+	rra			;8019   ; sin toitoi no
 	ret nc			;801a
 	ld a,(0e2dah)		;801b
 	or a			;801e
@@ -9054,21 +9581,21 @@ L_8016:
 	call L_803F		;8027
 L_802A:
 	ld a,(0e2f0h)		;802a
-	or a			;802d
+	or a			;802d   ; sin cuartetos
 	jr z,L_8039		;802e
 	ld b,a			;8030
 	ld de,0e2dbh		;8031
 	ld c,005h		;8034
 	call L_803F		;8036
 L_8039:
-	ld bc,00005h		;8039
-	jp L_82E6		;803c
+	ld bc,00005h		;8039   ; yakuman, indice 5
+	jp apunta_la_jugada		;803c
 L_803F:
 	ld a,(de)			;803f
-	cp 030h		;8040
+	cp 030h		;8040   ; no es honor: no
 	jr c,L_8051		;8042
 	and 00fh		;8044
-	cp 005h		;8046
+	cp 005h		;8046   ; un dragon: no
 	jr nc,L_8051		;8048
 	ld a,c			;804a
 	call suma_a_a_de		;804b
@@ -9077,134 +9604,150 @@ L_803F:
 L_8051:
 	pop de			;8051
 	ret			;8052
-L_8053:
+
+; ----------------------------------------------------------------------
+; YAKUHAI: cuenta en C los trios y cuartetos de dragon, de viento de la ronda (L = 0x31 + 0xE04C) y de viento del asiento (H = 0x31 + el asiento del jugador: el del que reparte, invertido para el 2). El viento que es de la ronda y del asiento cuenta dos. Indice 34 con C han, y la cuenta en 0xE1D6 para escribirla.
+; ----------------------------------------------------------------------
+yakuhai:
 	ld a,(0e205h)		;8053
-	rra			;8056
+	rra			;8056   ; siete parejas: no
 	ret c			;8057
 	ld a,(0e04ch)		;8058
-	add a,031h		;805b
+	add a,031h		;805b   ; L = el viento de la ronda
 	ld l,a			;805d
 	ld a,(0e302h)		;805e
-	bit 1,a		;8061
+	bit 1,a		;8061   ; bit 1 de 0xE302: el jugador
 	ld a,(0e04dh)		;8063
 	jr z,L_806B		;8066
-	cpl			;8068
+	cpl			;8068   ; el asiento del 2, el contrario
 	and 001h		;8069
 L_806B:
-	add a,031h		;806b
+	add a,031h		;806b   ; H = el viento del asiento
 	ld h,a			;806d
-	ld c,000h		;806e
+	ld c,000h		;806e   ; la cuenta
 	ld a,(0e2dah)		;8070
 	or a			;8073
 	jr z,L_8082		;8074
 	ld b,a			;8076
 	ld de,0e2c9h		;8077
-	ld a,004h		;807a
+	ld a,004h		;807a   ; de cuatro bytes
 	ld (0e127h),a		;807c
-	call L_80A1		;807f
+	call cuenta_los_yakuhai		;807f
 L_8082:
 	ld a,(0e2f0h)		;8082
 	or a			;8085
 	jr z,L_8094		;8086
 	ld b,a			;8088
 	ld de,0e2dbh		;8089
-	ld a,005h		;808c
+	ld a,005h		;808c   ; de cinco
 	ld (0e127h),a		;808e
-	call L_80A1		;8091
+	call cuenta_los_yakuhai		;8091
 L_8094:
 	ld hl,0e1d6h		;8094
 	ld a,c			;8097
-	or a			;8098
+	or a			;8098   ; ninguno
 	ret z			;8099
-	ld (hl),c			;809a
+	ld (hl),c			;809a   ; 0xE1D6 = la cuenta, para escribirla
 	ld b,c			;809b
-	ld c,022h		;809c
-	jp L_82E6		;809e
-L_80A1:
+	ld c,022h		;809c   ; tantos han como yakuhai, indice 34
+	jp apunta_la_jugada		;809e
+cuenta_los_yakuhai:
 	ld a,(de)			;80a1
-	cp h			;80a2
+	cp h			;80a2   ; el del asiento
 	jr nz,L_80A6		;80a3
 	inc c			;80a5
 L_80A6:
-	cp l			;80a6
+	cp l			;80a6   ; el de la ronda
 	jr nz,L_80AA		;80a7
 	inc c			;80a9
 L_80AA:
 	cp 035h		;80aa
-	jr c,L_80B3		;80ac
+	jr c,L_80B3		;80ac   ; un dragon
 	cp 038h		;80ae
 	jr nc,L_80B3		;80b0
 	inc c			;80b2
 L_80B3:
 	ld a,(0e127h)		;80b3
 	call suma_a_a_de		;80b6
-	djnz L_80A1		;80b9
+	djnz cuenta_los_yakuhai		;80b9
 	ret			;80bb
-L_80BC:
+
+; ----------------------------------------------------------------------
+; HONITSU: un palo mas honores. Si ya era chinitsu (0xE1DE) no. Salta los honores del principio, se queda con el palo de la primera ficha que no lo sea, y todas las demas tienen que ser de ese palo u honores. Indice 21, 2 han abierto y 3 cerrado; 0xE1DC = 1.
+; ----------------------------------------------------------------------
+honitsu:
 	ld a,(0e1deh)		;80bc
-	rra			;80bf
+	rra			;80bf   ; chinitsu ya: no
 	ret c			;80c0
 	ld b,00eh		;80c1
 	ld de,0e2f1h		;80c3
 L_80C6:
 	ld a,(de)			;80c6
 	and 0f0h		;80c7
-	cp 030h		;80c9
+	cp 030h		;80c9   ; los honores del principio se saltan
 	jr nz,L_80D0		;80cb
 	inc de			;80cd
 	djnz L_80C6		;80ce
 L_80D0:
 	ld b,00eh		;80d0
-	ld c,a			;80d2
+	ld c,a			;80d2   ; el palo
 L_80D3:
 	ld a,(de)			;80d3
 	and 0f0h		;80d4
 	cp c			;80d6
 	jr z,L_80DC		;80d7
-	cp 030h		;80d9
+	cp 030h		;80d9   ; ni del palo ni honor: no
 	ret nz			;80db
 L_80DC:
 	inc de			;80dc
 	djnz L_80D3		;80dd
 	ld a,(0e2b6h)		;80df
 	or a			;80e2
-	ld bc,00215h		;80e3
+	ld bc,00215h		;80e3   ; 2 han abierto, indice 21
 	jr nz,L_80EA		;80e6
-	ld b,003h		;80e8
+	ld b,003h		;80e8   ; 3 cerrado
 L_80EA:
 	ld hl,0e1dch		;80ea
 	ld (hl),001h		;80ed
-	jp L_82E6		;80ef
-L_80F2:
+	jp apunta_la_jugada		;80ef
+
+; ----------------------------------------------------------------------
+; HONROUTOU: sin escaleras, y todas las fichas honor, uno o nueve. Indice 27, 2 han, y 0xE238 = 1 para que el chanta no lo cuente otra vez.
+; ----------------------------------------------------------------------
+honroutou:
 	ld a,(0e2c8h)		;80f2
-	or a			;80f5
+	or a			;80f5   ; con escaleras no
 	ret nz			;80f6
 	ld b,00eh		;80f7
 	ld de,0e2f1h		;80f9
 L_80FC:
 	ld a,(de)			;80fc
-	cp 030h		;80fd
+	cp 030h		;80fd   ; honor
 	jr nc,L_810A		;80ff
 	and 00fh		;8101
-	cp 001h		;8103
+	cp 001h		;8103   ; uno
 	jr z,L_810A		;8105
-	cp 009h		;8107
+	cp 009h		;8107   ; o nueve
 	ret nz			;8109
 L_810A:
 	inc de			;810a
 	djnz L_80FC		;810b
 	ld hl,0e238h		;810d
-	ld (hl),001h		;8110
-	ld bc,0021bh		;8112
-	jp L_82E6		;8115
-L_8118:
+	ld (hl),001h		;8110   ; 0xE238 = 1: honroutou
+	ld bc,0021bh		;8112   ; 2 han, indice 27
+	jp apunta_la_jugada		;8115
+
+; ----------------------------------------------------------------------
+; RYUUIISOU, todo verde: solo el dragon verde (0x36) y los bambues 2, 3, 4, 6 y 8 (0x22, 0x23, 0x24, 0x26, 0x28). Es lo que dice que el palo 2 son los BAMBUES y el 0x36 el dragon verde. Indice 9, yakuman.
+; ----------------------------------------------------------------------
+ryuuiisou:
 	ld b,00eh		;8118
 	ld de,0e2f1h		;811a
 L_811D:
 	ld a,(de)			;811d
-	cp 036h		;811e
+	cp 036h		;811e   ; 0x36, el dragon verde
 	jr z,L_8135		;8120
-	cp 022h		;8122
+	cp 022h		;8122   ; bambu 2
 	jr z,L_8135		;8124
 	cp 023h		;8126
 	jr z,L_8135		;8128
@@ -9212,68 +9755,76 @@ L_811D:
 	jr z,L_8135		;812c
 	cp 026h		;812e
 	jr z,L_8135		;8130
-	cp 028h		;8132
-	ret nz			;8134
+	cp 028h		;8132   ; y el 8
+	ret nz			;8134   ; cualquier otra: no
 L_8135:
 	inc de			;8135
 	djnz L_811D		;8136
-	ld bc,00009h		;8138
-	jp L_82E6		;813b
-L_813E:
+	ld bc,00009h		;8138   ; yakuman, indice 9
+	jp apunta_la_jugada		;813b
+
+; ----------------------------------------------------------------------
+; Cuenta los trios y cuartetos de dragon (0x35-0x37). Tres: DAISANGEN (indice 6, yakuman). Dos y la pareja de dragon: SHOUSANGEN (indice 26, 2 han).
+; ----------------------------------------------------------------------
+shousangen_y_daisangen:
 	ld hl,0e127h		;813e
-	ld (hl),000h		;8141
+	ld (hl),000h		;8141   ; la cuenta de dragones, a cero
 	ld a,(0e2dah)		;8143
 	or a			;8146
 	jr z,L_8152		;8147
 	ld b,a			;8149
 	ld de,0e2c9h		;814a
 	ld c,004h		;814d
-	call L_817B		;814f
+	call cuenta_los_dragones		;814f
 L_8152:
 	ld a,(0e2f0h)		;8152
-	or a			;8155
+	or a			;8155   ; sin cuartetos
 	jr z,L_8161		;8156
 	ld b,a			;8158
 	ld de,0e2dbh		;8159
 	ld c,005h		;815c
-	call L_817B		;815e
+	call cuenta_los_dragones		;815e
 L_8161:
 	ld a,(hl)			;8161
-	cp 002h		;8162
+	cp 002h		;8162   ; menos de dos
 	ret c			;8164
 	jr z,L_816C		;8165
-	ld bc,00006h		;8167
+	ld bc,00006h		;8167   ; tres: daisangen, yakuman, indice 6
 	jr L_8178		;816a
 L_816C:
 	ld a,(0e300h)		;816c
-	cp 035h		;816f
+	cp 035h		;816f   ; la pareja tiene que ser de dragon
 	ret c			;8171
 	cp 038h		;8172
 	ret nc			;8174
-	ld bc,0021ah		;8175
+	ld bc,0021ah		;8175   ; shousangen: 2 han, indice 26
 L_8178:
-	jp L_82E6		;8178
-L_817B:
+	jp apunta_la_jugada		;8178
+cuenta_los_dragones:
 	ld a,(de)			;817b
-	cp 035h		;817c
+	cp 035h		;817c   ; 0x35 a 0x37
 	jr c,L_8185		;817e
 	cp 038h		;8180
 	jr nc,L_8185		;8182
-	inc (hl)			;8184
+	inc (hl)			;8184   ; uno mas
 L_8185:
 	ld a,c			;8185
 	call suma_a_a_de		;8186
-	djnz L_817B		;8189
+	djnz cuenta_los_dragones		;8189
 	ret			;818b
-L_818C:
+
+; ----------------------------------------------------------------------
+; CHINROUTOU: sin escaleras y todas las fichas con numero 1 o 9. Pero mira solo el nibble bajo, y el este (0x31) pasa como si fuera un uno: un honroutou con trio del este cuenta tambien como chinroutou. Indice 8, yakuman.
+; ----------------------------------------------------------------------
+chinroutou:
 	ld a,(0e2c8h)		;818c
-	or a			;818f
+	or a			;818f   ; con escaleras no
 	ret nz			;8190
 	ld b,00eh		;8191
 	ld de,0e2f1h		;8193
 L_8196:
 	ld a,(de)			;8196
-	and 00fh		;8197
+	and 00fh		;8197   ; solo el numero: el 0x31 pasa por un uno
 	cp 001h		;8199
 	jr z,L_81A0		;819b
 	cp 009h		;819d
@@ -9281,37 +9832,41 @@ L_8196:
 L_81A0:
 	inc de			;81a0
 	djnz L_8196		;81a1
-	ld bc,00008h		;81a3
+	ld bc,00008h		;81a3   ; yakuman, indice 8
 L_81A6:
-	jp L_82E6		;81a6
-L_81A9:
+	jp apunta_la_jugada		;81a6
+
+; ----------------------------------------------------------------------
+; LOS DORA. El indicador es 0xE1D3 y el del ura-dora 0xE1D4, que solo cuenta con riichi (bit 0 de 0xE1CD o de 0xE1AE). 0x8270 pasa del indicador al dora y 0x8210 cuenta las copias en escaleras, trios (tres), cuartetos (cuatro) y la pareja (dos); con siete parejas, 0x8202 las cuenta en la mano. Indice 38 con tantos han como dora, y la cuenta en 0xE1D7.
+; ----------------------------------------------------------------------
+dora:
 	ld hl,0e127h		;81a9
 	ld (hl),000h		;81ac
-	ld a,(0e205h)		;81ae
+	ld a,(0e205h)		;81ae   ; siete parejas: se cuentan en la mano
 	rra			;81b1
 	jr c,L_81DD		;81b2
 	ld a,(0e302h)		;81b4
-	bit 1,a		;81b7
+	bit 1,a		;81b7   ; bit 1 de 0xE302: el jugador
 	ld de,0e1cdh		;81b9
 	jr z,L_81C1		;81bc
 	ld de,0e1aeh		;81be
 L_81C1:
 	ld a,(de)			;81c1
-	rra			;81c2
-	ld a,(0e1d4h)		;81c3
+	rra			;81c2   ; en riichi: el ura-dora cuenta
+	ld a,(0e1d4h)		;81c3   ; el indicador del ura-dora
 	ld c,a			;81c6
-	call c,L_8210		;81c7
-	ld a,(0e1d3h)		;81ca
+	call c,cuenta_el_dora_en_las_figuras		;81c7
+	ld a,(0e1d3h)		;81ca   ; el indicador del dora
 	ld c,a			;81cd
-	call L_8210		;81ce
+	call cuenta_el_dora_en_las_figuras		;81ce
 L_81D1:
 	ld a,(hl)			;81d1
-	or a			;81d2
+	or a			;81d2   ; ningun dora
 	ret z			;81d3
-	ld hl,0e1d7h		;81d4
+	ld hl,0e1d7h		;81d4   ; 0xE1D7 = la cuenta
 	ld (hl),a			;81d7
 	ld b,a			;81d8
-	ld c,026h		;81d9
+	ld c,026h		;81d9   ; tantos han como dora, indice 38
 	jr L_81A6		;81db
 L_81DD:
 	ld a,(0e302h)		;81dd
@@ -9320,42 +9875,42 @@ L_81DD:
 	jr z,L_81EA		;81e5
 	ld de,0e1aeh		;81e7
 L_81EA:
-	ld a,(0e1d4h)		;81ea
+	ld a,(0e1d4h)		;81ea   ; el ura, en siete parejas
 	ld c,a			;81ed
-	call L_8270		;81ee
+	call del_indicador_al_dora		;81ee
 	ld a,(de)			;81f1
-	rra			;81f2
-	call c,L_8202		;81f3
-	ld a,(0e1d3h)		;81f6
+	rra			;81f2   ; solo con riichi
+	call c,cuenta_el_dora_en_la_mano		;81f3
+	ld a,(0e1d3h)		;81f6   ; y el dora
 	ld c,a			;81f9
-	call L_8270		;81fa
-	call L_8202		;81fd
+	call del_indicador_al_dora		;81fa
+	call cuenta_el_dora_en_la_mano		;81fd
 	jr L_81D1		;8200
-L_8202:
+cuenta_el_dora_en_la_mano:
 	ld de,0e2f1h		;8202
 	ld b,00eh		;8205
 L_8207:
 	ld a,(de)			;8207
-	cp c			;8208
+	cp c			;8208   ; una copia
 	jr nz,L_820C		;8209
 	inc (hl)			;820b
 L_820C:
 	inc de			;820c
 	djnz L_8207		;820d
 	ret			;820f
-L_8210:
-	call L_8270		;8210
+cuenta_el_dora_en_las_figuras:
+	call del_indicador_al_dora		;8210   ; del indicador al dora
 	ld a,(0e2c8h)		;8213
-	or a			;8216
+	or a			;8216   ; sin escaleras
 	jr z,L_822C		;8217
 	ld b,a			;8219
 	ld de,0e2b7h		;821a
 L_821D:
-	call L_826B		;821d
+	call cuenta_en_escalera		;821d   ; las tres fichas de cada escalera
 	inc de			;8220
-	call L_826B		;8221
+	call cuenta_en_escalera		;8221
 	inc de			;8224
-	call L_826B		;8225
+	call cuenta_en_escalera		;8225
 	inc de			;8228
 	inc de			;8229
 	djnz L_821D		;822a
@@ -9365,98 +9920,110 @@ L_822C:
 	jr z,L_823E		;8230
 	ld b,a			;8232
 	ld de,0e2c9h		;8233
-	ld a,004h		;8236
+	ld a,004h		;8236   ; un trio son tres
 	ld (0e128h),a		;8238
-	call L_8258		;823b
+	call cuenta_en_trios_o_cuartetos		;823b
 L_823E:
 	ld a,(0e2f0h)		;823e
 	or a			;8241
 	jr z,L_8250		;8242
 	ld b,a			;8244
 	ld de,0e2dbh		;8245
-	ld a,005h		;8248
+	ld a,005h		;8248   ; un cuarteto, cuatro
 	ld (0e128h),a		;824a
-	call L_8258		;824d
+	call cuenta_en_trios_o_cuartetos		;824d
 L_8250:
 	ld a,(0e300h)		;8250
-	cp c			;8253
+	cp c			;8253   ; y la pareja
 	ret nz			;8254
-	inc (hl)			;8255
+	inc (hl)			;8255   ; dos
 	inc (hl)			;8256
 	ret			;8257
-L_8258:
+cuenta_en_trios_o_cuartetos:
 	ld a,(de)			;8258
 	cp c			;8259
 	jr nz,L_8262		;825a
 	ld a,(0e128h)		;825c
-	dec a			;825f
+	dec a			;825f   ; tres o cuatro copias
 	add a,(hl)			;8260
 	ld (hl),a			;8261
 L_8262:
 	ld a,(0e128h)		;8262
 	call suma_a_a_de		;8265
-	djnz L_8258		;8268
+	djnz cuenta_en_trios_o_cuartetos		;8268
 	ret			;826a
-L_826B:
+cuenta_en_escalera:
 	ld a,(de)			;826b
 	cp c			;826c
 	ret nz			;826d
-	inc (hl)			;826e
+	inc (hl)			;826e   ; una copia
 	ret			;826f
-L_8270:
+
+; ----------------------------------------------------------------------
+; El dora es el siguiente del indicador: dentro del palo, del nueve vuelve al uno; entre los vientos, del norte (0x34) al este (0x31); entre los dragones, del rojo (0x37) al blanco (0x35).
+; ----------------------------------------------------------------------
+del_indicador_al_dora:
 	cp 030h		;8270
 	jr c,L_8284		;8272
-	cp 034h		;8274
+	cp 034h		;8274   ; el norte
 	jr nz,L_827C		;8276
-	ld a,030h		;8278
+	ld a,030h		;8278   ; vuelve al este
 	jr L_828D		;827a
 L_827C:
-	cp 037h		;827c
+	cp 037h		;827c   ; el rojo
 	jr nz,L_828D		;827e
-	ld a,034h		;8280
+	ld a,034h		;8280   ; vuelve al blanco
 	jr L_828D		;8282
 L_8284:
 	and 00fh		;8284
-	cp 009h		;8286
+	cp 009h		;8286   ; el nueve
 	ld a,c			;8288
 	jr nz,L_828D		;8289
-	and 0f0h		;828b
+	and 0f0h		;828b   ; vuelve al uno del palo
 L_828D:
-	inc a			;828d
+	inc a			;828d   ; el siguiente
 	ld c,a			;828e
 	ret			;828f
-L_8290:
+
+; ----------------------------------------------------------------------
+; MENZEN TSUMO: mano cerrada y tsumo, salvo que el haitei ya lo lleve dentro (0xE1D0). Indice 16, 1 han.
+; ----------------------------------------------------------------------
+menzen_tsumo:
 	ld a,(0e1d0h)		;8290
-	or a			;8293
+	or a			;8293   ; el haitei ya lo cuenta
 	ret nz			;8294
 	ld a,(0e2b6h)		;8295
-	or a			;8298
+	or a			;8298   ; con llamadas no
 	ret nz			;8299
 	ld a,(0e1d1h)		;829a
-	rra			;829d
+	rra			;829d   ; y tsumo
 	ret nc			;829e
-	ld bc,00110h		;829f
-	jr L_82E6		;82a2
-L_82A4:
+	ld bc,00110h		;829f   ; 1 han, indice 16
+	jr apunta_la_jugada		;82a2
+
+; ----------------------------------------------------------------------
+; Las manos de la primera vuelta. Con tsumo: si el OTRO aun no ha descartado (su cuenta en 0xFF), TENHOU (indice 1) si gana el que reparte y CHIIHOU (indice 2) si gana el otro. Con ron: si el que reparte acaba de hacer su primer descarte (cuenta 0) y lo gana el otro, RENHOU, que el cartucho apunta con el indice 2, el mismo del chiihou. Todos yakuman.
+; ----------------------------------------------------------------------
+tenhou_chiihou_y_renhou:
 	ld a,(0e1d1h)		;82a4
-	rra			;82a7
+	rra			;82a7   ; bit 0 de 0xE1D1: tsumo
 	ld a,(0e04dh)		;82a8
 	ld c,a			;82ab
 	jr nc,L_82BC		;82ac
-	rra			;82ae
+	rra			;82ae   ; bit 0 de 0xE04D: reparte el 2
 	ld a,(0e1bfh)		;82af
 	jr nc,L_82B7		;82b2
 	ld a,(0e1beh)		;82b4
 L_82B7:
-	cp 0ffh		;82b7
+	cp 0ffh		;82b7   ; 0xFF: el otro no ha descartado
 	ret nz			;82b9
 	jr L_82D7		;82ba
 L_82BC:
 	rra			;82bc
-	jr nc,L_82CA		;82bd
+	jr nc,L_82CA		;82bd   ; reparte el 1
 	ld a,(0e302h)		;82bf
 	bit 1,a		;82c2
-	ret nz			;82c4
+	ret nz			;82c4   ; con ron lo gana el que no reparte
 	ld a,(0e1bfh)		;82c5
 	jr L_82D3		;82c8
 L_82CA:
@@ -9466,34 +10033,42 @@ L_82CA:
 	ld a,(0e1beh)		;82d0
 L_82D3:
 	or a			;82d3
-	ret nz			;82d4
+	ret nz			;82d4   ; y es el primer descarte del que reparte
 	jr L_82E3		;82d5
 L_82D7:
 	ld a,(0e302h)		;82d7
 	rra			;82da
 	and 001h		;82db
-	xor c			;82dd
-	ld bc,00001h		;82de
-	jr z,L_82E6		;82e1
+	xor c			;82dd   ; el ganador contra el que reparte
+	ld bc,00001h		;82de   ; tenhou, indice 1
+	jr z,apunta_la_jugada		;82e1
 L_82E3:
-	ld bc,00002h		;82e3
-L_82E6:
+	ld bc,00002h		;82e3   ; chiihou o renhou, indice 2
+
+; ----------------------------------------------------------------------
+; APUNTA UNA JUGADA: sube 0xE315, escribe el indice C detras del ultimo (la lista empieza en 0xE305) y suma los B han a 0xE316. Es a donde van a parar todos los detectores.
+; ----------------------------------------------------------------------
+apunta_la_jugada:
 	ld hl,0e315h		;82e6
-	inc (hl)			;82e9
+	inc (hl)			;82e9   ; una jugada mas
 	ld a,(hl)			;82ea
-	ld hl,0e304h		;82eb
+	ld hl,0e304h		;82eb   ; 0xE304 + la cuenta: el hueco siguiente de la lista de 0xE305
 	call suma_a_a_hl		;82ee
-	ld (hl),c			;82f1
+	ld (hl),c			;82f1   ; el indice
 	ld hl,0e316h		;82f2
 	ld a,(hl)			;82f5
-	add a,b			;82f6
+	add a,b			;82f6   ; y los han
 	ld (hl),a			;82f7
 	ret			;82f8
-L_82F9:
+
+; ----------------------------------------------------------------------
+; Los 19 bytes de 0xE127 a 0xE139 a cero: el borrador con el que cuentan los detectores.
+; ----------------------------------------------------------------------
+limpia_el_borrador:
 	ld hl,0e127h		;82f9
 	ld (hl),000h		;82fc
 	ld de,0e128h		;82fe
-	ld bc,00012h		;8301
+	ld bc,00012h		;8301   ; diecinueve bytes
 	ldir		;8304
 	ret			;8306
 
@@ -9643,8 +10218,8 @@ resta_bcd_de_3_bytes:
 ; DATOS fuente_grande: Los 48 patrones de 8x8 de los tiles 0xC0-0xEF:
 ;   0xC0-0xC9 son los diez digitos, 0xCA es el circulo del copyright, 0xD0 es
 ;   el guion, 0xD1-0xEA son la A a la Z y el resto son trazos japoneses.
-;   0x4472 la copia entera a los patrones 0x0600 y 0x448C a los colores
-;   0x2600.
+;   0x4472 la copia entera a los colores 0x0600 y 0x448C a los patrones
+;   0x2600: el mismo bloque a las dos tablas.
 ;   0x83b1..0x8531  (384 bytes)
 DATA_fuente_grande:
 	defb 000h,01ch,022h,063h,063h,063h,022h,01ch	; 83b1  .."ccc".
@@ -9731,10 +10306,10 @@ DATA_rotulo_video_cartridge:
 	defb 024h,027h,025h,000h,020h,0ffh	; 85cf
 
 ; ----------------------------------------------------------------------
-; DATOS colores_del_titulo_500: Formato B desde 0x448F: 432 bytes a los
-;   colores 0x2500.
+; DATOS patrones_del_titulo_500: Formato B desde 0x448F: 432 bytes a los
+;   patrones 0x2500.
 ;   0x85d5..0x86d6  (257 bytes)
-DATA_colores_del_titulo_500:
+DATA_patrones_del_titulo_500:
 	defb 000h,065h,004h,000h,091h,004h,007h,003h,004h,006h,006h,007h,00dh,00ch,00ch,018h	; 85d5  .e..............
 	defb 019h,031h,023h,062h,045h,080h,004h,000h,096h,018h,01ch,01bh,0ffh,0fch,083h,0e1h	; 85e5  .1#bE...........
 	defb 063h,07fh,0f7h,0e1h,0e3h,0e3h,0f3h,0ffh,065h,065h,069h,0f1h,0e9h,027h,003h,003h	; 85f5  c.......eei..'..
@@ -9754,10 +10329,11 @@ DATA_colores_del_titulo_500:
 	defb 000h	; 86d5
 
 ; ----------------------------------------------------------------------
-; DATOS colores_del_titulo_080: Formato B desde 0x43AA: 264 bytes a los
-;   colores 0x2080.
+; DATOS patrones_del_titulo_080: Formato B desde 0x43AA: 264 bytes a los
+;   patrones 0x2080: los tiles 0x10-0x30, entre ellos los trozos con los que
+;   se escriben los rotulos de la espera (0x7428).
 ;   0x86d6..0x8799  (195 bytes)
-DATA_colores_del_titulo_080:
+DATA_patrones_del_titulo_080:
 	defb 080h,060h,0bdh,004h,007h,003h,007h,006h,00ch,099h,0e3h,000h,006h,007h,00ch,00ch	; 86d6  .`..............
 	defb 018h,018h,035h,000h,0e0h,0e0h,060h,060h,0c0h,0c0h,080h,036h,01ch,018h,031h,0e7h	; 86e6  ..5...``...6..1.
 	defb 0fch,061h,00ch,007h,0c3h,043h,0e6h,066h,02ch,09bh,0a1h,080h,000h,080h,0e0h,070h	; 86f6  .a...C.f,......p
@@ -9773,10 +10349,10 @@ DATA_colores_del_titulo_080:
 	defb 008h,0ffh,000h	; 8796
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_del_titulo_080: Formato B desde 0x43B0: los 264 bytes de
-;   patrones que hacen pareja con el bloque de arriba, a 0x0080.
+; DATOS colores_del_titulo_080: Formato B desde 0x43B0: los 264 bytes de
+;   colores que hacen pareja con el bloque de arriba, a 0x0080.
 ;   0x8799..0x87b4  (27 bytes)
-DATA_patrones_del_titulo_080:
+DATA_colores_del_titulo_080:
 	defb 080h,040h,048h,0b1h,048h,0b1h,030h,0c0h,081h,096h,007h,09fh,008h,096h,008h,09fh	; 8799  .@H.H.0.........
 	defb 008h,096h,006h,09fh,00ah,096h,010h,0c0h,008h,030h,000h	; 87a9  .........0.
 
@@ -9795,10 +10371,15 @@ DATA_nombres_del_titulo:
 	defb 012h,030h,081h,02fh,080h,046h,07ah,081h,024h,012h,027h,081h,025h,000h	; 8824  .0./.Fz.$.'.%.
 
 ; ----------------------------------------------------------------------
-; DATOS colores_del_titulo_180: Formato B desde 0x708E: 640 bytes a los
-;   colores 0x2180.
+; DATOS fuente_katakana: Formato B desde 0x708E: 640 bytes a los patrones
+;   0x2180, o sea LOS TILES 0x30-0x7F: LA FUENTE KATAKANA con la que se
+;   escriben los nombres de las jugadas. 0x30-0x5D son ア a ン en orden gojuon,
+;   0x5E y 0x5F el dakuten y el handakuten como tile aparte, 0x60 el punto,
+;   0x61 el alargamiento, 0x63-0x66 las pequenas ッ ャ ュ ョ, y de 0x70 en
+;   adelante los trozos de los dos kanji de 3x3 del recuento. Descomprimida en
+;   work/fuente_katakana_patrones.bin.
 ;   0x8832..0x8a78  (582 bytes)
-DATA_colores_del_titulo_180:
+DATA_fuente_katakana:
 	defb 080h,061h,09ah,07eh,002h,00ah,00ch,008h,008h,010h,000h,002h,004h,018h,028h,048h	; 8832  .a.~..........(H
 	defb 008h,008h,000h,018h,07eh,042h,042h,002h,004h,018h,000h,000h,07ch,004h,010h,08ch	; 8842  ....~BB.....|...
 	defb 03eh,000h,008h,07eh,008h,018h,028h,048h,008h,000h,020h,07eh,004h,022h,086h,044h	; 8852  >..~..(H.. ~.".D
@@ -9838,19 +10419,21 @@ DATA_colores_del_titulo_180:
 	defb 084h,0ech,038h,010h,000h,000h	; 8a72
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_del_titulo_180: Formato B desde 0x7094: los 640 bytes de
-;   patrones de la pareja, a 0x0180.
+; DATOS colores_de_la_fuente_katakana: Formato B desde 0x7094: 640 bytes a los
+;   colores 0x0180, todos 0xF1, blanco sobre negro, para los tiles 0x30-0x7F.
+;   Es lo que habia en work/fuente_katakana.bin, tomado por la fuente.
 ;   0x8a78..0x8a9f  (39 bytes)
-DATA_patrones_del_titulo_180:
+DATA_colores_de_la_fuente_katakana:
 	defb 080h,041h,078h,0f1h,078h,0f1h,078h,0f1h,050h,0f1h,018h,010h,007h,0f1h,081h,000h	; 8a78  .Ax.x.x.P.......
 	defb 007h,0f1h,081h,000h,007h,0f1h,081h,000h,007h,0f1h,081h,000h,007h,0f1h,081h,000h	; 8a88  ................
 	defb 008h,010h,078h,0f1h,008h,0f1h,000h	; 8a98
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_sin_comprimir: Los 56 bytes que 0x6FCD copia tal cual, sin
-;   pasar por ningun interprete, a los patrones 0x0818.
+; DATOS patrones_sueltos_2818: Los 56 bytes que 0x6FCD copia tal cual, sin
+;   pasar por ningun interprete, a los patrones 0x2818: los tiles 3 a 9 del
+;   segundo tercio.
 ;   0x8a9f..0x8ad7  (56 bytes)
-DATA_patrones_sin_comprimir:
+DATA_patrones_sueltos_2818:
 	defb 004h,004h,004h,004h,004h,008h,010h,000h	; 8a9f  ........
 	defb 07eh,002h,002h,002h,002h,004h,018h,000h	; 8aa7  ~.......
 	defb 000h,03ch,000h,03ch,000h,03ch,002h,000h	; 8aaf  .<.<.<..
@@ -9860,10 +10443,10 @@ DATA_patrones_sin_comprimir:
 	defb 008h,008h,07eh,008h,008h,010h,020h,000h	; 8acf  ..~... .
 
 ; ----------------------------------------------------------------------
-; DATOS colores_del_tablero_900: Formato B desde 0x6FC4: 1792 bytes a los
-;   colores 0x2900.
+; DATOS patrones_del_tablero_900: Formato B desde 0x6FC4: 1792 bytes a los
+;   patrones 0x2900.
 ;   0x8ad7..0x90cf  (1528 bytes)
-DATA_colores_del_tablero_900:
+DATA_patrones_del_tablero_900:
 	defb 000h,069h,003h,0ffh,009h,000h,081h,07eh,006h,000h,081h,07fh,004h,0ffh,003h,000h	; 8ad7  .i.....~........
 	defb 081h,0fch,004h,0feh,008h,0ffh,008h,0feh,007h,0ffh,081h,07fh,007h,0feh,081h,0fch	; 8ae7  ................
 	defb 003h,000h,081h,07fh,004h,0ffh,003h,000h,081h,0fch,004h,0feh,090h,07eh,002h,00ah	; 8af7  .............~..
@@ -9962,17 +10545,17 @@ DATA_colores_del_tablero_900:
 	defb 07eh,004h,022h,081h,044h,011h,000h,000h	; 90c7  ~.".D...
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_sueltos_818: Formato B desde 0x6FDC: 56 bytes a los patrones
-;   0x0818.
+; DATOS colores_sueltos_818: Formato B desde 0x6FDC: 56 bytes a los colores
+;   0x0818, la pareja del bloque de 0x8A9F.
 ;   0x90cf..0x90d4  (5 bytes)
-DATA_patrones_sueltos_818:
+DATA_colores_sueltos_818:
 	defb 018h,048h,038h,017h,000h	; 90cf
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_del_tablero_900: Formato B desde 0x6FCA: los 1792 bytes de
-;   patrones de la pareja, a 0x0900.
+; DATOS colores_del_tablero_900: Formato B desde 0x6FCA: los 1792 bytes de
+;   colores de la pareja, a 0x0900.
 ;   0x90d4..0x92e3  (527 bytes)
-DATA_patrones_del_tablero_900:
+DATA_colores_del_tablero_900:
 	defb 000h,049h,008h,071h,008h,0f1h,030h,081h,010h,080h,010h,091h,010h,080h,004h,0f0h	; 90d4  .I.q..0.........
 	defb 004h,0f6h,004h,0f0h,004h,0f6h,010h,091h,004h,0f6h,004h,0f0h,004h,0f6h,008h,0f0h	; 90e4  ................
 	defb 004h,0fch,004h,0f0h,004h,0fch,010h,091h,004h,0fch,004h,0f0h,004h,0fch,014h,0f0h	; 90f4  ................
@@ -10008,10 +10591,10 @@ DATA_patrones_del_tablero_900:
 	defb 004h,0f1h,004h,0f0h,004h,0f1h,004h,0f0h,010h,000h,010h,017h,010h,000h,000h	; 92d4  ...............
 
 ; ----------------------------------------------------------------------
-; DATOS colores_sin_comprimir: Los 96 bytes que 0x6FF7 copia tal cual a los
-;   colores 0x3020.
+; DATOS patrones_sin_comprimir_3020: Los 96 bytes que 0x6FF7 copia tal cual a
+;   los patrones 0x3020.
 ;   0x92e3..0x9343  (96 bytes)
-DATA_colores_sin_comprimir:
+DATA_patrones_sin_comprimir_3020:
 	defb 008h,07eh,008h,018h,028h,048h,008h,000h	; 92e3  .~..(H..
 	defb 000h,000h,000h,07eh,000h,000h,000h,000h	; 92eb  ...~....
 	defb 03ch,000h,07eh,002h,002h,004h,018h,000h	; 92f3  <.~.....
@@ -10026,14 +10609,14 @@ DATA_colores_sin_comprimir:
 	defb 002h,002h,014h,008h,014h,022h,040h,000h	; 933b  ....."@.
 
 ; ----------------------------------------------------------------------
-; DATOS colores_del_tercio_de_abajo: Formato B. Se lee DOS VECES y de dos
-;   maneras: 0x7003 lo pasa entero por 0x468F a los colores 0x30D0 (1840 bytes
-;   de salida), y 0x6FDF entra por 0x93AA, 103 bytes mas adelante, saltandose
-;   el prologo, para sacar por 0x7883 los 1728 bytes -36 tandas de 48- que
-;   0x46B1 vuelca GIRADOS. La diferencia son 112 bytes exactos, y los dos
-;   caminos acaban en el mismo 0x99F3.
+; DATOS patrones_del_tercio_de_abajo: Formato B. Se lee DOS VECES y de dos
+;   maneras: 0x7003 lo pasa entero por 0x468F a los patrones 0x30D0 (1840
+;   bytes de salida), y 0x6FDF entra por 0x93AA, 103 bytes mas adelante,
+;   saltandose el prologo, para sacar por 0x7883 los 1728 bytes -36 tandas de
+;   48- que 0x46B1 vuelca GIRADOS. La diferencia son 112 bytes exactos, y los
+;   dos caminos acaban en el mismo 0x99F3.
 ;   0x9343..0x99f4  (1713 bytes)
-DATA_colores_del_tercio_de_abajo:
+DATA_patrones_del_tercio_de_abajo:
 	defb 0d0h,070h,082h,020h,07eh,004h,022h,09eh,044h,000h,004h,038h,008h,07eh,008h,008h	; 9343  .p. ~.".D..8.~..
 	defb 010h,000h,020h,050h,008h,004h,002h,002h,000h,000h,03eh,022h,052h,00ah,004h,008h	; 9353  .. P......>"R...
 	defb 030h,000h,008h,03eh,008h,03eh,003h,008h,092h,000h,000h,060h,002h,062h,002h,004h	; 9363  0..>.>.....`.b..
@@ -10144,20 +10727,20 @@ DATA_colores_del_tercio_de_abajo:
 	defb 000h	; 99f3
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_sueltos_020: Formato B desde 0x700C: 96 bytes a los patrones
+; DATOS colores_sueltos_020: Formato B desde 0x700C: 96 bytes a los colores
 ;   0x0020.
 ;   0x99f4..0x99f9  (5 bytes)
-DATA_patrones_sueltos_020:
+DATA_colores_sueltos_020:
 	defb 020h,050h,060h,0f1h,000h	; 99f4
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_del_tercio_de_abajo: Formato B, la pareja del bloque de
-;   colores. 0x700F lo pasa entero a los patrones 0x10D0, y 0x6FEB entra por
+; DATOS colores_del_tercio_de_abajo: Formato B, la pareja del bloque de
+;   patrones. 0x700F lo pasa entero a los colores 0x10D0, y 0x6FEB entra por
 ;   0x9A05 -12 bytes mas adelante- para el mismo volcado girado, esta vez por
 ;   0x46DC. Otra vez 1840 bytes por un camino y 1728 por el otro, y los dos
 ;   acaban en 0x9C49.
 ;   0x99f9..0x9c4a  (593 bytes)
-DATA_patrones_del_tercio_de_abajo:
+DATA_colores_del_tercio_de_abajo:
 	defb 0d0h,050h,060h,0f1h,004h,000h,081h,0f0h,003h,000h,008h,0f1h,030h,080h,004h,0f0h	; 99f9  .P`.........0...
 	defb 004h,0f6h,004h,0f0h,01bh,0f6h,081h,0f0h,007h,0f6h,081h,0f0h,004h,0f0h,004h,0fch	; 9a09  ................
 	defb 004h,0f0h,01bh,0fch,081h,0f0h,007h,0fch,081h,0f0h,030h,0f0h,004h,0f0h,004h,0f1h	; 9a19  ..........0.....
