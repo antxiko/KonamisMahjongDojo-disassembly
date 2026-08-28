@@ -162,6 +162,28 @@ D 0x4AE0 0x4AE8 tabla_de_dificultad  Ocho bytes, 0x40 0x60 0x00 0x50 y cuatro ce
 F 0x4AE0 8
 D 0x4AE8 0x4B50 guion_del_demo  EL DEMO NO PIENSA: LEE ESTE GUION. Ciento cuatro bytes que 0x416B guarda en 0xE066 al entrar en el estado 7 y que 0x4A68 va sirviendo en lugar del teclado mientras el bit 6 de 0xE002 este a cero. Por eso el demo es determinista al centesimo desde el encendido (medido: dos pasadas independientes, ver docs/la_partida.md). Los valores son las MISMAS mascaras que arma 0x4A27 leyendo la matriz: bit 0 arriba, bit 1 abajo, bit 2 izquierda, bit 3 derecha, bit 4 espacio, bit 5 select. El formato es de longitud variable y lo decide el nibble bajo: si es cero (0x00, 0x10, 0x20, 0x30) la entrada ocupa UN byte y se sirve una vez cada 64 fotogramas; si no (0x01, 0x02, 0x04, 0x08, 0x18, 0x38) ocupa DOS y el segundo es cuantas veces seguidas se repite. Los ocho ceros del final son el guion agotado: tecla ninguna para siempre.
 D 0x4735 0x476F primer_tile_de_cada_ficha  Cuatro filas de 16 bytes con diez valores utiles cada una, que bajan de seis en seis: 0xFA..0xC4, 0x88..0x58, 0xBE..0x8E y 0x52..0x28. La lee 0x472C indexando con el CODIGO DE FICHA (palo en el nibble alto, numero en el bajo), asi que cada fila es un palo -0, 1, 2- y la cuarta son los honores. El valor es el PRIMER TILE del dibujo de la ficha, que son seis tiles seguidos, dos de ancho por tres de alto (0x6F72); por eso bajan de seis en seis. En la fila de los honores el indice 8 (codigo 0x38) es el dorso de la ficha y el 9 (0x39) el hueco vacio. CORRIGE la lectura anterior, que las tomaba por cuatro orientaciones de la mesa.
+# ----------------------------------------------------------------------
+# DONDE VIVE EL TEXTO DEL TERCIO DE EN MEDIO: EN EL HUECO DE LAS FICHAS
+# ----------------------------------------------------------------------
+# Medido el 2026-08-28 cruzando esta tabla con la tabla de nombres de 124
+# volcados de VRAM (tools/censo_tiles.py --donde 1).
+#
+# Cada ficha son SEIS tiles consecutivos, dos de ancho por tres de alto, y las
+# hileras de fichas de la pantalla caen siempre a caballo de dos tercios: en el
+# tercio del medio solo se ve la fila de ABAJO de las fichas de arriba (la fila
+# 8 de pantalla) y la de ARRIBA de las de abajo (la fila 15). LA FILA DEL MEDIO
+# DE CADA FICHA NO SE DIBUJA NUNCA EN ESTE TERCIO, y ahi es donde Konami metio
+# el texto: de los 97 tiles que usa la barra, 56 son exactamente los pares
+# (b+2, b+3) de alguna ficha -el 東 son A8 A9 y AE AF, que son las filas del
+# medio de las fichas que empiezan en A6 y AC; el 局 son CC CD y D2 D3, de las
+# de CA y D0; el menu de llamadas son EA EB, F0 F1, F6 F7 y FC FD, de las de
+# E8, EE, F4 y FA-. Los otros 41 son los tiles propios 0x00-0x27 y unos pocos
+# de las filas de arriba y de abajo (28-29, 2E-2F, 34, 2C-2D, 32, 39).
+#
+# Por eso el mismo numero de tile es una ficha en un tercio y un kanji en otro
+# sin que se estorben. Es lo que hace sitio para el texto en un cartucho donde
+# los 256 tiles de cada tercio estan practicamente llenos.
+
 F 0x4735 16
 D 0x5350 0x535E multiplos_de_dieciseis  Los catorce multiplos de 0x10, de 0x10 a 0xE0, uno por hueco de la mano. Lo leen siete sitios: 0x5327, 0x53EB, 0x57CB, 0x6A7B, 0x6A89, 0x6B48 y 0x6B6E.
 F 0x5350 14

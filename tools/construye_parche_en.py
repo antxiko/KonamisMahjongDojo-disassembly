@@ -101,6 +101,30 @@ def _mapa(letras_en, digitos_en, espacio, extra):
     return m
 
 
+def _lista(tiles, digitos_en, espacio):
+    """A-Z en los 26 tiles que se le den, que NO tienen por que ser seguidos."""
+    t = [int(x, 16) for x in tiles.split()]
+    if len(t) != 26:
+        raise SystemExit("un charset por lista necesita 26 tiles y tiene %d" % len(t))
+    m = {chr(65 + i): t[i] for i in range(26)}
+    if digitos_en is not None:
+        for i in range(10):
+            m[str(i)] = digitos_en + i
+    m[" "] = espacio
+    return m
+
+
+def _letras(letras, tiles, espacio):
+    """Solo unas letras sueltas, cada una en su tile. Para los rotulos que no
+    necesitan el alfabeto entero y andan justos de sitio."""
+    t = [int(x, 16) for x in tiles.split()]
+    if len(t) != len(letras):
+        raise SystemExit("%r son %d letras y hay %d tiles" % (letras, len(letras), len(t)))
+    m = {c: t[i] for i, c in enumerate(letras)}
+    m[" "] = espacio
+    return m
+
+
 CHARSETS = {
     # la fuente grande del cartucho en su copia alta (0xC0-0xEF): el menu del titulo
     "alto0": _mapa(0xD1, 0xC0, 0x00, {"-": 0xD0, '"': 0xEB, "(c)": 0xCA}),
@@ -112,6 +136,22 @@ CHARSETS = {
     # del tercio de arriba). Los digitos NO son suyos: son los de la fuente
     # grande, que ya esta cargada en 0x10-0x19 y la katakana no llega a pisar.
     "recuento": _mapa(0x30, 0x10, 0x01, {"-": 0x4A, "/": 0x4B, ".": 0x4C, "+": 0x4D}),
+    # LA BARRA de la mesa (tercio del medio). Aqui los tiles NO son contiguos:
+    # el texto de ese tercio vive en las filas del medio de las fichas, que son
+    # pares sueltos (b+2, b+3). Estos 26 son los que llevan color 0xF1, blanco
+    # sobre negro, que es como se ve la barra. Los digitos siguen en 0x10-0x19
+    # y el blanco es el tile 0x01.
+    "barra": _lista("72 73 78 79 7E 7F 84 85 8A 8B 90 91 96 97 9C 9D "
+                    "A2 A3 A8 A9 AE AF B4 B5 BA BB", 0x10, 0x01),
+    # EL MENU y las cajas del mismo tercio: los tiles de color 0x17, negro
+    # sobre cian. Son 21 con ese color de fabrica y cinco -D2 D3 D8 D9 DE- a
+    # los que el parche les cambia el color, porque el dora y el ura pasan a
+    # escribirse con las letras de la barra.
+    "cajas": _lista("49 4F 54 55 5A 5B 60 61 66 67 6C 6D E4 E5 EB F0 F1 F6 "
+                    "F7 FC FD D2 D3 D8 D9 DE", None, 0x02),
+    # Los tres rotulos de dificultad, en rojo sobre negro (color 0x91). Solo
+    # hacen falta las siete letras de AMA / PRO / SEM.
+    "dificultad": _letras("AMPROSE", "2A 2B 30 31 36 37 3C", 0x01),
 }
 DIGRAFOS = {}          # "AB" -> tile, lo llenan las lineas `estrecho`
 
