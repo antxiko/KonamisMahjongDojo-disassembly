@@ -53,8 +53,8 @@ guion de 0x4AE8.
 | regla | dónde | estándar | estado |
 | --- | --- | --- | --- |
 | Riichi: mano cerrada (0xE2B6 = 0), acabar de robar, no estar ya en riichi, no ir por el descarte 18 | 0x6653 | coincide salvo el límite de fichas | LEÍDO |
-| Cuesta 1.000 puntos, que van a la mesa (0xE04A) | 0x53B8 / 0x579A (la máquina, 0x57AB) | coincide | LEÍDO en la máquina; en el jugador SUPOSICIÓN (0x53B8 no leído) |
-| **El palo de riichi de la mesa sólo se lo lleva un ganador que estuviera en riichi**, o cualquiera en la última mano (sur, reparte el 2); si no, se queda en la mesa | 0x5E70-0x5EA8 | **diverge** (en cuatro los palos van al ganador siempre) | LEÍDO |
+| Cuesta 1.000 puntos, que van a la mesa (0xE04A) | 0x53B8 (el jugador: 0x5F24 le quita mil y 0xE04A sube uno) / 0x579A (la máquina, 0x57AB) | coincide | LEÍDO en los dos |
+| **El palo de riichi de la mesa sólo se lo lleva un ganador que estuviera en riichi** (bit 0 de 0xE1CD el 1, de 0xE1AE el 2), de mil en mil, uno cada 32 cuadros; la única excepción es el jugador 1 ganando en la mano que cierra la partida (sur, reparte el 2), que se los lleva esté o no en riichi. Si no, se quedan en la mesa (0xE04A) para la mano siguiente. En el demo el cierre se salta este paso (0x5E75) y el palo se queda: los volcados 042-055 dan 0xE04A = 1 | 0x5E70-0x5EA8 | **diverge** (en cuatro los palos van al ganador siempre) | LEÍDO; comprobado a mano el 2026-08-28 |
 | Doble riichi: declarado con el descarte 0 (0xE1CC = 0; 0xE1BB para la máquina) | 0x7BBE, 0x7C0B | coincide | LEÍDO |
 | Ippatsu: la mano se cierra en el descarte siguiente al de la declaración | 0x7BD2 | coincide (no se comprueba que no haya habido llamadas en medio) | LEÍDO |
 | La máquina declara riichi exactamente en su descarte número 0xE1BB, si está en tenpai y cerrada; 0xE1BB = sorteo − 1 + 3/5/7 según la tecla 1/2/3 | 0x579A, 0x50F5 | — | LEÍDO. Si un 0xE1BB alto la hace más dura o más blanda sigue sin saberse |
@@ -141,14 +141,14 @@ doble yakuman. Con un yakuman en la lista no se escriben las demás jugadas
 | regla | dónde | estándar | estado |
 | --- | --- | --- | --- |
 | Menos de 5 han: tabla por fu (filas 20…90, y 100+) y han (1-4), la del que reparte (0x5C97) o la del otro (0x5CA9), según 0xE04E | 0x5B22-0x5B41, 0x5C5A, 0x5C70 | las cifras coinciden con la tabla de cuatro | LEÍDO |
-| **20 fu con 1 han paga 0** (más honba): la tabla lo tiene a cero y no hay mínimo de 30 fu para mano abierta | 0x5CBB, 0x5D03 | **diverge** | LEÍDO, no medido |
-| **100 fu o más se paga como 8 han** (baiman) | 0x5B2D → 0x5B6B con A = 8 | diverge (rareza) | LEÍDO |
+| **20 fu con 1 han paga 0** (más honba): la fila 0 de las dos tablas es 0000, 0x5C5A manda los 20 fu a esa fila y 0x7356 sólo redondea hacia arriba, sin mínimo de 30 para mano abierta. Sólo se llega con RON, mano abierta, espera ryanmen o shanpon y sin fu de figuras ni de pareja (con tsumo los +2 de la espera lo suben a 30): un tanyao abierto de escaleras ganado por ron | 0x5CBB, 0x5D03, 0x5C5A, 0x7356 | **diverge** | LEÍDO y comprobado a mano el 2026-08-28; no medido |
+| **100 fu o más se paga como 8 han** (baiman: 24.000/16.000, y 8.000 con tsumo). Por eso la novena fila de las tres tablas de pago (0x5CFB, 0x5D43, 0x5DD5) no se lee nunca; la de "al robar" es una fila de 110 fu de verdad (1.800/3.600), muerta | 0x5B2D → 0x5B6B con A = 8 | diverge (rareza) | LEÍDO; comprobado a mano el 2026-08-28 |
 | 5 han o más: mangan 12.000/8.000, haneman (6-7) 18.000/12.000, baiman (8-10) 24.000/16.000, sanbaiman (11-13) 36.000/24.000; 13 es el tope | 0x5B6B, 0x5D4B, 0x5D5D | coincide (no hay kazoe yakuman: 13 han siguen siendo sanbaiman) | LEÍDO |
 | Yakuman: 48.000/32.000, y se apilan (hasta cinco) | 0x5B57, 0x5D6F, 0x5D79 | coincide | LEÍDO |
 | **Honba: +300 por honba en el ron, +100 en el tsumo** | 0x5C7F, 0x5BB5 | coincide en cifras (en cuatro el tsumo son 100 por pagador; aquí hay uno) | LEÍDO |
-| **Con tsumo se paga la parte de un solo jugador** (tablas "al robar": 30 fu 1 han = 500, mangan = 4.000, yakuman = 16.000): un tsumo cobra mucho menos que un ron | 0x5BA0-0x5BDA, 0x5D83-0x5DF9 | diverge (en cuatro el tsumo suma tres pagos) | LEÍDO |
+| **Con tsumo el perdedor paga la parte de un solo jugador** (tablas "al robar": 30 fu 1 han = 500, mangan = 4.000, yakuman = 16.000) **pero el ganador cobra la cifra entera del ron**: 0x5B85 carga la misma palabra en los dos pendientes y con tsumo sólo rebaja el del que paga (0xE1B1), no el del que cobra (0xE1E4). Se crean puntos de la nada, y la pantalla del recuento lo imprime tal cual: ハライ (lo pagado) y トクテン (lo cobrado) | 0x5B85-0x5BDA, 0x5D83-0x5DF9, 0x5DF9 | diverge (en cuatro los tres pagos del tsumo suman lo que cobra el ganador) | **MEDIDO** en el demo: 7 han 30 fu, reparte y gana el 1 por tsumo; 0xE1B1 = 0x0060 y 0xE1E4 = 0x0180 (volcado 040), ハライ 6000 / トクテン 18000 en pantalla, y los marcadores acaban en 48.000 y 23.000 (volcado 042) |
 | Los puntos se mueven de cien en cien, un fotograma cada uno, con sonido | 0x5DF9 | — | LEÍDO |
-| Tenpai al acabarse la mano: 1.500 del que no está al que está; con los dos o ninguno, nada. **A partir de 5 honba, para estar en tenpai cada espera tiene que valer 3 han** (0x7B3B: `cp 3 / ccf`) | 0x7713-0x7814, 0x7B38 | 1.500 coincide con "dos y dos"; el requisito de 3 han diverge de todo lo conocido | LEÍDO |
+| Tenpai al acabarse la mano: 1.500 del que no está al que está; con los dos o ninguno, nada. **A partir de 5 honba, para estar en tenpai cada espera tiene que valer 3 han** (0x7B3B: `cp 3 / ccf` deja el acarreo puesto con 3 o más, y 0x774E/0x77BA sin acarreo niegan el tenpai). Cada espera se evalúa desde cero (0x5F82 limpia 0xE2F1-0xE32A, donde vive el contador 0xE316) y sin dora (el salto de 0x7B00 se da antes de 0x7B28) | 0x7713-0x7814, 0x7B38 | 1.500 coincide con "dos y dos"; el requisito de 3 han diverge de todo lo conocido | LEÍDO; comprobado a mano el 2026-08-28 |
 
 ## 9. La partida
 
@@ -174,7 +174,8 @@ doble yakuman. Con un yakuman en la lista no se escriben las demás jugadas
   fichas, 0x4735 dice qué tiles son.
 - Qué dicen los rótulos de la espera (tiles 0x0C-0x27 de 0x86D6, trozos de
   kanji): no se han leído.
-- Medir en el emulador las tres divergencias gordas: el pago del tsumo, el
-  20 fu/1 han a cero y el palo de riichi que se queda en la mesa.
+- Medir en el emulador las dos divergencias que quedan sin medir: el 20 fu/1 han
+  a cero y el palo de riichi que se queda en la mesa (el pago del tsumo ya está
+  medido en el demo, volcados 040-042).
 - El "sexto envite" de 0x41EC y cómo casa con el cierre de 0x5F00.
 - Quién cobra los 1.000 del riichi del jugador (0x53B8, en la zona de la IA).

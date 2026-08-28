@@ -2882,7 +2882,7 @@ L_510D:
 	ld a,(0e04dh)		;512e
 	ld (0e22ah),a		;5131   ; quien es mano
 	xor 001h		;5134   ; y el contrario
-	ld (0e1d1h),a		;5136
+	ld (0e1d1h),a		;5136   ; 0xE1D1 = 1 si reparte el 1: el que reparte empieza con la decimocuarta ficha en la mano, como recien robada; 0xE22A es lo mismo para el 2
 	or a			;5139
 	jr nz,L_5144		;513a
 	ld a,03fh		;513c
@@ -3219,7 +3219,7 @@ L_5436:
 	and 007h		;5439
 	ret nz			;543b
 	ld hl,0e1d1h		;543c
-	res 0,(hl)		;543f
+	res 0,(hl)		;543f   ; el 1 descarta: bit 0 de 0xE1D1 a cero, ya no tiene ficha robada; si ahora gana es RON
 	ld a,006h		;5441
 	call L_9C4A		;5443
 	ld hl,0e1beh		;5446
@@ -3262,7 +3262,7 @@ L_5460:
 	jp L_5654		;549a
 L_549D:
 	ld a,001h		;549d
-	ld (0e22ah),a		;549f
+	ld (0e22ah),a		;549f   ; el 2 va a robar: 0xE22A = 1, su marca de tsumo
 	call L_5A2B		;54a2
 	call L_54DE		;54a5
 	ld a,(0e064h)		;54a8
@@ -3370,7 +3370,7 @@ L_556C:
 	call L_5988		;5574
 	call L_598F		;5577
 	xor a			;557a
-	ld (0e22ah),a		;557b
+	ld (0e22ah),a		;557b   ; el 2 descarta: 0xE22A a cero
 	ld a,006h		;557e
 	call L_9C4A		;5580
 	ld hl,0e1bfh		;5583
@@ -3437,7 +3437,7 @@ L_5603:
 	ld a,007h		;5609
 	call L_9C4A		;560b
 	ld hl,0e1d1h		;560e
-	set 0,(hl)		;5611
+	set 0,(hl)		;5611   ; el 1 va a robar: bit 0 de 0xE1D1 puesto; si gana con esa ficha es TSUMO
 	call reparte_una_ficha		;5613
 	push af			;5616
 	ld a,(0e1c3h)		;5617
@@ -3543,14 +3543,14 @@ L_56D2:
 	ld (hl),a			;56d9
 	ld bc,00011h		;56da
 	ldir		;56dd
-	ld (0e1d1h),a		;56df
+	ld (0e1d1h),a		;56df   ; y 0xE1D1 a cero: la marca del 1, que 0x56EE y 0x5764 pisan con la del 2 al evaluar la mano de la maquina
 	ret			;56e2
 L_56E3:
 	ld a,090h		;56e3
 	call L_9C4A		;56e5
 	call L_56D2		;56e8
 	ld a,(0e22ah)		;56eb
-	ld (0e1d1h),a		;56ee
+	ld (0e1d1h),a		;56ee   ; la marca de tsumo de la maquina, en 0xE1D1, que es lo que lee el evaluador
 	rra			;56f1
 	jr nc,L_56F7		;56f2
 	call L_5754		;56f4
@@ -3608,7 +3608,7 @@ L_575A:
 	xor a			;575d
 	ld (0e316h),a		;575e
 	ld a,(0e22ah)		;5761
-	ld (0e1d1h),a		;5764
+	ld (0e1d1h),a		;5764   ; el evaluador lee 0xE1D1: se le pone la marca de tsumo del 2
 	call evalua_las_jugadas		;5767
 	ld a,(0e316h)		;576a
 	ret			;576d
@@ -4177,7 +4177,7 @@ L_5B71:
 	ld hl,05d5dh		;5b82   ; o la del otro
 
 ; ----------------------------------------------------------------------
-; Lee la palabra que toca (0x5C7F le suma 300 por honba), la deja en los dos pendientes de 0x5DF9 (0xE1B1 y 0xE1E4) y la pinta en 0x38E8. Si es TSUMO (bit 0 de 0xE1D1) vuelve a sacarla de las tablas "al robar": 0x5DEF para los yakuman, 0x5DDD para la mano limite y 0x5D83 para el resto, con 100 por honba, y esa es la que se mueve de verdad (0xE1B1).
+; Lee la palabra que toca (0x5C7F le suma 300 por honba), la deja en los dos pendientes de 0x5DF9 -0xE1B1, lo que paga el perdedor, y 0xE1E4, lo que cobra el ganador- y la pinta en 0x38E8. Si es TSUMO (bit 0 de 0xE1D1) vuelve a sacarla de las tablas "al robar" -0x5DEF para los yakuman, 0x5DDD para la mano limite y 0x5D83 para el resto, con 100 por honba- y la deja SOLO en 0xE1B1: el perdedor paga la parte de un jugador y el ganador cobra la cifra entera del ron. La pantalla del recuento imprime las dos, HARAI (lo pagado) y TOKUTEN (lo cobrado). Medido en el demo: 6.000 y 18.000.
 ; ----------------------------------------------------------------------
 carga_el_pago:
 	call lee_el_pago_con_honba		;5b85   ; la palabra, mas 300 por honba
@@ -4188,7 +4188,7 @@ carga_el_pago:
 	ld b,003h		;5b96   ; tres bytes: seis cifras
 	call pinta_un_numero_bcd		;5b98
 	ld a,(0e1d1h)		;5b9b
-	rra			;5b9e   ; con ron, este es el pago
+	rra			;5b9e   ; con ron, los dos pendientes iguales: se paga lo que se cobra
 	ret nc			;5b9f
 	ld a,(0e1b3h)		;5ba0
 	or a			;5ba3   ; tsumo con yakuman: por 0x5BCD
@@ -4214,7 +4214,7 @@ L_5BB5:
 	daa			;5bc6
 	ld d,a			;5bc7
 L_5BC8:
-	ld (0e1b1h),de		;5bc8   ; lo que se mueve es esto
+	ld (0e1b1h),de		;5bc8   ; solo el pendiente del perdedor; el ganador sigue cobrando lo de 0xE1E4
 	ret			;5bcc
 L_5BCD:
 	dec a			;5bcd
@@ -4568,7 +4568,7 @@ DATA_mano_maxima_al_robar:
 
 
 ; ----------------------------------------------------------------------
-; EL PAGO, cien puntos por fotograma. Lleva DOS pendientes en paralelo, 0xE1B1 y 0xE1E4, cada uno un contador BCD de dos bytes que cuenta PASOS DE CIEN: los 0x0120 y 0x0080 que carga 0x4290 son 12.000 y 8.000 puntos. Cada fotograma quita cien de un marcador y los pone en el otro, y baja el pendiente en uno con 0x5F18. Quien cobra y quien paga sale de 0xE302, 0xE1AC y 0xE1AD. El segundo pendiente ademas suena cada cuatro fotogramas: es el tintineo del recuento.
+; EL PAGO, cien puntos por fotograma, Y EL CIERRE DE LA MANO. Lleva DOS pendientes en paralelo, contadores BCD de dos bytes que cuentan PASOS DE CIEN (los 0x0120 y 0x0080 que carga 0x4290 son 12.000 y 8.000): 0xE1B1 es lo que PAGA el perdedor y 0xE1E4 lo que COBRA el ganador, y no tienen por que coincidir. Con ron son iguales; con tsumo 0x5B9B deja en 0xE1B1 la parte de un solo jugador y en 0xE1E4 la cifra entera del ron, asi que el ganador cobra mas de lo que el otro paga. MEDIDO en el demo (volcados 040 y 042 del paso 2): 0xE1B1 = 0x0060 y 0xE1E4 = 0x0180, 6.000 pagados y 18.000 cobrados, y los marcadores acaban en 23.000 y 48.000: por eso no suman 60.000. Cada fotograma mueve cien y baja el pendiente con 0x5F18; quien cobra y quien paga sale de 0xE302, 0xE1AC y 0xE1AD; el segundo pendiente ademas suena cada cuatro fotogramas, el tintineo del recuento. Cuando los dos llegan a cero (0x5E70) viene el resto: en el demo (bit 6 de 0xE002 a cero) directo a 0x5F00, fin de partida; con persona, los palos de riichi de la mesa (0xE04A) van al ganador de mil en mil, uno cada 32 fotogramas, pero SOLO si estaba en riichi (bit 0 de 0xE1CD el 1, de 0xE1AE el 2) o si es el 1 ganando en la mano que cierra la partida (sur y reparte el 2); si no, se quedan en la mesa. Luego 0x5ED0 decide reparto, honba y ronda: gana el que reparte, un honba mas y sigue; gana el otro, honba a cero y cambia el reparto (0x77F7) o, si ya repartia el 2, la ronda; y si la ronda era la del sur, bit 4 de 0xE1A8, se acabo la partida. 0xE062, las manos seguidas sin ganar el 1, sube si gana el 2 y vuelve a cero si gana el 1.
 ; ----------------------------------------------------------------------
 mueve_cien_puntos:
 	ld hl,(0e1b1h)		;5df9   ; el primer pendiente
@@ -4640,46 +4640,46 @@ L_5E70:
 	bit 6,a		;5e73
 	jp z,L_5F00		;5e75
 	ld a,(0e302h)		;5e78
-	and 005h		;5e7b
+	and 005h		;5e7b   ; bits 0 o 2 de 0xE302, sin ganador: no hay palos que cobrar
 	jr nz,L_5ED0		;5e7d
 	ld hl,0e04ah		;5e7f
 	ld a,(hl)			;5e82
-	or a			;5e83
+	or a			;5e83   ; 0xE04A: los palos de riichi que hay en la mesa; ninguno, a 0x5ED0
 	jr z,L_5ED0		;5e84
 	ld a,(0e003h)		;5e86
-	and 01fh		;5e89
+	and 01fh		;5e89   ; uno cada 32 fotogramas
 	ret nz			;5e8b
 	ld a,(0e302h)		;5e8c
-	bit 1,a		;5e8f
+	bit 1,a		;5e8f   ; bit 1 de 0xE302: ha ganado el 2
 	jr nz,L_5EA4		;5e91
 	ld a,(0e04ch)		;5e93
-	rra			;5e96
+	rra			;5e96   ; bit 0 de 0xE04C: ronda del sur
 	jr nc,L_5E9F		;5e97
 	ld a,(0e04dh)		;5e99
-	rra			;5e9c
+	rra			;5e9c   ; y reparte el 2: la mano que cierra la partida, el 1 se lleva los palos este o no en riichi
 	jr c,L_5EAA		;5e9d
 L_5E9F:
-	ld a,(0e1cdh)		;5e9f
+	ld a,(0e1cdh)		;5e9f   ; el 1: bit 0 de 0xE1CD, su riichi
 	jr L_5EA7		;5ea2
 L_5EA4:
-	ld a,(0e1aeh)		;5ea4
+	ld a,(0e1aeh)		;5ea4   ; el 2: bit 0 de 0xE1AE, el suyo
 L_5EA7:
 	rra			;5ea7
-	jr nc,L_5ED0		;5ea8
+	jr nc,L_5ED0		;5ea8   ; sin riichi, los palos se quedan en la mesa
 L_5EAA:
 	ld a,(hl)			;5eaa
-	sub 001h		;5eab
+	sub 001h		;5eab   ; un palo menos, en BCD
 	daa			;5ead
 	ld (hl),a			;5eae
-	call pinta_el_contador_de_e04a		;5eaf
+	call pinta_el_contador_de_e04a		;5eaf   ; y el contador repintado
 	ld a,002h		;5eb2
-	call L_9C4A		;5eb4
-	ld b,00ah		;5eb7
+	call L_9C4A		;5eb4   ; sonido 2
+	ld b,00ah		;5eb7   ; diez veces cien: los mil puntos del palo
 L_5EB9:
 	push bc			;5eb9
 	ld de,00100h		;5eba
 	ld a,(0e302h)		;5ebd
-	bit 1,a		;5ec0
+	bit 1,a		;5ec0   ; al marcador del ganador: 0xE047 el 1, 0xE044 el 2
 	jr nz,L_5EC9		;5ec2
 	call suma_al_marcador_de_e047		;5ec4
 	jr L_5ECC		;5ec7
@@ -4691,42 +4691,42 @@ L_5ECC:
 	ret			;5ecf
 L_5ED0:
 	ld a,(0e302h)		;5ed0
-	and 005h		;5ed3
+	and 005h		;5ed3   ; sin ganador no hay nada que decidir aqui: reparto y honba los movio 0x77CD
 	jr nz,L_5F12		;5ed5
 	ld a,(0e302h)		;5ed7
 	rra			;5eda
-	rra			;5edb
+	rra			;5edb   ; el bit 1 al acarreo: quien ha ganado
 	ld hl,0e062h		;5edc
 	jr nc,L_5EF2		;5edf
-	inc (hl)			;5ee1
+	inc (hl)			;5ee1   ; gana el 2: una mano mas sin ganar el 1
 	ld a,(0e04dh)		;5ee2
-	rra			;5ee5
+	rra			;5ee5   ; bit 0 de 0xE04D: reparte el 2
 	jr c,L_5F0F		;5ee6
 	ld hl,0e04bh		;5ee8
-	ld (hl),000h		;5eeb
-	call cambia_el_reparto		;5eed
+	ld (hl),000h		;5eeb   ; repartia el 1: honba a cero
+	call cambia_el_reparto		;5eed   ; y el reparto pasa al 2
 	jr L_5F12		;5ef0
 L_5EF2:
-	ld (hl),000h		;5ef2
+	ld (hl),000h		;5ef2   ; gana el 1: 0xE062 a cero, y con el la siembra de 0x48E1
 	ld a,(0e04dh)		;5ef4
-	rra			;5ef7
+	rra			;5ef7   ; repartia el 1: un honba mas
 	jr nc,L_5F0F		;5ef8
 	ld a,(0e04ch)		;5efa
-	rra			;5efd
+	rra			;5efd   ; repartia el 2 en el este: cambia la ronda
 	jr nc,L_5F05		;5efe
 L_5F00:
 	ld hl,0e1a8h		;5f00
-	set 4,(hl)		;5f03
+	set 4,(hl)		;5f03   ; en el sur: bit 4 de 0xE1A8, FIN DE LA PARTIDA; el demo entra aqui directo desde 0x5E75
 L_5F05:
 	ld hl,0e04bh		;5f05
-	ld (hl),000h		;5f08
-	call cambia_la_ronda		;5f0a
+	ld (hl),000h		;5f08   ; honba a cero
+	call cambia_la_ronda		;5f0a   ; y la ronda cambia, con el reparto
 	jr L_5F12		;5f0d
 L_5F0F:
-	call suma_un_honba		;5f0f
+	call suma_un_honba		;5f0f   ; el que reparte ha ganado: un honba mas y sigue repartiendo
 L_5F12:
 	ld hl,0e1a8h		;5f12
-	res 3,(hl)		;5f15
+	res 3,(hl)		;5f15   ; bit 3 de 0xE1A8: el pago ha terminado
 	ret			;5f17
 
 ; ----------------------------------------------------------------------

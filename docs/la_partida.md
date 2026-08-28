@@ -111,7 +111,9 @@ SEMIPROFESSIONAL`, `3-key PROFESSIONAL`.
 **Es un mahjong de dos jugadores.** Marcador de 30000 y 30000, la mano del rival
 boca abajo arriba y la propia abajo. El panel central lleva el viento y número
 de mano (東一局) y el contador de repeticiones (〇本場). El panel cian de la
-derecha es el menú de llamadas: アガリ / リーチ / チー / ポン / カン.
+derecha es el menú de llamadas: アガリ / リーチ / ポン / チー / カン (el orden lo
+fija la tabla de 0x660A: pon antes que chi; una lectura anterior de la captura
+los tenía al revés).
 
 La pantalla de recuento (estado 11, submodo 7) trae el desglose completo: 親
 (banca), フ y フアン (fu y han), ハライ (pago), トクテン (puntos), la lista de
@@ -134,7 +136,7 @@ volcados con lo que se ve en pantalla:
 | 020 (estado 10) | 030000 | 030000 |
 | 033 (mano, t=100) | 030000 | 030000 |
 | 036 (mano, t=130) | **029000** | 030000 |
-| 041 (recuento) | **023000** | **037500** |
+| 041 (recuento, a mitad del pago) | **023000** | **037500** |
 | 050 (終局) | 023000 | 048000 |
 
 Y el código lo confirma por su cuenta, en dos rutinas que operan sobre esas
@@ -160,11 +162,19 @@ bytes contrario.
 
 ## Lo que queda abierto
 
-- **Qué es exactamente cada uno de los dos contadores.** Los valores medidos no
-  se conservan: 30000+30000 = 60000, pero 023000+037500 = 60500 y
-  023000+048000 = 71000. O uno de los dos no es un marcador de jugador, o hay
-  entradas que no se han visto (palos de riichi, honba, signo). Los bits de
-  0xE100 son el sitio por donde tirar.
+- ~~Qué es exactamente cada uno de los dos contadores.~~ **CERRADO el
+  2026-08-28, en el paso 3.** Son los dos marcadores, y no se conservan POR
+  DISEÑO: con tsumo el perdedor paga la parte de un solo jugador (tabla "al
+  robar", pendiente 0xE1B1) y el ganador cobra la cifra entera del ron
+  (pendiente 0xE1E4); lo carga 0x5B85 y lo mueve 0x5DF9. En el demo gana el 1
+  por tsumo con 7 han y 30 fu repartiendo él: el volcado 040 tiene
+  0xE1B1 = 0x0060 y 0xE1E4 = 0x0180 (6.000 y 18.000), la pantalla del recuento
+  lo imprime como ハライ 6000 y トクテン 18000, y al final el 1 tiene
+  30000+18000 = 48000 y el 2 30000−1000−6000 = 23000. El 60500 del volcado 041
+  era una foto A MITAD del pago: el pendiente del perdedor ya estaba a cero y al
+  del ganador le quedaban 0x0105, o sea 10.500 por cobrar. Y los 1.000 que
+  faltan para 72.000 son el palo de riichi de la máquina, que sigue en la mesa
+  (0xE04A = 1) porque el cierre del demo se salta el cobro (0x5E75).
 - **Los estados 1, 2, 3, 4, 6, 7 y 13** no tienen todavía nada que se vea; hay
   captura de cada uno en `work/estados/`, pero varias salen en negro porque son
   transiciones de menos de un cuadro.
@@ -175,6 +185,7 @@ bytes contrario.
 
 ## Suposiciones, marcadas
 
-- Que la bajada de 0xE044 de 030000 a 029000 a mitad de mano sea **el palo de
-  riichi** encaja con el estándar y con que el otro contador no se mueva, pero
-  **no está medido**: no se ha trazado quién hace esa resta.
+- ~~Que la bajada de 0xE044 de 030000 a 029000 a mitad de mano sea el palo de
+  riichi.~~ **LEÍDO el 2026-08-28**: es el riichi de la máquina, 0x579A; le
+  quita mil (0x57AB), sube 0xE04A (0x57B4) y pone 0xE1AE = 1 (0x57D8). El
+  volcado 034 tiene las tres cosas a la vez: 029000, 0xE04A = 1 y 0xE1AE = 1.

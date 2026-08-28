@@ -649,7 +649,7 @@ C 0x4400 0x50: bit 6 puesto, y los bits 5-4 fijos pase lo que pase
 C 0x4405 borra el marcador y las 622 variables de detras
 
 L 0x5DF9 mueve_cien_puntos
-B 0x5DF9 EL PAGO, cien puntos por fotograma. Lleva DOS pendientes en paralelo, 0xE1B1 y 0xE1E4, cada uno un contador BCD de dos bytes que cuenta PASOS DE CIEN: los 0x0120 y 0x0080 que carga 0x4290 son 12.000 y 8.000 puntos. Cada fotograma quita cien de un marcador y los pone en el otro, y baja el pendiente en uno con 0x5F18. Quien cobra y quien paga sale de 0xE302, 0xE1AC y 0xE1AD. El segundo pendiente ademas suena cada cuatro fotogramas: es el tintineo del recuento.
+B 0x5DF9 EL PAGO, cien puntos por fotograma, Y EL CIERRE DE LA MANO. Lleva DOS pendientes en paralelo, contadores BCD de dos bytes que cuentan PASOS DE CIEN (los 0x0120 y 0x0080 que carga 0x4290 son 12.000 y 8.000): 0xE1B1 es lo que PAGA el perdedor y 0xE1E4 lo que COBRA el ganador, y no tienen por que coincidir. Con ron son iguales; con tsumo 0x5B9B deja en 0xE1B1 la parte de un solo jugador y en 0xE1E4 la cifra entera del ron, asi que el ganador cobra mas de lo que el otro paga. MEDIDO en el demo (volcados 040 y 042 del paso 2): 0xE1B1 = 0x0060 y 0xE1E4 = 0x0180, 6.000 pagados y 18.000 cobrados, y los marcadores acaban en 23.000 y 48.000: por eso no suman 60.000. Cada fotograma mueve cien y baja el pendiente con 0x5F18; quien cobra y quien paga sale de 0xE302, 0xE1AC y 0xE1AD; el segundo pendiente ademas suena cada cuatro fotogramas, el tintineo del recuento. Cuando los dos llegan a cero (0x5E70) viene el resto: en el demo (bit 6 de 0xE002 a cero) directo a 0x5F00, fin de partida; con persona, los palos de riichi de la mesa (0xE04A) van al ganador de mil en mil, uno cada 32 fotogramas, pero SOLO si estaba en riichi (bit 0 de 0xE1CD el 1, de 0xE1AE el 2) o si es el 1 ganando en la mano que cierra la partida (sur y reparte el 2); si no, se quedan en la mesa. Luego 0x5ED0 decide reparto, honba y ronda: gana el que reparte, un honba mas y sigue; gana el otro, honba a cero y cambia el reparto (0x77F7) o, si ya repartia el 2, la ronda; y si la ronda era la del sur, bit 4 de 0xE1A8, se acabo la partida. 0xE062, las manos seguidas sin ganar el 1, sube si gana el 2 y vuelve a cero si gana el 1.
 C 0x5df9 el primer pendiente
 C 0x5dfd si esta a cero, no hay nada que mover por aqui
 C 0x5e00 cien puntos, en BCD
@@ -3032,12 +3032,12 @@ C 0x5b7d la tabla del que reparte
 C 0x5b82 o la del otro
 
 L 0x5B85 carga_el_pago
-B 0x5B85 Lee la palabra que toca (0x5C7F le suma 300 por honba), la deja en los dos pendientes de 0x5DF9 (0xE1B1 y 0xE1E4) y la pinta en 0x38E8. Si es TSUMO (bit 0 de 0xE1D1) vuelve a sacarla de las tablas "al robar": 0x5DEF para los yakuman, 0x5DDD para la mano limite y 0x5D83 para el resto, con 100 por honba, y esa es la que se mueve de verdad (0xE1B1).
+B 0x5B85 Lee la palabra que toca (0x5C7F le suma 300 por honba), la deja en los dos pendientes de 0x5DF9 -0xE1B1, lo que paga el perdedor, y 0xE1E4, lo que cobra el ganador- y la pinta en 0x38E8. Si es TSUMO (bit 0 de 0xE1D1) vuelve a sacarla de las tablas "al robar" -0x5DEF para los yakuman, 0x5DDD para la mano limite y 0x5D83 para el resto, con 100 por honba- y la deja SOLO en 0xE1B1: el perdedor paga la parte de un jugador y el ganador cobra la cifra entera del ron. La pantalla del recuento imprime las dos, HARAI (lo pagado) y TOKUTEN (lo cobrado). Medido en el demo: 6.000 y 18.000.
 C 0x5b85 la palabra, mas 300 por honba
 C 0x5b88 los dos pendientes del pago
 C 0x5b90 0x38E8: donde se pinta
 C 0x5b96 tres bytes: seis cifras
-C 0x5b9e con ron, este es el pago
+C 0x5b9e con ron, los dos pendientes iguales: se paga lo que se cobra
 C 0x5ba3 tsumo con yakuman: por 0x5BCD
 C 0x5ba9 tsumo con mano limite: por 0x5BD4
 C 0x5bac la fila de los fu otra vez
@@ -3045,7 +3045,7 @@ C 0x5baf la tabla del tsumo
 C 0x5bb5 la palabra
 C 0x5bbb mas 100 por honba
 C 0x5bbf en BCD
-C 0x5bc8 lo que se mueve es esto
+C 0x5bc8 solo el pendiente del perdedor; el ganador sigue cobrando lo de 0xE1E4
 C 0x5bcf tsumo con yakuman: 16.000, 32.000...
 C 0x5bd6 tsumo con mano limite: 4.000, 6.000, 6.000, 8.000...
 
@@ -3125,3 +3125,41 @@ C 0x8155 sin cuartetos
 C 0x8301 diecinueve bytes
 
 C 0x7e57 cinco bytes por cuarteto
+
+# --- tanda 21 (2026-08-28): las cinco afirmaciones del agente, comprobadas; el cierre de la mano ---
+C 0x5136 0xE1D1 = 1 si reparte el 1: el que reparte empieza con la decimocuarta ficha en la mano, como recien robada; 0xE22A es lo mismo para el 2
+C 0x543f el 1 descarta: bit 0 de 0xE1D1 a cero, ya no tiene ficha robada; si ahora gana es RON
+C 0x5611 el 1 va a robar: bit 0 de 0xE1D1 puesto; si gana con esa ficha es TSUMO
+C 0x549f el 2 va a robar: 0xE22A = 1, su marca de tsumo
+C 0x557b el 2 descarta: 0xE22A a cero
+C 0x56df y 0xE1D1 a cero: la marca del 1, que 0x56EE y 0x5764 pisan con la del 2 al evaluar la mano de la maquina
+C 0x56ee la marca de tsumo de la maquina, en 0xE1D1, que es lo que lee el evaluador
+C 0x5764 el evaluador lee 0xE1D1: se le pone la marca de tsumo del 2
+C 0x5e7b bits 0 o 2 de 0xE302, sin ganador: no hay palos que cobrar
+C 0x5e83 0xE04A: los palos de riichi que hay en la mesa; ninguno, a 0x5ED0
+C 0x5e89 uno cada 32 fotogramas
+C 0x5e8f bit 1 de 0xE302: ha ganado el 2
+C 0x5e96 bit 0 de 0xE04C: ronda del sur
+C 0x5e9c y reparte el 2: la mano que cierra la partida, el 1 se lleva los palos este o no en riichi
+C 0x5e9f el 1: bit 0 de 0xE1CD, su riichi
+C 0x5ea4 el 2: bit 0 de 0xE1AE, el suyo
+C 0x5ea8 sin riichi, los palos se quedan en la mesa
+C 0x5eab un palo menos, en BCD
+C 0x5eaf y el contador repintado
+C 0x5eb4 sonido 2
+C 0x5eb7 diez veces cien: los mil puntos del palo
+C 0x5ec0 al marcador del ganador: 0xE047 el 1, 0xE044 el 2
+C 0x5ed3 sin ganador no hay nada que decidir aqui: reparto y honba los movio 0x77CD
+C 0x5edb el bit 1 al acarreo: quien ha ganado
+C 0x5ee1 gana el 2: una mano mas sin ganar el 1
+C 0x5ee5 bit 0 de 0xE04D: reparte el 2
+C 0x5eeb repartia el 1: honba a cero
+C 0x5eed y el reparto pasa al 2
+C 0x5ef2 gana el 1: 0xE062 a cero, y con el la siembra de 0x48E1
+C 0x5ef7 repartia el 1: un honba mas
+C 0x5efd repartia el 2 en el este: cambia la ronda
+C 0x5f03 en el sur: bit 4 de 0xE1A8, FIN DE LA PARTIDA; el demo entra aqui directo desde 0x5E75
+C 0x5f08 honba a cero
+C 0x5f0a y la ronda cambia, con el reparto
+C 0x5f0f el que reparte ha ganado: un honba mas y sigue repartiendo
+C 0x5f15 bit 3 de 0xE1A8: el pago ha terminado
