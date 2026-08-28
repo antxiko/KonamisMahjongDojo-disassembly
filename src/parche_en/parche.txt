@@ -189,3 +189,139 @@ once celdas a la derecha del nombre => catorce celdas: el campo del nombre son t
 36 "HOUTEI RON"
 37 "RINSHAN"
 38 "DORA+URA DORA"
+
+
+# =========================================================================
+# FASE 2a: LA BARRA DE LA MESA
+# =========================================================================
+# La franja central (filas 9 a 14) es lo unico que se lee mientras se juega:
+# que mano se esta jugando, cual es el dora, cuantos palos de riichi hay y con
+# que dificultad se juega. Todo eso esta en kanji y katakana.
+#
+# EL SITIO PARA LAS LETRAS. En este tercio no hay tiles libres de sobra: los
+# 256 los ocupan las fichas, seis tiles cada una (dos de ancho por tres de
+# alto). Lo que pasa es que las hileras de fichas caen a caballo de dos
+# tercios, asi que aqui solo se ve la fila de ABAJO de las fichas de arriba y
+# la de ARRIBA de las de abajo: LA FILA DEL MEDIO DE CADA FICHA NO SE DIBUJA
+# NUNCA EN ESTE TERCIO. En ese hueco es donde Konami metio su texto, y de ahi
+# salen las letras. Los 26 del alfabeto son los pares (b+2, b+3) de trece
+# fichas seguidas -comprobado contra DATA_primer_tile_de_cada_ficha- y llevan
+# de fabrica el color 0xF1, blanco sobre negro, que es el de la barra; las
+# siete de la dificultad son de otras cuatro fichas y llevan 0x91, rojo. Por
+# eso no hay que tocar la tabla de colores.
+
+# Con las letras dentro ya no cabe comprimido en su hueco (1558 bytes de
+# 1528), asi que el bloque se va entero a la zona libre y pinta_el_tablero
+# se reapunta.
+[patrones DATA_patrones_del_tablero_900 base=rom destino=0x6900 tiles=0x20-0xFF reubica=pinta_el_tablero]
+# El alfabeto de la barra: eran 本場 (72 73 78 79 7E 7F 84 85 8A 8B), 二 (90 91
+# 96 97), 一 (9C 9D A2 A3), 東 (A8 A9 AE AF) y 南 (B4 B5 BA BB).
+72 A@latina_del_cartucho
+73 B@latina_del_cartucho
+78 C@latina_del_cartucho
+79 D@latina_del_cartucho
+7E E@latina_del_cartucho
+7F F@latina_del_cartucho
+84 G@latina_del_cartucho
+85 H@latina_del_cartucho
+8A I@latina_del_cartucho
+8B J@latina_del_cartucho
+90 K@latina_del_cartucho
+91 L@latina_del_cartucho
+96 M@latina_del_cartucho
+97 N@latina_del_cartucho
+9C O@latina_del_cartucho
+9D P@latina_del_cartucho
+A2 Q@latina_del_cartucho
+A3 R@latina_del_cartucho
+A8 S@latina_del_cartucho
+A9 T@latina_del_cartucho
+AE U@latina_del_cartucho
+AF V@latina_del_cartucho
+B4 W@latina_del_cartucho
+B5 X@latina_del_cartucho
+BA Y@latina_del_cartucho
+BB Z@latina_del_cartucho
+# Y las siete letras rojas de los rotulos de dificultad: AMA, PRO y SEM.
+2A A@latina_del_cartucho
+2B M@latina_del_cartucho
+30 P@latina_del_cartucho
+31 R@latina_del_cartucho
+36 O@latina_del_cartucho
+37 S@latina_del_cartucho
+3C E@latina_del_cartucho
+
+
+# EL PANEL FIJO. El cartucho pone 局 (kyoku, la mano) pegado al viento, ドラ
+# encima de las dos fichas indicadoras, ウラ encima de la segunda, y 本場 al
+# lado del contador de honba.
+#
+# En ingles el 局 sobra: "EAST 1" ya lo dice, y el indicador -que se pinta
+# despues del panel- se queda con esas columnas. Las dos fichas indicadoras se
+# etiquetan cada una por su lado: la primera lleva DORA encima; la segunda,
+# que es el ura dora, lleva URA encima y DORA debajo, que es como se lee.
+# Los cuatro blancos tras el primer DORA borran la ドラ de la segunda ficha.
+
+[formatoA DATA_panel_de_la_ronda charset=barra]
+f9  c20  "URA"
+f10 c16  "DORA" {01 01 01 01}
+f14 c20  "DORA"
+f13 c12  "HONBA"
+
+
+# EL VIENTO Y LA MANO. Eran dos kanji de 16x16 en las filas 10 y 11 (東/南 y
+# 一/二), y con el 局 del panel formaban 東一局. En ingles caben en una sola
+# linea de siete celdas, empezando una columna antes para ganar sitio.
+
+[formatoA DATA_indicador_este_1 charset=barra]
+f10 c9  "EAST 1" {01}
+
+[formatoA DATA_indicador_este_2 charset=barra]
+f10 c9  "EAST 2" {01}
+
+[formatoA DATA_indicador_sur_1 charset=barra]
+f10 c9  "SOUTH 1"
+
+[formatoA DATA_indicador_sur_2 charset=barra]
+f10 c9  "SOUTH 2"
+
+
+# LOS PALOS DE RIICHI. El rotulo vive DENTRO de la caja de mensajes (columnas
+# 2 a 8 de las filas 10 a 13), asi que tiene que caber en esas siete celdas: si
+# se sale, las letras de fuera se quedan colgando cuando la caja se repinta
+# -medido, la primera version dejaba un "ICK" suelto en la columna 9-.
+#
+# El cartucho reparte esas siete celdas asi: el palo dibujado (tiles 42 43 48)
+# en c2-c4, el contador de dos cifras en c5-c6 y 本 -el clasificador numerico
+# japones, que en ingles no se dice- en c7-c8. En ingles la palabra no cabe
+# junto al dibujo, asi que el palo deja su sitio a las letras y el contador se
+# va al final con un byte de codigo: se lee "STICK 1".
+
+[formatoA DATA_rotulo_de_tres_trozos charset=barra]
+f12 c2  "STICK"
+
+# El contador de honba se pinta en f13 c10-c11 y HONBA empieza en c12, asi que
+# quedaban pegados: "0HONBA" (visto en el emulador). Una columna a la izquierda
+# y ya hay blanco entre la cifra y la palabra.
+
+[codigo pinta_el_contador_de_e04b]
+ld de,039aah => ld de,039a9h
+;4578 => ;4578   ; f13 c9: una columna a la izquierda, para que no se pegue a HONBA
+
+[codigo pinta_el_contador_de_e04a]
+ld de,03985h => ld de,03987h
+;4570 => ;4570   ; f12 c7: las dos cifras van detras de STICK
+
+
+# LA DIFICULTAD, en la columna de la derecha. El cartucho la marca con dos o
+# tres tiles sueltos en vertical -las iniciales de アマチュア, プロ y セミプロ-
+# y aqui se escriben las tres letras en horizontal, en rojo.
+
+[formatoA DATA_marca_a charset=dificultad]
+f11 c22  "AMA"
+
+[formatoA DATA_marca_b charset=dificultad]
+f11 c22  "PRO"
+
+[formatoA DATA_marca_c charset=dificultad]
+f11 c22  "SEM"

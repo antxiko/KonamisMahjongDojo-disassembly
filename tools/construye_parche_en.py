@@ -34,7 +34,7 @@ definen en una seccion [patrones] y se usan despues.
       con 0xFF y los huecos se rellenan con 0xFF.
 
   [patrones BLOQUE base=rom|vacio destino=0xVRAM tiles=0xINI-0xFIN
-            [cola=0xDIR reapunta=RUTINA]]
+            [cola=0xDIR reapunta=RUTINA] [reubica=RUTINA]]
       TILE glifo@fuente          un glifo de 8x8 de una fuente
       TILE-TILE glifo@fuente     un glifo GRANDE (16x24...) repartido por el rango
       TILE estrecho "AB"         dos letras de la fuente estrecha, en un tile;
@@ -42,7 +42,10 @@ definen en una seccion [patrones] y se usan despues.
       TILE {8 bytes hex}         el patron tal cual
       TILE copia=OTRO_TILE       el mismo patron que otro tile del bloque
       Con base=rom se parte de lo que tiene el cartucho descomprimido y solo
-      cambian los tiles nombrados. Sale comprimido en formato B. Con `cola`,
+      cambian los tiles nombrados. Sale comprimido en formato B. Si asi no cabe
+      en su hueco, `reubica=RUTINA` lo aparca en la zona libre y reapunta el
+      `ld hl` de RUTINA (el bloque lleva dentro su destino de VRAM, asi que se
+      puede leer desde cualquier sitio); no se puede juntar con `cola`. Con `cola`,
       el bloque se lee dos veces (entera y desde `cola`): se recomprimen solo
       los tiles de antes de la cola, la cola va con sus bytes originales y la
       instruccion de RUTINA que entraba por `cola` se reapunta.
@@ -586,6 +589,25 @@ def main():
                     informe.append("%-38s reapuntada: 0x%04X -> 0x%04X" % (rutina, cola, nueva_cola))
             else:
                 comp = formato_b.comprime([(destino, bytes(datos))])
+            if "reubica" in args:
+                # Comprimido ya no cabe en su hueco -las letras comprimen peor
+                # que los kanji-, asi que el bloque entero se va a la zona libre
+                # del final y el `ld hl` que lo carga se reapunta. El bloque
+                # lleva dentro su propio destino de VRAM, o sea que da igual
+                # desde donde se lea. El hueco original queda a 0xFF.
+                if "cola" in args:
+                    raise SystemExit("%s: reubica y cola no se pueden juntar" % bloque)
+                nuevo_org = mete_en_la_zona_libre(libre, bloque, comp)
+                rutina = args["reubica"]
+                escribe_fragmento(dir_salida, n, rutina,
+                                  sustituye(lineas_del_bloque(listado, rutina),
+                                            [("0%04xh" % ini, "0%04xh" % nuevo_org)], rutina))
+                escribe_fragmento(dir_salida, n, bloque,
+                                  ["; reubicado en 0x%04X: comprimido son %d bytes y su hueco %d"
+                                   % (nuevo_org, len(comp), tam)] + relleno(tam))
+                informe.append("%-38s %-8s %4d bytes -> 0x%04X (su hueco eran %d)"
+                               % (bloque, tipo, len(comp), nuevo_org, tam))
+                continue
             if len(comp) > tam:
                 raise SystemExit("%s: comprimido ocupa %d bytes y solo caben %d" % (bloque, len(comp), tam))
             lineas = defb(comp, "%s: %d tiles a 0x%04X, %d de %d bytes comprimido"
