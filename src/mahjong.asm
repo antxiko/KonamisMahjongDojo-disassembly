@@ -538,7 +538,7 @@ L_42A8:
 submodo_3_del_estado_11:
 	call pinta_una_franja_del_tapete		;42ae   ; sigue pintando la mesa hasta que el reloj se agote
 	ret p			;42b1
-	call L_5A46		;42b2
+	call monta_la_pantalla_del_recuento		;42b2
 	ld a,(0e302h)		;42b5   ; bit 1 de 0xE302
 	bit 1,a		;42b8
 	jr nz,L_42C1		;42ba
@@ -1817,30 +1817,34 @@ DATA_dos_repartos_fijos:
 ; ======================================================================
 
 
-L_49C6:
+
+; ----------------------------------------------------------------------
+; LA AYUDA DE LA DIFICULTAD 1: con la tecla 1 (bit 0 de 0xE040) y el 1 en riichi (bit 0 de 0xE1CD), devuelve acarreo si la ficha A es una de sus esperas (0xE1F5, hasta el cero final). Lo usan 0x52C0 (no le deja descartar una ficha con la que gana) y 0x55F9 (le avisa de que el descarte de la maquina le da ron). En las otras dificultades nunca avisa.
+; ----------------------------------------------------------------------
+avisa_si_es_espera_en_amachua:
 	ld c,a			;49c6
 	ld a,(0e040h)		;49c7
-	rra			;49ca
+	rra			;49ca   ; bit 0 de 0xE040: solo con la tecla 1
 	ret nc			;49cb
 	ld a,(0e1cdh)		;49cc
-	rra			;49cf
+	rra			;49cf   ; bit 0 de 0xE1CD: y en riichi
 	ret nc			;49d0
 	ld a,c			;49d1
 	ld hl,0e1f5h		;49d2
-	ld b,00dh		;49d5
+	ld b,00dh		;49d5   ; trece esperas como mucho
 L_49D7:
 	inc (hl)			;49d7
 	dec (hl)			;49d8
-	jr z,L_49E1		;49d9
+	jr z,L_49E1		;49d9   ; el cero del final: no esta
 	cp (hl)			;49db
-	jr z,L_49E3		;49dc
+	jr z,L_49E3		;49dc   ; esta
 	inc hl			;49de
 	djnz L_49D7		;49df
 L_49E1:
-	or a			;49e1
+	or a			;49e1   ; sin acarreo: no
 	ret			;49e2
 L_49E3:
-	scf			;49e3
+	scf			;49e3   ; acarreo: es una espera
 	ret			;49e4
 
 ; ----------------------------------------------------------------------
@@ -2184,7 +2188,7 @@ monta_la_mano:
 	ldir		;4c64
 	call pinta_el_tablero		;4c66
 	call pinta_la_barra_de_arriba		;4c69
-	call L_5A67		;4c6c
+	call pinta_el_marcador_de_la_mano		;4c6c
 	xor a			;4c6f
 	ld (0e127h),a		;4c70
 	ld a,(0e04bh)		;4c73
@@ -2721,7 +2725,7 @@ L_4FFC:
 	ld de,0e32bh		;4ffc
 	ld bc,00012h		;4fff   ; dieciocho bytes de mano
 	ldir		;5002
-	call L_517A		;5004   ; y a jugar
+	call carga_las_variables_del_que_juega		;5004   ; y a jugar
 	ld a,(0e206h)		;5007
 	rra			;500a
 	jr c,L_5013		;500b
@@ -2739,9 +2743,9 @@ L_501F:
 	ldir		;5025   ; la mano jugada vuelve a su sitio
 	ld a,(0e1a9h)		;5027
 	cp 0ffh		;502a   ; 0xFF: caso aparte
-	jp z,L_5661		;502c
+	jp z,espera_y_cierra_la_mano		;502c
 	or a			;502f
-	jp nz,L_56B6		;5030
+	jp nz,la_maquina_decide_si_canta		;5030
 	ld hl,0e1c7h		;5033
 	bit 0,(hl)		;5036   ; bit 0 de 0xE1C7
 	jr z,despacha_la_fase_de_la_mano		;5038
@@ -2767,7 +2771,7 @@ L_505B:
 	jr c,L_50A4		;5062
 	ld a,(0e206h)		;5064
 	rra			;5067
-	jp c,L_5661		;5068
+	jp c,espera_y_cierra_la_mano		;5068
 	ld hl,0e1cch		;506b
 	ld a,(0e1beh)		;506e
 	inc a			;5071
@@ -2776,25 +2780,25 @@ L_505B:
 	xor a			;5075
 	ld (0e1cdh),a		;5076   ; no cuadra: se olvida lo apuntado
 L_5079:
-	ld a,040h		;5079
+	ld a,040h		;5079   ; 0x40: gano el 1; se va a destapar la mano de la maquina
 	ld (0e1a9h),a		;507b   ; 0x40 en 0xE1A9
 	ld a,(0e1beh)		;507e
 	cp 00ah		;5081   ; diez fichas
-	jp nc,L_56F7		;5083
-	call L_583C		;5086
+	jp nc,destapa_la_mano_de_la_maquina		;5083   ; con diez o mas se destapa tal cual
+	call sortea_el_descarte_de_la_maquina		;5086   ; con menos, se sortea una ficha
 	ld a,(0e208h)		;5089
 	push af			;508c
 	dec a			;508d
 	ld hl,0e14ch		;508e
 	call suma_a_a_hl		;5091
 	ld a,(0e22bh)		;5094
-	ld (hl),a			;5097
+	ld (hl),a			;5097   ; que pisa el penultimo hueco de la mano de la maquina antes de destaparla
 	pop af			;5098
 	inc a			;5099
 	ld b,a			;509a
 	ld hl,0e14ch		;509b
 	call L_4F9B		;509e   ; y se reordena la mano con lo nuevo
-	jp L_56F7		;50a1
+	jp destapa_la_mano_de_la_maquina		;50a1
 L_50A4:
 	call limpia_el_analisis		;50a4
 
@@ -2818,20 +2822,20 @@ despacha_la_fase_de_la_mano:
 	rra			;50ba   ; bit 0
 	jp nc,arranca_la_mano		;50bb
 	rra			;50be   ; bit 1
-	jp nc,L_527F		;50bf
+	jp nc,fase_1_elige_el_descarte		;50bf
 	rra			;50c2   ; bit 2
-	jp nc,L_535E		;50c3
+	jp nc,fase_2_riichi_y_furiten		;50c3
 	rra			;50c6   ; bit 3
-	jp nc,L_540C		;50c7
+	jp nc,fase_3_ordena_la_mano		;50c7
 	rra			;50ca   ; bit 4
-	jp nc,L_5436		;50cb
+	jp nc,fase_4_el_descarte_al_rio		;50cb
 	rra			;50ce   ; bit 5
-	jp nc,L_5460		;50cf
+	jp nc,fase_5_roba_la_maquina		;50cf
 	rra			;50d2   ; bit 6
-	jp nc,L_54EB		;50d3
+	jp nc,fase_6_descarta_la_maquina		;50d3
 	rra			;50d6   ; bit 7
-	jp nc,L_55A2		;50d7
-	jp L_5654		;50da   ; los ocho puestos
+	jp nc,fase_7_tras_el_descarte_de_la_maquina		;50d7
+	jp agota_la_mano		;50da   ; los ocho puestos
 
 ; ----------------------------------------------------------------------
 ; Pone en pie todos los contadores de una mano nueva: los dos limites de 0xE1C0, la cantidad de la DIFICULTAD sumada a 0xE33D, los contadores a 13, los indices a 0xFF y 0x12, y de quien es el turno. Es el punto donde la dificultad elegida se convierte por fin en un numero que el juego usa.
@@ -2884,61 +2888,73 @@ L_510D:
 	xor 001h		;5134   ; y el contrario
 	ld (0e1d1h),a		;5136   ; 0xE1D1 = 1 si reparte el 1: el que reparte empieza con la decimocuarta ficha en la mano, como recien robada; 0xE22A es lo mismo para el 2
 	or a			;5139
-	jr nz,L_5144		;513a
+	jr nz,prepara_la_mesa_de_la_mano		;513a
 	ld a,03fh		;513c
 	ld (0e1aah),a		;513e   ; 0x3F: las seis fases de la mano por hacer
-	call L_598F		;5141
-L_5144:
-	ld hl,0e240h		;5144
+	call sortea_hasta_que_no_sea_espera		;5141
+
+; ----------------------------------------------------------------------
+; La segunda mitad del arranque de la mano (cae desde 0x50DD): borra los 118 bytes de 0xE240-0xE2B5 -las figuras guardadas de los dos jugadores-, carga los 22 atributos de sprite de 0x51F4 en 0xE0A8 (los dos del cursor, los palos de riichi, la marca de la robada), manda los patrones de sprite de 0x524C a la VRAM, esconde los sprites 4 a 21 (Y = 0xE0) escribiendo 0x5204 en 0x3B10, pone el reloj 0xE052 a cero y da por hecha la fase 0 (bit 0 de 0xE1AA). Si reparte el 2, 0x513E ya habia puesto 0xE1AA = 0x3F, asi que la fase siguiente es la 6: la maquina descarta primero.
+; ----------------------------------------------------------------------
+prepara_la_mesa_de_la_mano:
+	ld hl,0e240h		;5144   ; 0xE240-0xE2B5: las figuras guardadas de los dos, a cero
 	ld de,0e241h		;5147
 	ld (hl),000h		;514a
 	ld bc,00076h		;514c   ; 118 bytes de trabajo a cero
 	ldir		;514f
-	ld hl,051f4h		;5151
+	ld hl,051f4h		;5151   ; los 22 atributos de sprite de 0x51F4, a 0xE0A8
 	ld de,0e0a8h		;5154
 	ld bc,00058h		;5157
 	ldir		;515a
 	ld hl,0524ch		;515c
-	call pinta_lista_formato_b		;515f
-	ld hl,05204h		;5162
+	call pinta_lista_formato_b		;515f   ; los patrones de sprite, a 0x1800
+	ld hl,05204h		;5162   ; los sprites 4 a 21 escondidos en Y = 0xE0, a 0x3B10
 	ld de,03b10h		;5165
 	ld bc,00048h		;5168
 	call L_460B		;516b
-	ld hl,00000h		;516e
+	ld hl,00000h		;516e   ; el reloj de la fase, a cero
 	ld (0e052h),hl		;5171
 	ld hl,0e1aah		;5174
-	set 0,(hl)		;5177
+	set 0,(hl)		;5177   ; fase 0 hecha
 	ret			;5179
-L_517A:
-	ld a,(0e1c2h)		;517a
+
+; ----------------------------------------------------------------------
+; EL CAMBIO DE JUGADOR, ida: copia a las variables COMPARTIDAS del turno las del jugador que toca. Primero siempre las del 1 (cursor 0xE1C2 a 0xE209, hueco de la robada 0xE1C3 a 0xE20A, ultimo hueco 0xE1CE a 0xE20B, marca de tsumo 0xE1D1 a 0xE22C, riichi y esperas 0xE1CD a 0xE33E) y, si el bit 0 de 0xE206 dice que juega el 2, encima las suyas (0xE207, 0xE208, 0xE20C, 0xE22A, 0xE1AE). Asi el menu, las llamadas y el motor trabajan con una sola copia sin saber de quien es. La vuelta es 0x51BC. Lo llaman 0x5004 (cada turno) y 0x582E (la maquina usando el menu).
+; ----------------------------------------------------------------------
+carga_las_variables_del_que_juega:
+	ld a,(0e1c2h)		;517a   ; el cursor del 1
 	ld (0e209h),a		;517d
-	ld a,(0e1c3h)		;5180
+	ld a,(0e1c3h)		;5180   ; el hueco de su ficha robada
 	ld (0e20ah),a		;5183
-	ld a,(0e1ceh)		;5186
+	ld a,(0e1ceh)		;5186   ; el ultimo hueco antes de las figuras
 	ld (0e20bh),a		;5189
-	ld a,(0e1d1h)		;518c
+	ld a,(0e1d1h)		;518c   ; su marca de tsumo
 	ld (0e22ch),a		;518f
-	ld a,(0e1cdh)		;5192
+	ld a,(0e1cdh)		;5192   ; su riichi y sus esperas
 	ld (0e33eh),a		;5195
 	ld a,(0e206h)		;5198
-	rra			;519b
+	rra			;519b   ; bit 0 de 0xE206: juega el 2
 	ret nc			;519c
-	ld a,(0e207h)		;519d
+	ld a,(0e207h)		;519d   ; y si es el 2, las suyas encima
 	ld (0e209h),a		;51a0
 	ld a,(0e208h)		;51a3
 	ld (0e20ah),a		;51a6
 	ld a,(0e20ch)		;51a9
 	ld (0e20bh),a		;51ac
-	ld a,(0e22ah)		;51af
+	ld a,(0e22ah)		;51af   ; la marca de tsumo del 2, 0xE22A
 	ld (0e22ch),a		;51b2
-	ld a,(0e1aeh)		;51b5
+	ld a,(0e1aeh)		;51b5   ; y su riichi, 0xE1AE
 	ld (0e33eh),a		;51b8
 	ret			;51bb
-L_51BC:
+
+; ----------------------------------------------------------------------
+; EL CAMBIO DE JUGADOR, vuelta: devuelve las variables compartidas a las del jugador que toca, al reves que 0x517A: al 1 (0x51C2) o al 2 (0x51DB). Lo llaman 0x5287, 0x55D3 y 0x5834, siempre justo despues de 0x663C, el despachador de llamadas, que es quien las cambia.
+; ----------------------------------------------------------------------
+guarda_las_variables_del_que_juega:
 	ld a,(0e206h)		;51bc
-	rra			;51bf
+	rra			;51bf   ; bit 0 de 0xE206: juega el 2
 	jr c,L_51DB		;51c0
-	ld a,(0e209h)		;51c2
+	ld a,(0e209h)		;51c2   ; al 1: cursor, hueco de la robada, ultimo hueco y riichi/esperas
 	ld (0e1c2h),a		;51c5
 	ld a,(0e20ah)		;51c8
 	ld (0e1c3h),a		;51cb
@@ -2948,7 +2964,7 @@ L_51BC:
 	ld (0e1cdh),a		;51d7
 	ret			;51da
 L_51DB:
-	ld a,(0e209h)		;51db
+	ld a,(0e209h)		;51db   ; al 2: lo mismo en las suyas
 	ld (0e207h),a		;51de
 	ld a,(0e20ah)		;51e1
 	ld (0e208h),a		;51e4
@@ -3002,99 +3018,107 @@ DATA_patrones_de_sprite:
 ; ======================================================================
 
 
-L_527F:
-	ld a,001h		;527f
+
+; ----------------------------------------------------------------------
+; FASE 1 DEL TURNO DEL JUGADOR 1: ELEGIR EL DESCARTE (bit 1 de 0xE1AA). Cada cuadro: el dibujo 1 del rincon, el despachador de llamadas de 0x663C por si ha pedido riichi, pon, chi o kan en el menu, y la vuelta de las variables. Si 0xE1AA sale a 0xFF de ahi es que ha hecho kan: roba la de reposicion por 0x5603. En las dificultades 2 y 3 (bits 1 y 2 de 0xE040) corre un reloj: a los 420 cuadros suena el 8 y a los 600 el descarte sale solo, el que tenga el cursor. Si no, espera al flanco de la tecla (bit 0 de 0xE23A). Con la ficha elegida (0xE1BC = la del cursor 0xE1C2), 0x49C6 puede avisar -dificultad 1, en riichi, la ficha es una espera- y entonces el dibujo 2 y no pasa; si no, bit 1 puesto y a la fase 2. Mientras tanto 0x52D1 mueve el cursor.
+; ----------------------------------------------------------------------
+fase_1_elige_el_descarte:
+	ld a,001h		;527f   ; el dibujo 1 del rincon
 	call pinta_uno_de_los_tres_dibujos		;5281
-	call despacha_la_llamada		;5284
-	call L_51BC		;5287
+	call despacha_la_llamada		;5284   ; riichi, pon, chi o kan, si los ha pedido en el menu
+	call guarda_las_variables_del_que_juega		;5287   ; y las variables de vuelta a las del 1
 	ld a,(0e1aah)		;528a
-	cp 0ffh		;528d
-	jp z,L_5603		;528f
+	cp 0ffh		;528d   ; 0xFF: ha hecho kan, roba la de reposicion
+	jp z,roba_el_jugador_1		;528f
 	ld a,(0e040h)		;5292
 	rra			;5295
-	rra			;5296
+	rra			;5296   ; bits 1 y 2 de 0xE040: dificultades 2 y 3, con reloj
 	jr nc,L_52AD		;5297
-	ld hl,001a4h		;5299
-	call L_5636		;529c
-	jr nc,L_52AD		;529f
+	ld hl,001a4h		;5299   ; 420 cuadros
+	call resta_el_reloj_a_hl		;529c
+	jr nc,L_52AD		;529f   ; aun no
 	ld a,008h		;52a1
-	call L_9C4A		;52a3
-	ld hl,00258h		;52a6
+	call L_9C4A		;52a3   ; sonido 8: el aviso
+	ld hl,00258h		;52a6   ; 600 cuadros: el descarte sale solo
 	sbc hl,de		;52a9
 	jr c,L_52B3		;52ab
 L_52AD:
 	ld a,(0e23ah)		;52ad
-	rra			;52b0
-	jr nc,L_52D1		;52b1
+	rra			;52b0   ; bit 0 de 0xE23A: flanco de la tecla
+	jr nc,mueve_el_cursor_de_la_mano		;52b1
 L_52B3:
-	ld a,(0e1c2h)		;52b3
+	ld a,(0e1c2h)		;52b3   ; la ficha del cursor
 	ld hl,0e13ah		;52b6
 	call suma_a_a_hl		;52b9
 	ld a,(hl)			;52bc
-	ld (0e1bch),a		;52bd
-	call L_49C6		;52c0
+	ld (0e1bch),a		;52bd   ; 0xE1BC = la ficha elegida
+	call avisa_si_es_espera_en_amachua		;52c0   ; el aviso de la dificultad 1: es una espera
 	jr nc,L_52CA		;52c3
 	ld a,002h		;52c5
-	jp pinta_uno_de_los_tres_dibujos		;52c7
+	jp pinta_uno_de_los_tres_dibujos		;52c7   ; el dibujo 2, y no pasa
 L_52CA:
 	ld hl,0e1aah		;52ca
-	set 1,(hl)		;52cd
-	jr L_5334		;52cf
-L_52D1:
+	set 1,(hl)		;52cd   ; fase 1 hecha
+	jr L_5334		;52cf   ; y el cursor pintado
+
+; ----------------------------------------------------------------------
+; El cursor sobre la mano del 1, cada ocho cuadros. En riichi con esperas (0xE1CD = 0x81) el cursor se clava en la ficha robada (0xE1C3): solo se puede descartar esa. Si no, el bit 2 de 0xE009 lo baja un hueco y el bit 3 lo sube, dando la vuelta por los extremos, con el sonido 5. Luego 0x5324 pone la X de los dos sprites del cursor (0xE0A9 y 0xE0AD) con la tabla de multiplos de 16 y 0x5334 los manda a 0x3B00, con los sprites 2 y 3 escondidos.
+; ----------------------------------------------------------------------
+mueve_el_cursor_de_la_mano:
 	ld a,(0e003h)		;52d1
-	and 007h		;52d4
+	and 007h		;52d4   ; cada ocho cuadros
 	ret nz			;52d6
 	ld a,(0e1cdh)		;52d7
-	cp 081h		;52da
+	cp 081h		;52da   ; 0x81: en riichi y con esperas, el cursor se clava en la robada
 	jr nz,L_52E6		;52dc
 	ld a,(0e1c3h)		;52de
 	ld (0e1c2h),a		;52e1
 	jr L_5324		;52e4
 L_52E6:
 	ld hl,0e009h		;52e6
-	bit 2,(hl)		;52e9
+	bit 2,(hl)		;52e9   ; bit 2 de 0xE009: un hueco hacia abajo
 	jr z,L_5305		;52eb
 	ld a,005h		;52ed
-	call L_9C4A		;52ef
+	call L_9C4A		;52ef   ; sonido 5
 	ld a,(0e1c2h)		;52f2
-	dec a			;52f5
+	dec a			;52f5   ; cursor - 1
 	ld (0e1c2h),a		;52f6
 	or a			;52f9
-	jp p,L_5324		;52fa
+	jp p,L_5324		;52fa   ; por debajo de cero: a la robada, la ultima
 	ld a,(0e1c3h)		;52fd
 	ld (0e1c2h),a		;5300
 	jr L_5324		;5303
 L_5305:
 	ld hl,0e009h		;5305
-	bit 3,(hl)		;5308
+	bit 3,(hl)		;5308   ; bit 3 de 0xE009: un hueco hacia arriba
 	jr z,L_5324		;530a
 	ld a,005h		;530c
 	call L_9C4A		;530e
 	ld a,(0e1c2h)		;5311
-	inc a			;5314
+	inc a			;5314   ; cursor + 1
 	ld hl,0e1c3h		;5315
 	ld (0e1c2h),a		;5318
-	cp (hl)			;531b
+	cp (hl)			;531b   ; pasa de la robada: al cero
 	jr c,L_5324		;531c
 	jr z,L_5324		;531e
 	xor a			;5320
 	ld (0e1c2h),a		;5321
 L_5324:
 	ld a,(0e1c2h)		;5324
-	ld hl,05350h		;5327
+	ld hl,05350h		;5327   ; la X: multiplos de 16
 	call suma_a_a_hl		;532a
 	ld a,(hl)			;532d
-	ld (0e0a9h),a		;532e
+	ld (0e0a9h),a		;532e   ; los dos sprites del cursor
 	ld (0e0adh),a		;5331
 L_5334:
 	ld a,0e0h		;5334
-	ld de,03b08h		;5336
+	ld de,03b08h		;5336   ; los sprites 2 y 3 escondidos en Y = 0xE0
 	call escribe_en_vram		;5339
 	ld a,0e0h		;533c
 	ld de,03b0ch		;533e
 	call escribe_en_vram		;5341
 	ld hl,0e0a8h		;5344
-	ld de,03b00h		;5347
+	ld de,03b00h		;5347   ; y los atributos de los cuatro primeros, a 0x3B00
 	ld bc,00008h		;534a
 	jp L_460B		;534d
 
@@ -3111,24 +3135,28 @@ DATA_multiplos_de_dieciseis:
 ; ======================================================================
 
 
-L_535E:
+
+; ----------------------------------------------------------------------
+; FASE 2: LA COMPROBACION DEL RIICHI (bit 2 de 0xE1AA), cada cuatro cuadros. Si el 1 no ha pedido riichi (bit 0 de 0xE1CD) o ya hay furiten marcado (bit 6), la ficha se quita sin mas por 0x53C7. Con riichi pedido, se calculan las esperas de la mano que queda (0x66E7) y sin ninguna (bit 7) se rechaza por 0x5378. Con esperas, en la dificultad 1 (bit 0 de 0xE040) se mira el furiten -la ficha que descarta es una de sus esperas, o alguna espera esta en su rio- y tambien se rechaza; en las 2 y 3 no se mira y se paga: 0x53B8, mil puntos a la mesa. Luego 0x53C7 saca la ficha de la mano, repinta y, con riichi, pone el palo como sprite sobre el descarte.
+; ----------------------------------------------------------------------
+fase_2_riichi_y_furiten:
 	ld a,(0e003h)		;535e
-	and 003h		;5361
+	and 003h		;5361   ; cada cuatro cuadros
 	ret nz			;5363
 	ld a,(0e1cdh)		;5364
-	rra			;5367
-	jr nc,L_53C7		;5368
+	rra			;5367   ; bit 0 de 0xE1CD: ha pedido riichi
+	jr nc,quita_el_descarte_de_la_mano		;5368
 	bit 6,a		;536a
-	jr nz,L_53C7		;536c
-	call L_66E7		;536e
+	jr nz,quita_el_descarte_de_la_mano		;536c   ; bit 6: ya hay furiten marcado, no se mira mas
+	call L_66E7		;536e   ; las esperas de lo que queda
 	ld a,(0e1cdh)		;5371
-	sla a		;5374
+	sla a		;5374   ; bit 7 al acarreo: tiene esperas
 	jr c,L_539A		;5376
-L_5378:
-	ld a,002h		;5378
+rechaza_el_riichi:
+	ld a,002h		;5378   ; SE RECHAZA EL RIICHI: el dibujo 2
 	call pinta_uno_de_los_tres_dibujos		;537a
 	ld b,004h		;537d
-	ld de,03b10h		;537f
+	ld de,03b10h		;537f   ; los cuatro sprites del cursor escondidos
 L_5382:
 	ld a,0e0h		;5382
 	push de			;5384
@@ -3138,406 +3166,470 @@ L_5382:
 	call suma_a_a_de		;538b
 	djnz L_5382		;538e
 	xor a			;5390
-	ld (0e1cdh),a		;5391
+	ld (0e1cdh),a		;5391   ; 0xE1CD a cero: riichi y esperas olvidados
 	ld hl,0e1aah		;5394
-	res 1,(hl)		;5397
+	res 1,(hl)		;5397   ; y vuelta a la fase 1
 	ret			;5399
 L_539A:
 	ld a,(0e040h)		;539a
-	rra			;539d
-	jr nc,L_53B8		;539e
+	rra			;539d   ; bit 0 de 0xE040: solo la dificultad 1 mira el furiten
+	jr nc,paga_el_riichi_el_1		;539e
 	ld a,(0e1bch)		;53a0
 	ld hl,0e1f5h		;53a3
 	ld b,00dh		;53a6
-	call busca_en_la_mano		;53a8
+	call busca_en_la_mano		;53a8   ; la ficha que descarta, en la lista de esperas 0xE1F5
 	cp (hl)			;53ab
-	jr z,L_5378		;53ac
-	call busca_en_las_dos_listas		;53ae
+	jr z,rechaza_el_riichi		;53ac   ; esta: furiten, se rechaza
+	call busca_en_las_dos_listas		;53ae   ; las esperas contra su rio
 	ld a,(0e1cdh)		;53b1
-	and 040h		;53b4
-	jr nz,L_5378		;53b6
-L_53B8:
-	ld de,01000h		;53b8
+	and 040h		;53b4   ; bit 6: coincidencia, furiten
+	jr nz,rechaza_el_riichi		;53b6
+paga_el_riichi_el_1:
+	ld de,01000h		;53b8   ; EL RIICHI DEL JUGADOR 1: mil puntos
 	call cobra_mil_el_de_e047		;53bb
 	ld a,(0e04ah)		;53be
-	add a,001h		;53c1
+	add a,001h		;53c1   ; y un palo mas en la mesa, en BCD
 	daa			;53c3
 	ld (0e04ah),a		;53c4
-L_53C7:
-	ld a,(0e1c2h)		;53c7
+quita_el_descarte_de_la_mano:
+	ld a,(0e1c2h)		;53c7   ; el hueco del cursor
 	ld hl,0e13ah		;53ca
 	call suma_a_a_hl		;53cd
-	ld (hl),039h		;53d0
+	ld (hl),039h		;53d0   ; 0x39: se vacia
 	call pinta_la_mano_del_jugador_1		;53d2
 	ld a,(0e1cdh)		;53d5
-	rra			;53d8
+	rra			;53d8   ; sin riichi, listo
 	jr nc,L_5402		;53d9
 	ld hl,0e0d8h		;53db
-	ld (hl),090h		;53de
+	ld (hl),090h		;53de   ; el palo de riichi como sprite: fila 0x90, primera fila del rio
 	ld a,(0e1cch)		;53e0
-	cp 00ah		;53e3
+	cp 00ah		;53e3   ; del descarte 10 en adelante
 	jr c,L_53EB		;53e5
 	sub 00ah		;53e7
-	ld (hl),0a8h		;53e9
+	ld (hl),0a8h		;53e9   ; la segunda fila, 0xA8
 L_53EB:
-	ld hl,05350h		;53eb
+	ld hl,05350h		;53eb   ; la X del descarte
 	call suma_a_a_hl		;53ee
 	ld a,(hl)			;53f1
 	ld hl,0e0d9h		;53f2
 	ld (hl),a			;53f5
 	ld hl,0e0d8h		;53f6
-	ld de,03b30h		;53f9
+	ld de,03b30h		;53f9   ; el sprite 12, a 0x3B30
 	ld bc,00004h		;53fc
 	call L_460B		;53ff
 L_5402:
 	xor a			;5402
-	ld (0e1cfh),a		;5403
+	ld (0e1cfh),a		;5403   ; 0xE1CF a cero: la marca del rinshan
 	ld hl,0e1aah		;5406
-	set 2,(hl)		;5409
+	set 2,(hl)		;5409   ; fase 2 hecha
 	ret			;540b
-L_540C:
+
+; ----------------------------------------------------------------------
+; FASE 3 (bit 3 de 0xE1AA), cada ocho cuadros: ordena los catorce huecos del 1 con 0x4F9B -el hueco vacio 0x39 cae al final-, repinta la mano y esconde los dos sprites del cursor.
+; ----------------------------------------------------------------------
+fase_3_ordena_la_mano:
 	ld a,(0e003h)		;540c
-	and 007h		;540f
+	and 007h		;540f   ; cada ocho cuadros
 	ret nz			;5411
 	ld a,(0e1c3h)		;5412
-	inc a			;5415
+	inc a			;5415   ; catorce huecos
 	ld b,a			;5416
 	ld hl,0e13ah		;5417
-	call L_4F9B		;541a
+	call L_4F9B		;541a   ; ordenados: el 0x39 vacio cae al final
 	call pinta_la_mano_del_jugador_1		;541d
 	ld a,0e0h		;5420
-	ld de,03b00h		;5422
+	ld de,03b00h		;5422   ; los dos sprites del cursor escondidos
 	call escribe_en_vram		;5425
 	ld a,0e0h		;5428
 	ld de,03b04h		;542a
 	call escribe_en_vram		;542d
 	ld hl,0e1aah		;5430
-	set 3,(hl)		;5433
+	set 3,(hl)		;5433   ; fase 3 hecha
 	ret			;5435
-L_5436:
+
+; ----------------------------------------------------------------------
+; FASE 4 (bit 4 de 0xE1AA), cada ocho cuadros: la ficha elegida (0xE1BC) va al rio del 1 (0xE15E, indice 0xE1BE) con el sonido 6, y se baja la marca de tsumo. Es la unica fase que la escribe.
+; ----------------------------------------------------------------------
+fase_4_el_descarte_al_rio:
 	ld a,(0e003h)		;5436
-	and 007h		;5439
+	and 007h		;5439   ; cada ocho cuadros
 	ret nz			;543b
 	ld hl,0e1d1h		;543c
 	res 0,(hl)		;543f   ; el 1 descarta: bit 0 de 0xE1D1 a cero, ya no tiene ficha robada; si ahora gana es RON
 	ld a,006h		;5441
-	call L_9C4A		;5443
+	call L_9C4A		;5443   ; sonido 6
 	ld hl,0e1beh		;5446
-	inc (hl)			;5449
+	inc (hl)			;5449   ; un descarte mas
 	ld a,(0e1beh)		;544a
 	ld hl,0e15eh		;544d
-	call suma_a_a_hl		;5450
+	call suma_a_a_hl		;5450   ; su hueco en el rio
 	ld a,(0e1bch)		;5453
-	ld (hl),a			;5456
+	ld (hl),a			;5456   ; la ficha
 	call pinta_el_rio_del_jugador_1		;5457
 	ld hl,0e1aah		;545a
-	set 4,(hl)		;545d
+	set 4,(hl)		;545d   ; fase 4 hecha
 	ret			;545f
-L_5460:
+
+; ----------------------------------------------------------------------
+; FASE 5: EL TURNO DE LA MAQUINA, PRIMERA MITAD (bit 5 de 0xE1AA), cada ocho cuadros. Cambia las figuras: guarda las del 1 (0xE2B6-0xE2F0 a 0xE240) y trae las del 2 (0xE27B). 0x567B mira si el descarte del 1 le da RON. Si no hay nada en marcha (0xE1A9) ni el 1 ha pedido agari (bit 0 de 0xE1C7): con el 1 dentro de su tope de descartes (0xE1C0) la maquina ROBA (0x549D: marca de tsumo, 0x5A2B sortea, al hueco 0xE208), una de cada cuatro veces intenta un KAN por el menu (0x5828 con 0xE20D = 0x10), luego 0x577A decide riichi, pon o chi, y por fin la mano se pinta boca abajo (0x551D esconde, 0x54C4 pinta, 0x54C7 devuelve) con la robada otra vez en su hueco. Si el 1 ya paso el tope, 0x563D devuelve las figuras y la mano se da por agotada (0x5654).
+; ----------------------------------------------------------------------
+fase_5_roba_la_maquina:
 	ld a,(0e003h)		;5460
-	and 007h		;5463
+	and 007h		;5463   ; cada ocho cuadros
 	ret nz			;5465
-	ld hl,0e2b6h		;5466
+	ld hl,0e2b6h		;5466   ; las figuras del 1, guardadas en 0xE240
 	ld de,0e240h		;5469
 	ld bc,0003bh		;546c
 	ldir		;546f
-	ld hl,0e27bh		;5471
+	ld hl,0e27bh		;5471   ; y las del 2, a la zona de trabajo
 	ld de,0e2b6h		;5474
 	ld bc,0003bh		;5477
 	ldir		;547a
-	call L_567B		;547c
+	call mira_si_la_maquina_gana		;547c   ; el descarte del 1 le da ron?
 	ld a,(0e1a9h)		;547f
-	or a			;5482
+	or a			;5482   ; 0xE1A9: algo en marcha, se espera
 	ret nz			;5483
 	ld a,(0e1c7h)		;5484
-	rra			;5487
+	rra			;5487   ; bit 0 de 0xE1C7: el 1 ha pedido agari
 	ret c			;5488
 	ld hl,0e1beh		;5489
-	ld a,(0e1c0h)		;548c
+	ld a,(0e1c0h)		;548c   ; 0xE1C0: el tope de descartes del 1
 	cp (hl)			;548f
-	jr nc,L_549D		;5490
-	call L_563D		;5492
+	jr nc,L_549D		;5490   ; dentro del tope: la maquina roba
+	call devuelve_las_figuras_del_1		;5492   ; pasado el tope: las figuras de vuelta
 	ld hl,0e1aah		;5495
 	res 4,(hl)		;5498
-	jp L_5654		;549a
+	jp agota_la_mano		;549a   ; y la mano se agota
 L_549D:
 	ld a,001h		;549d
 	ld (0e22ah),a		;549f   ; el 2 va a robar: 0xE22A = 1, su marca de tsumo
-	call L_5A2B		;54a2
-	call L_54DE		;54a5
+	call sortea_el_descarte_a_e22b		;54a2   ; sortea la ficha
+	call pon_a_en_la_robada_del_2		;54a5   ; al hueco de la robada, 0xE208
 	ld a,(0e064h)		;54a8
-	and 003h		;54ab
+	and 003h		;54ab   ; una de cada cuatro veces
 	jr nz,L_54BE		;54ad
 	ld a,010h		;54af
-	ld (0e20dh),a		;54b1
-	call L_5828		;54b4
+	ld (0e20dh),a		;54b1   ; 0x10: kan
+	call la_maquina_usa_el_menu		;54b4   ; lo intenta por el menu
 	ld a,c			;54b7
 	rra			;54b8
-	jr c,L_54BE		;54b9
-	call L_5820		;54bb
+	jr c,L_54BE		;54b9   ; bit 0 de C: hecho
+	call L_5820		;54bb   ; sin kan: las esperas de nuevo
 L_54BE:
-	call L_577A		;54be
-	call L_551D		;54c1
-	call pinta_la_mano_del_jugador_2		;54c4
+	call la_maquina_declara_riichi_o_llama		;54be   ; riichi, pon o chi
+	call esconde_la_mano_del_2		;54c1   ; la mano escondida
+	call pinta_la_mano_del_jugador_2		;54c4   ; pintada boca abajo
 	ld hl,0e21ch		;54c7
 	ld de,0e14ch		;54ca
-	call L_5535		;54cd
+	call L_5535		;54cd   ; y de vuelta, 0xE208 fichas
 	ldir		;54d0
 	ld a,(0e22bh)		;54d2
-	call L_54DE		;54d5
+	call pon_a_en_la_robada_del_2		;54d5   ; la robada otra vez en su hueco
 	ld hl,0e1aah		;54d8
-	set 5,(hl)		;54db
+	set 5,(hl)		;54db   ; fase 5 hecha
 	ret			;54dd
-L_54DE:
+
+; ----------------------------------------------------------------------
+; Escribe A en el hueco de la ficha robada del 2 (0xE14C + 0xE208).
+; ----------------------------------------------------------------------
+pon_a_en_la_robada_del_2:
 	push af			;54de
-	ld a,(0e208h)		;54df
+	ld a,(0e208h)		;54df   ; el hueco de la robada del 2
 	ld hl,0e14ch		;54e2
 	call suma_a_a_hl		;54e5
 	pop af			;54e8
-	ld (hl),a			;54e9
+	ld (hl),a			;54e9   ; la ficha
 	ret			;54ea
-L_54EB:
+
+; ----------------------------------------------------------------------
+; FASE 6: EL DESCARTE DE LA MAQUINA (bit 6 de 0xE1AA), en dos tiempos marcados por el bit 2 de 0xE1C4. El primero, a los 32 cuadros: 0x567B mira si la robada le da TSUMO; si no hay nada en marcha ni agari pedido, esconde la mano (0x551D), 0x553C elige QUE HUECO SE VE VACIO -que es teatro: la ficha que descarta no sale de la mano- y la pinta boca abajo. El segundo, 16 cuadros despues (0x556C): devuelve al monton la copia de la robada, SORTEA EL DESCARTE por 0x598F, lo pone en el rio del 2 (0xE172, indice 0xE1BF) con el sonido 6, baja la marca de tsumo, reinicia el reloj y da la fase por hecha.
+; ----------------------------------------------------------------------
+fase_6_descarta_la_maquina:
 	ld hl,0e1c4h		;54eb
-	bit 2,(hl)		;54ee
-	jp nz,L_556C		;54f0
+	bit 2,(hl)		;54ee   ; bit 2 de 0xE1C4: segundo tiempo
+	jp nz,el_descarte_de_la_maquina_al_rio		;54f0
 	ld a,(0e003h)		;54f3
-	and 01fh		;54f6
+	and 01fh		;54f6   ; cada 32 cuadros
 	ret nz			;54f8
-	set 2,(hl)		;54f9
-	call L_567B		;54fb
+	set 2,(hl)		;54f9   ; primer tiempo hecho
+	call mira_si_la_maquina_gana		;54fb   ; la robada le da tsumo?
 	ld a,(0e1a9h)		;54fe
-	or a			;5501
+	or a			;5501   ; algo en marcha
 	ret nz			;5502
 	ld a,(0e1c7h)		;5503
-	rra			;5506
+	rra			;5506   ; el 1 ha pedido agari
 	ret c			;5507
-	call L_551D		;5508
-	call L_553C		;550b
-L_550E:
-	call pinta_la_mano_del_jugador_2		;550e
+	call esconde_la_mano_del_2		;5508   ; la mano escondida
+	call elige_el_hueco_que_se_ve_vacio		;550b   ; y el hueco que se vera vacio
+
+; ----------------------------------------------------------------------
+; Pinta la mano del 2 tal como esta en 0xE14C -que en ese momento son los reversos que puso 0x551D- y devuelve la de verdad desde 0xE21C.
+; ----------------------------------------------------------------------
+pinta_la_mano_del_2_boca_abajo:
+	call pinta_la_mano_del_jugador_2		;550e   ; pintada boca abajo
 	ld hl,0e21ch		;5511
 	ld de,0e14ch		;5514
-	call L_5535		;5517
+	call L_5535		;5517   ; y de vuelta
 	ldir		;551a
 	ret			;551c
-L_551D:
+
+; ----------------------------------------------------------------------
+; Guarda la mano de verdad del 2 (0xE14C, 0xE208 fichas) en 0xE21C y pone en su sitio los reversos de 0x4FB1, uno mas que fichas. Lo que se pinta despues son reversos; 0x550E la devuelve.
+; ----------------------------------------------------------------------
+esconde_la_mano_del_2:
 	ld hl,0e14ch		;551d
 	ld de,0e21ch		;5520
-	call L_5535		;5523
+	call L_5535		;5523   ; 0xE208 fichas, a 0xE21C
 	ldir		;5526
-	ld hl,04fb1h		;5528
+	ld hl,04fb1h		;5528   ; los reversos de 0x4FB1
 	ld de,0e14ch		;552b
 	call L_5535		;552e
-	inc c			;5531
+	inc c			;5531   ; una mas: la robada
 	ldir		;5532
 	ret			;5534
 L_5535:
-	ld b,000h		;5535
+	ld b,000h		;5535   ; BC = 0xE208, el tamano de la mano del 2
 	ld a,(0e208h)		;5537
 	ld c,a			;553a
 	ret			;553b
-L_553C:
+
+; ----------------------------------------------------------------------
+; TEATRO: que hueco de la mano boca abajo se muestra vacio, para que parezca que el descarte salio de ahi. En riichi (bit 0 de 0xE1AE) siempre el de la robada, como haria una persona; tambien a partir del descarte 0xE33D. Antes de eso, del descarte 8 en adelante, un hueco al azar (0x48CE) si el bit 0 de la semilla esta puesto y la robada si no; en los siete primeros, al reves. El descarte de verdad lo sortea 0x598F y no tiene nada que ver con el hueco.
+; ----------------------------------------------------------------------
+elige_el_hueco_que_se_ve_vacio:
 	ld a,(0e1aeh)		;553c
-	rra			;553f
+	rra			;553f   ; bit 0 de 0xE1AE: en riichi, siempre la robada
 	jr c,L_5567		;5540
 	ld hl,0e33dh		;5542
 	ld a,(0e1bfh)		;5545
-	cp (hl)			;5548
+	cp (hl)			;5548   ; del descarte 0xE33D en adelante, la robada
 	jr nc,L_5567		;5549
 	cp 008h		;554b
-	jr nc,L_5561		;554d
+	jr nc,L_5561		;554d   ; del 8 en adelante, por 0x5561
 	ld a,(0e064h)		;554f
-	rra			;5552
+	rra			;5552   ; antes: bit 0 de la semilla, la robada
 	jr c,L_5567		;5553
 L_5555:
-	call saca_un_numero_menor_que_h		;5555
+	call saca_un_numero_menor_que_h		;5555   ; un hueco al azar
 	ld hl,0e14ch		;5558
 	call suma_a_a_hl		;555b
-	ld (hl),039h		;555e
+	ld (hl),039h		;555e   ; 0x39: se ve vacio
 	ret			;5560
 L_5561:
 	ld a,(0e064h)		;5561
-	rra			;5564
+	rra			;5564   ; bit 0 de la semilla: al azar
 	jr c,L_5555		;5565
 L_5567:
-	ld a,039h		;5567
-	jp L_54DE		;5569
-L_556C:
+	ld a,039h		;5567   ; la robada, 0x39 en 0xE208
+	jp pon_a_en_la_robada_del_2		;5569
+el_descarte_de_la_maquina_al_rio:
 	ld a,(0e003h)		;556c
-	and 00fh		;556f
+	and 00fh		;556f   ; cada 16 cuadros
 	ret nz			;5571
-	res 2,(hl)		;5572
-	call L_5988		;5574
-	call L_598F		;5577
+	res 2,(hl)		;5572   ; los dos tiempos hechos
+	call devuelve_la_copia_de_e22b		;5574   ; la copia de la robada vuelve al monton: ese hueco se pisa cada turno
+	call sortea_hasta_que_no_sea_espera		;5577   ; EL DESCARTE: sorteado, y que no sea una espera
 	xor a			;557a
 	ld (0e22ah),a		;557b   ; el 2 descarta: 0xE22A a cero
 	ld a,006h		;557e
-	call L_9C4A		;5580
+	call L_9C4A		;5580   ; sonido 6
 	ld hl,0e1bfh		;5583
-	inc (hl)			;5586
+	inc (hl)			;5586   ; un descarte mas del 2
 	ld a,(0e1bfh)		;5587
 	ld hl,0e172h		;558a
-	call suma_a_a_hl		;558d
+	call suma_a_a_hl		;558d   ; su hueco en el rio
 	ld a,(0e22bh)		;5590
-	ld (hl),a			;5593
+	ld (hl),a			;5593   ; la ficha sorteada
 	call pinta_el_rio_del_jugador_2		;5594
 	ld hl,00000h		;5597
-	ld (0e052h),hl		;559a
+	ld (0e052h),hl		;559a   ; el reloj a cero
 	ld hl,0e1aah		;559d
-	set 6,(hl)		;55a0
-L_55A2:
+	set 6,(hl)		;55a0   ; fase 6 hecha
+
+; ----------------------------------------------------------------------
+; FASE 7 (bit 7 de 0xE1AA): lo que pasa entre el descarte de la maquina y el robo del 1. La primera vez (bit 1 de 0xE1C4) repinta la mano del 2 boca abajo sin la robada y devuelve las figuras del 1 (0x563D). Si el 2 ha pasado su tope de descartes (0xE1C1), a los 420 cuadros la mano se agota (0x5654). Si no: el dibujo 0, el despachador de llamadas -pon, chi, kan o ron del 1 sobre ese descarte- y la vuelta de las variables; 0xE1AA = 1 es que ha hecho llamada y vuelve a la fase 1 (0x5630), 0xFF que roba de reposicion (0x5603). En las dificultades 2 y 3 se roba solo a los 720 cuadros; en la 1 hay que pulsar (bit 0 de 0xE23A). Antes de robar, 0x49C6 avisa si el descarte de la maquina es una espera del 1 en riichi (dificultad 1): el dibujo 2 y se queda esperando el agari.
+; ----------------------------------------------------------------------
+fase_7_tras_el_descarte_de_la_maquina:
 	ld hl,0e1c4h		;55a2
-	bit 1,(hl)		;55a5
+	bit 1,(hl)		;55a5   ; bit 1 de 0xE1C4: primera vez ya hecha
 	jr nz,L_55B9		;55a7
-	set 1,(hl)		;55a9
-	call L_551D		;55ab
+	set 1,(hl)		;55a9   ; primera vez
+	call esconde_la_mano_del_2		;55ab   ; la mano del 2 escondida
 	ld a,039h		;55ae
-	call L_54DE		;55b0
-	call L_550E		;55b3
-	call L_563D		;55b6
+	call pon_a_en_la_robada_del_2		;55b0   ; sin la robada
+	call pinta_la_mano_del_2_boca_abajo		;55b3   ; pintada y de vuelta
+	call devuelve_las_figuras_del_1		;55b6   ; las figuras del 1, de vuelta
 L_55B9:
 	ld hl,0e1bfh		;55b9
-	ld a,(0e1c1h)		;55bc
+	ld a,(0e1c1h)		;55bc   ; 0xE1C1: el tope de descartes del 2
 	cp (hl)			;55bf
-	jr nc,L_55CC		;55c0
-	ld hl,001a4h		;55c2
-	call L_5636		;55c5
-	ret nc			;55c8
-	jp L_5654		;55c9
+	jr nc,L_55CC		;55c0   ; dentro del tope
+	ld hl,001a4h		;55c2   ; pasado el tope: 420 cuadros
+	call resta_el_reloj_a_hl		;55c5
+	ret nc			;55c8   ; aun no
+	jp agota_la_mano		;55c9   ; y la mano se agota
 L_55CC:
 	xor a			;55cc
-	call pinta_uno_de_los_tres_dibujos		;55cd
-	call despacha_la_llamada		;55d0
-	call L_51BC		;55d3
+	call pinta_uno_de_los_tres_dibujos		;55cd   ; el dibujo 0
+	call despacha_la_llamada		;55d0   ; pon, chi, kan o ron sobre el descarte de la maquina
+	call guarda_las_variables_del_que_juega		;55d3   ; las variables de vuelta
 	ld a,(0e1aah)		;55d6
-	cp 001h		;55d9
+	cp 001h		;55d9   ; 1: hubo llamada, a la fase 1
 	jp z,L_5630		;55db
-	cp 0ffh		;55de
-	jr z,L_5603		;55e0
+	cp 0ffh		;55de   ; 0xFF: kan, roba de reposicion
+	jr z,roba_el_jugador_1		;55e0
 	ld a,(0e040h)		;55e2
 	rra			;55e5
-	rra			;55e6
+	rra			;55e6   ; dificultades 2 y 3
 	jr nc,L_55F1		;55e7
-	ld hl,002d0h		;55e9
-	call L_5636		;55ec
+	ld hl,002d0h		;55e9   ; 720 cuadros y roba solo
+	call resta_el_reloj_a_hl		;55ec
 	jr c,L_55F6		;55ef
 L_55F1:
 	ld a,(0e23ah)		;55f1
-	rra			;55f4
+	rra			;55f4   ; bit 0 de 0xE23A: hay que pulsar
 	ret nc			;55f5
 L_55F6:
-	ld a,(0e22bh)		;55f6
-	call L_49C6		;55f9
-	jr nc,L_5603		;55fc
+	ld a,(0e22bh)		;55f6   ; el descarte de la maquina
+	call avisa_si_es_espera_en_amachua		;55f9   ; es una espera del 1 en riichi, dificultad 1?
+	jr nc,roba_el_jugador_1		;55fc   ; no: roba
 	ld a,002h		;55fe
-	jp pinta_uno_de_los_tres_dibujos		;5600
-L_5603:
+	jp pinta_uno_de_los_tres_dibujos		;5600   ; si: el dibujo 2, y espera al agari
+
+; ----------------------------------------------------------------------
+; EL ROBO DEL JUGADOR 1: reloj a cero, sonido 7, marca de tsumo, 0x4F64 sortea la ficha y va al hueco 0xE1C3 de la mano de 0xE13A; se pinta, el cursor se pone en la robada y 0xE1AA = 1: fase 1, a elegir el descarte. Tambien es la ficha de reposicion tras un kan (0x528F, 0x55E0).
+; ----------------------------------------------------------------------
+roba_el_jugador_1:
 	ld hl,00000h		;5603
-	ld (0e052h),hl		;5606
+	ld (0e052h),hl		;5606   ; el reloj a cero
 	ld a,007h		;5609
-	call L_9C4A		;560b
+	call L_9C4A		;560b   ; sonido 7
 	ld hl,0e1d1h		;560e
 	set 0,(hl)		;5611   ; el 1 va a robar: bit 0 de 0xE1D1 puesto; si gana con esa ficha es TSUMO
-	call reparte_una_ficha		;5613
+	call reparte_una_ficha		;5613   ; la ficha
 	push af			;5616
 	ld a,(0e1c3h)		;5617
 	ld hl,0e13ah		;561a
-	call suma_a_a_hl		;561d
+	call suma_a_a_hl		;561d   ; al hueco de la robada, en la mano
 	pop af			;5620
 	ld (hl),a			;5621
 	call pinta_la_mano_del_jugador_1		;5622
 	ld hl,0e1aah		;5625
 	ld a,(0e1c3h)		;5628
-	ld (0e1c2h),a		;562b
-	ld (hl),001h		;562e
+	ld (0e1c2h),a		;562b   ; el cursor sobre la robada
+	ld (hl),001h		;562e   ; 0xE1AA = 1: solo la fase 0 hecha, a elegir el descarte
 L_5630:
 	ld hl,0e1c4h		;5630
-	res 1,(hl)		;5633
+	res 1,(hl)		;5633   ; bit 1 de 0xE1C4 abajo: la fase 7 volvera a empezar de cero
 	ret			;5635
-L_5636:
-	ld de,(0e052h)		;5636
-	sbc hl,de		;563a
+
+; ----------------------------------------------------------------------
+; HL = HL - 0xE052, con el acarreo que traiga: acarreo a la salida cuando el reloj de la fase ha pasado de HL. Es como se miden los 420, 600 y 720 cuadros de las fases 1 y 7.
+; ----------------------------------------------------------------------
+resta_el_reloj_a_hl:
+	ld de,(0e052h)		;5636   ; el reloj de la fase
+	sbc hl,de		;563a   ; acarreo: ya ha pasado
 	ret			;563c
-L_563D:
-	ld hl,0e2b6h		;563d
+
+; ----------------------------------------------------------------------
+; Al reves que 0x5466: las figuras del 2 a 0xE27B y las guardadas del 1 (0xE240) a la zona de trabajo 0xE2B6.
+; ----------------------------------------------------------------------
+devuelve_las_figuras_del_1:
+	ld hl,0e2b6h		;563d   ; las del 2, guardadas
 	ld de,0e27bh		;5640
 	ld bc,0003bh		;5643
 	ldir		;5646
-	ld hl,0e240h		;5648
+	ld hl,0e240h		;5648   ; las del 1, de vuelta
 	ld de,0e2b6h		;564b
 	ld bc,0003bh		;564e
 	ldir		;5651
 	ret			;5653
-L_5654:
-	ld a,080h		;5654
+
+; ----------------------------------------------------------------------
+; La mano se acaba sin ganador por agotarse los descartes: 0xE1A9 = 0x80 y a destapar la mano de la maquina (0x56F7). Llegan 0x50DA (las ocho fases hechas), 0x549A y 0x55C9 (los topes de descartes).
+; ----------------------------------------------------------------------
+agota_la_mano:
+	ld a,080h		;5654   ; 0x80: agotada
 	ld (0e1a9h),a		;5656
-	jp L_56F7		;5659
+	jp destapa_la_mano_de_la_maquina		;5659
 L_565C:
 	ld hl,0e302h		;565c
-	set 2,(hl)		;565f
-L_5661:
+	set 2,(hl)		;565f   ; bit 2 de 0xE302: sin ganador
+
+; ----------------------------------------------------------------------
+; 0xE1A9 = 0xFF y unos 180 cuadros del reloj con la mano de la maquina a la vista; luego baja el bit 1 de 0xE1A8 y pone 0xE1A9 y 0xE1AA a cero: el turno se ha acabado y el submodo 2 sigue por 0x424B con lo que diga 0xE302.
+; ----------------------------------------------------------------------
+espera_y_cierra_la_mano:
 	ld a,0ffh		;5661
-	ld (0e1a9h),a		;5663
+	ld (0e1a9h),a		;5663   ; 0xFF: cerrando
 	ld de,(0e052h)		;5666
-	ld hl,000b4h		;566a
+	ld hl,000b4h		;566a   ; 180 cuadros
 	sbc hl,de		;566d
-	ret nc			;566f
+	ret nc			;566f   ; aun no
 	ld hl,0e1a8h		;5670
 	xor a			;5673
-	res 1,(hl)		;5674
+	res 1,(hl)		;5674   ; bit 1 de 0xE1A8 abajo
 	inc hl			;5676
-	ld (hl),a			;5677
+	ld (hl),a			;5677   ; 0xE1A9 y 0xE1AA a cero: fin del turno
 	inc hl			;5678
 	ld (hl),a			;5679
 	ret			;567a
-L_567B:
+
+; ----------------------------------------------------------------------
+; LA MAQUINA MIRA SI GANA. En modo defensa (bit 0 de 0xE340) ni lo intenta. La ficha es la robada (0xE22B) si ya paso la fase 5 -tsumo- y el descarte del 1 (0xE1BC) si no -ron-. Si no esta entre sus esperas (0xE20E, por 0x576E) no hay nada. Si esta, 0xE1BA la guarda y se mira el turno: antes del descarte 0xE33D la maquina NO GANA TODAVIA: con ron lo deja pasar y con tsumo sortea otra robada que no sea espera (0x598F). Tampoco gana justo en su turno de riichi (0xE1BB). Si no, 0xE1A9 = 1 y 0x56B6 decide si canta.
+; ----------------------------------------------------------------------
+mira_si_la_maquina_gana:
 	ld a,(0e340h)		;567b
-	rra			;567e
+	rra			;567e   ; bit 0 de 0xE340: en defensa no se gana
 	ret c			;567f
-	ld a,(0e22bh)		;5680
+	ld a,(0e22bh)		;5680   ; la robada
 	ld hl,0e1aah		;5683
-	bit 5,(hl)		;5686
+	bit 5,(hl)		;5686   ; bit 5 de 0xE1AA: fase 5 hecha, es tsumo
 	jr nz,L_568D		;5688
-	ld a,(0e1bch)		;568a
+	ld a,(0e1bch)		;568a   ; o el descarte del 1: ron
 L_568D:
-	call L_576E		;568d
+	call busca_en_las_esperas_del_2		;568d   ; entre sus esperas?
 	cp (hl)			;5690
-	ret nz			;5691
-	ld (0e1bah),a		;5692
+	ret nz			;5691   ; no
+	ld (0e1bah),a		;5692   ; 0xE1BA: la ficha que gana
 	ld a,(0e1bfh)		;5695
 	inc a			;5698
 	ld hl,0e33dh		;5699
-	cp (hl)			;569c
+	cp (hl)			;569c   ; antes del descarte 0xE33D no gana
 	jr nc,L_56A8		;569d
 	ld hl,0e1aah		;569f
-	bit 5,(hl)		;56a2
+	bit 5,(hl)		;56a2   ; con ron lo deja pasar
 	ret z			;56a4
-	jp L_598F		;56a5
+	jp sortea_hasta_que_no_sea_espera		;56a5   ; con tsumo, otra robada que no sea espera
 L_56A8:
 	ld hl,0e1bbh		;56a8
 	ld a,(0e1bfh)		;56ab
 	inc a			;56ae
-	cp (hl)			;56af
+	cp (hl)			;56af   ; justo en el turno del riichi tampoco
 	ret z			;56b0
 	ld a,001h		;56b1
-	ld (0e1a9h),a		;56b3
-L_56B6:
-	cp 001h		;56b6
-	jr nz,L_571C		;56b8
-	call L_575A		;56ba
-	cp 002h		;56bd
-	jr nc,L_56E3		;56bf
+	ld (0e1a9h),a		;56b3   ; 0xE1A9 = 1: va a cantar
+
+; ----------------------------------------------------------------------
+; Con 0xE1A9 = 1 cuenta los han de su mano (0x575A) y canta con dos o mas, o con uno si hay menos de 5 honba; si no llega, limpia y se queda como estaba (0xE1A9 = 0). Con cualquier otro valor de 0xE1A9 (0x40 gano el 1, 0x80 agotada, 3 cantando) sigue destapando la mano (0x571C). Llega desde 0x5030 con A = 0xE1A9.
+; ----------------------------------------------------------------------
+la_maquina_decide_si_canta:
+	cp 001h		;56b6   ; 1: decidir
+	jr nz,destapa_una_ficha		;56b8
+	call cuenta_los_han_de_la_maquina		;56ba   ; los han
+	cp 002h		;56bd   ; dos o mas: canta
+	jr nc,la_maquina_canta		;56bf
 	rra			;56c1
-	jr nc,L_56CB		;56c2
+	jr nc,L_56CB		;56c2   ; cero: no
 	ld a,(0e04bh)		;56c4
-	cp 005h		;56c7
-	jr c,L_56E3		;56c9
+	cp 005h		;56c7   ; uno vale solo con menos de 5 honba
+	jr c,la_maquina_canta		;56c9
 L_56CB:
 	call limpia_el_analisis		;56cb
 	xor a			;56ce
-	ld (0e1a9h),a		;56cf
-L_56D2:
-	xor a			;56d2
+	ld (0e1a9h),a		;56cf   ; 0xE1A9 a cero: sigue jugando
+limpia_la_lista_de_jugadas:
+	xor a			;56d2   ; la lista de jugadas y los han, a cero
 	ld hl,0e305h		;56d3
 	ld de,0e306h		;56d6
 	ld (hl),a			;56d9
@@ -3545,304 +3637,336 @@ L_56D2:
 	ldir		;56dd
 	ld (0e1d1h),a		;56df   ; y 0xE1D1 a cero: la marca del 1, que 0x56EE y 0x5764 pisan con la del 2 al evaluar la mano de la maquina
 	ret			;56e2
-L_56E3:
+la_maquina_canta:
 	ld a,090h		;56e3
-	call L_9C4A		;56e5
-	call L_56D2		;56e8
+	call L_9C4A		;56e5   ; sonido 0x90: la maquina canta
+	call limpia_la_lista_de_jugadas		;56e8
 	ld a,(0e22ah)		;56eb
 	ld (0e1d1h),a		;56ee   ; la marca de tsumo de la maquina, en 0xE1D1, que es lo que lee el evaluador
-	rra			;56f1
-	jr nc,L_56F7		;56f2
-	call L_5754		;56f4
-L_56F7:
-	ld hl,0e14ch		;56f7
+	rra			;56f1   ; con tsumo
+	jr nc,destapa_la_mano_de_la_maquina		;56f2
+	call L_5754		;56f4   ; la ficha que gana, al hueco de la robada
+
+; ----------------------------------------------------------------------
+; Prepara el destape: copia la mano del 2 (catorce bytes de 0xE14C) a 0xE12B, apunta cuantas (0xE129 = 0xE208 + 1), pone el indice 0xE1B7 a cero, vacia 0xE14C y sube el bit 1 de 0xE1A9. Desde ahi 0x571C la va destapando ficha a ficha, una cada ocho cuadros.
+; ----------------------------------------------------------------------
+destapa_la_mano_de_la_maquina:
+	ld hl,0e14ch		;56f7   ; la mano, a 0xE12B
 	ld de,0e12bh		;56fa
 	ld bc,0000eh		;56fd
 	ldir		;5700
 	ld a,(0e208h)		;5702
 	inc a			;5705
-	ld (0e129h),a		;5706
+	ld (0e129h),a		;5706   ; cuantas fichas
 	ld b,a			;5709
 	xor a			;570a
-	ld (0e1b7h),a		;570b
+	ld (0e1b7h),a		;570b   ; el indice, a cero
 	ld hl,0e14ch		;570e
 L_5711:
-	ld (hl),a			;5711
+	ld (hl),a			;5711   ; la mano visible, vacia
 	inc hl			;5712
 	djnz L_5711		;5713
 	ld hl,0e1a9h		;5715
-	set 1,(hl)		;5718
-	jr L_5740		;571a
-L_571C:
+	set 1,(hl)		;5718   ; bit 1 de 0xE1A9: destapando
+	jr L_5740		;571a   ; y se pinta vacia
+
+; ----------------------------------------------------------------------
+; Cada ocho cuadros devuelve una ficha de 0xE12B a 0xE14C y repinta; cuando el indice llega a la cuenta, reloj a cero y, con el bit 7 de 0xE1A9 (agotada), 0x565C marca sin ganador; en todo caso 0x5661 cierra tras tres segundos.
+; ----------------------------------------------------------------------
+destapa_una_ficha:
 	ld a,(0e003h)		;571c
-	and 007h		;571f
+	and 007h		;571f   ; cada ocho cuadros
 	ret nz			;5721
 	ld hl,0e129h		;5722
 	ld a,(0e1b7h)		;5725
-	cp (hl)			;5728
+	cp (hl)			;5728   ; todas destapadas?
 	jr z,L_5743		;5729
 	ld hl,0e12bh		;572b
-	call suma_a_a_hl		;572e
+	call suma_a_a_hl		;572e   ; la que toca, de 0xE12B
 	ld a,(0e1b7h)		;5731
 	ld de,0e14ch		;5734
 	call suma_a_a_de		;5737
 	ld a,(hl)			;573a
-	ld (de),a			;573b
+	ld (de),a			;573b   ; a la mano visible
 	ld hl,0e1b7h		;573c
-	inc (hl)			;573f
+	inc (hl)			;573f   ; una mas
 L_5740:
 	jp pinta_la_mano_del_jugador_2		;5740
 L_5743:
 	ld hl,00000h		;5743
-	ld (0e052h),hl		;5746
+	ld (0e052h),hl		;5746   ; reloj a cero
 	ld a,(0e1a9h)		;5749
-	rla			;574c
+	rla			;574c   ; bit 7: agotada, sin ganador
 	jp c,L_565C		;574d
-	rla			;5750
-	jp L_5661		;5751
+	rla			;5750   ; lo demas: a cerrar
+	jp espera_y_cierra_la_mano		;5751
 L_5754:
-	ld a,(0e1bah)		;5754
-	jp L_54DE		;5757
-L_575A:
-	call analiza_la_mano		;575a
+	ld a,(0e1bah)		;5754   ; la ficha que gana, al hueco de la robada
+	jp pon_a_en_la_robada_del_2		;5757
+
+; ----------------------------------------------------------------------
+; Analiza la mano del 2 (0x5F3E), pone los han a cero, le da al evaluador su marca de tsumo (0xE22A en 0xE1D1) y pasa los detectores (0x7B3F). Devuelve los han en A. Lo llama 0x56BA.
+; ----------------------------------------------------------------------
+cuenta_los_han_de_la_maquina:
+	call analiza_la_mano		;575a   ; la mano completa? y sus figuras
 	xor a			;575d
-	ld (0e316h),a		;575e
+	ld (0e316h),a		;575e   ; los han a cero
 	ld a,(0e22ah)		;5761
 	ld (0e1d1h),a		;5764   ; el evaluador lee 0xE1D1: se le pone la marca de tsumo del 2
-	call evalua_las_jugadas		;5767
-	ld a,(0e316h)		;576a
+	call evalua_las_jugadas		;5767   ; los detectores
+	ld a,(0e316h)		;576a   ; los han
 	ret			;576d
-L_576E:
-	ld b,00eh		;576e
+
+; ----------------------------------------------------------------------
+; Busca A en la lista de esperas del 2 (0xE20E, catorce huecos): Z y HL en la coincidencia; si no esta, HL se queda en el ultimo hueco y NZ. Lo usan 0x568D, 0x585E y 0x5995.
+; ----------------------------------------------------------------------
+busca_en_las_esperas_del_2:
+	ld b,00eh		;576e   ; catorce huecos
 	ld hl,0e20eh		;5770
 L_5773:
 	cp (hl)			;5773
-	ret z			;5774
+	ret z			;5774   ; esta
 	inc hl			;5775
 	djnz L_5773		;5776
 	dec hl			;5778
 	ret			;5779
-L_577A:
+
+; ----------------------------------------------------------------------
+; RIICHI, PON O CHI DE LA MAQUINA, en la fase 5 tras robar. Riichi si no esta en defensa (0xE340), tiene esperas (0xE20E), la mano esta cerrada (0xE2B6 = 0), con 5 honba o mas su plan lo permite (0xE058), es exactamente su turno de riichi (0xE1BF + 1 = 0xE1BB) y no es el 19: paga mil por 0x5F31, sube el palo de la mesa, pone el palo como sprite sobre ese descarte (sprite 13, fila 0x2C o 0x14, columna invertida porque su rio va de derecha a izquierda), marca 0xE1AE = 1 y pasa por el menu con la opcion 2. Si no hay riichi (0x57EF): con los bits 1, 2 o 5 del plan intenta PON (opcion 4) y con los bits 1 o 2 CHI (opcion 8), por el menu; tras una llamada borra sus esperas y las recalcula (0x5820).
+; ----------------------------------------------------------------------
+la_maquina_declara_riichi_o_llama:
 	ld a,(0e340h)		;577a
-	rra			;577d
+	rra			;577d   ; en defensa, nada
 	jr c,L_57EF		;577e
 	ld a,(0e20eh)		;5780
-	or a			;5783
+	or a			;5783   ; sin esperas, nada
 	jr z,L_57EF		;5784
 	ld a,(0e2b6h)		;5786
-	or a			;5789
+	or a			;5789   ; mano abierta, nada
 	jr nz,L_57EF		;578a
 	ld a,(0e04bh)		;578c
-	cp 005h		;578f
+	cp 005h		;578f   ; con 5 honba o mas
 	jr c,L_579A		;5791
 	ld a,(0e058h)		;5793
-	and 0feh		;5796
+	and 0feh		;5796   ; el plan tiene que permitirlo
 	jr z,L_57EF		;5798
 L_579A:
-	ld a,(0e1bfh)		;579a
+	ld a,(0e1bfh)		;579a   ; EL RIICHI DE LA MAQUINA: su descarte siguiente
 	inc a			;579d
 	ld hl,0e1bbh		;579e
-	cp (hl)			;57a1
+	cp (hl)			;57a1   ; tiene que ser justo 0xE1BB
 	jr nz,L_57EF		;57a2
 	cp 013h		;57a4
-	jr z,L_57EF		;57a6
+	jr z,L_57EF		;57a6   ; y no el 19
 	ld de,01000h		;57a8
-	call cobra_mil_el_de_e044		;57ab
+	call cobra_mil_el_de_e044		;57ab   ; mil puntos
 	ld a,(0e04ah)		;57ae
-	add a,001h		;57b1
+	add a,001h		;57b1   ; un palo mas en la mesa
 	daa			;57b3
 	ld (0e04ah),a		;57b4
 	ld a,(0e1bbh)		;57b7
 	ld hl,0e0dch		;57ba
-	ld (hl),02ch		;57bd
+	ld (hl),02ch		;57bd   ; el palo como sprite: fila 0x2C, primera fila de su rio
 	cp 00ah		;57bf
-	jr c,L_57C7		;57c1
+	jr c,L_57C7		;57c1   ; del descarte 10 en adelante
 	sub 00ah		;57c3
-	ld (hl),014h		;57c5
+	ld (hl),014h		;57c5   ; la segunda fila, 0x14
 L_57C7:
 	sub 00eh		;57c7
-	xor 0ffh		;57c9
+	xor 0ffh		;57c9   ; la columna invertida: su rio va de derecha a izquierda
 	ld hl,05350h		;57cb
 	call suma_a_a_hl		;57ce
 	ld a,(hl)			;57d1
 	ld hl,0e0ddh		;57d2
-	ld (hl),a			;57d5
+	ld (hl),a			;57d5   ; la X
 	ld a,001h		;57d6
-	ld (0e1aeh),a		;57d8
+	ld (0e1aeh),a		;57d8   ; 0xE1AE = 1: en riichi
 	ld a,002h		;57db
-	ld (0e20dh),a		;57dd
+	ld (0e20dh),a		;57dd   ; la opcion 2 del menu: riichi
 	ld hl,0e0dch		;57e0
-	ld de,03b34h		;57e3
+	ld de,03b34h		;57e3   ; el sprite 13, a 0x3B34
 	ld bc,00004h		;57e6
 	call L_460B		;57e9
-	jp L_5828		;57ec
+	jp la_maquina_usa_el_menu		;57ec   ; y por el menu
 L_57EF:
 	ld a,(0e058h)		;57ef
-	and 026h		;57f2
+	and 026h		;57f2   ; bits 1, 2 y 5 del plan: pon
 	jr z,L_5802		;57f4
 	ld a,004h		;57f6
-	ld (0e20dh),a		;57f8
-	call L_5828		;57fb
+	ld (0e20dh),a		;57f8   ; la opcion 4
+	call la_maquina_usa_el_menu		;57fb
 	ld a,c			;57fe
-	rra			;57ff
+	rra			;57ff   ; bit 0 de C: hecho
 	jr nc,L_5813		;5800
 L_5802:
 	ld a,(0e058h)		;5802
-	and 006h		;5805
+	and 006h		;5805   ; bits 1 y 2: chi
 	ret z			;5807
 	ld a,008h		;5808
-	ld (0e20dh),a		;580a
-	call L_5828		;580d
+	ld (0e20dh),a		;580a   ; la opcion 8
+	call la_maquina_usa_el_menu		;580d
 	ld a,c			;5810
 	rra			;5811
-	ret c			;5812
+	ret c			;5812   ; hecho
 L_5813:
-	ld hl,0e20eh		;5813
+	ld hl,0e20eh		;5813   ; las esperas, borradas
 	ld (hl),000h		;5816
 	ld de,0e20fh		;5818
 	ld bc,0000dh		;581b
 	ldir		;581e
 L_5820:
-	call L_66E7		;5820
+	call L_66E7		;5820   ; y recalculadas
 	xor a			;5823
 	ld (0e205h),a		;5824
 	ret			;5827
-L_5828:
-	ld a,(0e20dh)		;5828
+
+; ----------------------------------------------------------------------
+; La maquina pasa por el mismo despachador de llamadas que la persona (0x663C): la opcion en 0xE1C7 (desde 0xE20D), sus variables cargadas (0x517A), la llamada, las variables de vuelta (0x51BC) y 0xE1C7 limpio. Devuelve en C lo que dejo el despachador: bit 0, hecha.
+; ----------------------------------------------------------------------
+la_maquina_usa_el_menu:
+	ld a,(0e20dh)		;5828   ; la opcion, como si la hubiera elegido en el menu
 	ld (0e1c7h),a		;582b
-	call L_517A		;582e
-	call despacha_la_llamada		;5831
-	call L_51BC		;5834
+	call carga_las_variables_del_que_juega		;582e   ; sus variables
+	call despacha_la_llamada		;5831   ; la llamada
+	call guarda_las_variables_del_que_juega		;5834   ; y de vuelta
 	xor a			;5837
-	ld (0e1c7h),a		;5838
+	ld (0e1c7h),a		;5838   ; la opcion, limpia
 	ret			;583b
-L_583C:
+
+; ----------------------------------------------------------------------
+; EL DESCARTE DE LA MAQUINA NO SALE DE SU MANO: se sortea del muro, y este filtro lo hace parecer humano. En el demo no sortea (bit 6 de 0xE002). En la dificultad 1 vale cualquiera. En las otras dos, hasta el descarte 12: si es su turno de riichi o mas, con un plan de palo (bits 1 y 2 de 0xE058) y antes del noveno, rechaza las de SU palo (0xE059); sin plan de palo, en los cuatro primeros solo suelta HONORES, del cuarto al septimo solo unos, doses, ochos y nueves, y luego cualquiera; antes del turno de riichi, rechaza las que sean una de SUS ESPERAS. Del descarte 12 en adelante (0x58AA): en riichi cualquiera; en el 15 decide si se defiende (0x59EB) y en el 18 se defiende si la semilla es par; en defensa suelta una ficha segura de su mano (0x5A10); si no, cuenta el rio del 1 por palos (0x58D6) y rechaza el palo que el 1 menos ha soltado. Cada ficha rechazada vuelve al monton (0x59A4) y se sortea otra.
+; ----------------------------------------------------------------------
+sortea_el_descarte_de_la_maquina:
 	ld hl,0e002h		;583c
-	bit 6,(hl)		;583f
+	bit 6,(hl)		;583f   ; en el demo no se sortea
 	ret z			;5841
-	call reparte_una_ficha		;5842
+	call reparte_una_ficha		;5842   ; la candidata
 	ld (0e22bh),a		;5845
 	ld a,(0e040h)		;5848
-	rra			;584b
+	rra			;584b   ; dificultad 1: vale cualquiera
 	ret c			;584c
 	ld a,(0e1bfh)		;584d
-	cp 00ch		;5850
+	cp 00ch		;5850   ; del descarte 12 en adelante, por 0x58AA
 	jr nc,L_58AA		;5852
 	inc a			;5854
 	ld hl,0e33dh		;5855
-	cp (hl)			;5858
+	cp (hl)			;5858   ; ya en su turno de riichi?
 	jr nc,L_5865		;5859
 	ld a,(0e22bh)		;585b
-	call L_576E		;585e
+	call busca_en_las_esperas_del_2		;585e   ; antes: si es una de sus esperas
 	cp (hl)			;5861
-	jr z,L_587C		;5862
+	jr z,L_587C		;5862   ; se rechaza
 	ret			;5864
 L_5865:
 	ld a,(0e058h)		;5865
-	and 006h		;5868
+	and 006h		;5868   ; bits 1 y 2 del plan: va a un palo
 	jr z,L_5884		;586a
 	ld a,(0e1bfh)		;586c
-	cp 009h		;586f
+	cp 009h		;586f   ; del noveno en adelante, cualquiera
 	ret nc			;5871
 	ld a,(0e22bh)		;5872
 	and 0f0h		;5875
 	ld hl,0e059h		;5877
-	xor (hl)			;587a
+	xor (hl)			;587a   ; de su palo: se rechaza
 	ret nz			;587b
 L_587C:
-	ld a,(0e22bh)		;587c
-	call L_59A4		;587f
-	jr L_583C		;5882
+	ld a,(0e22bh)		;587c   ; la rechazada vuelve al monton y otra
+	call devuelve_una_copia_al_monton		;587f
+	jr sortea_el_descarte_de_la_maquina		;5882
 L_5884:
 	ld a,(0e1bfh)		;5884
-	cp 004h		;5887
+	cp 004h		;5887   ; los cuatro primeros descartes
 	jr nc,L_5896		;5889
 	ld a,(0e22bh)		;588b
 	and 0f0h		;588e
-	cp 030h		;5890
+	cp 030h		;5890   ; solo honores
 	jr z,L_58A9		;5892
-	jr L_587C		;5894
+	jr L_587C		;5894   ; lo demas se rechaza
 L_5896:
 	cp 008h		;5896
-	jr nc,L_58A9		;5898
+	jr nc,L_58A9		;5898   ; del octavo en adelante, cualquiera
 	ld a,(0e22bh)		;589a
 	and 00fh		;589d
-	cp 008h		;589f
+	cp 008h		;589f   ; del 4 al 7: 8 y 9 valen
 	jr nc,L_58A9		;58a1
-	cp 003h		;58a3
+	cp 003h		;58a3   ; 1 y 2 tambien
 	jr c,L_58A9		;58a5
-	jr L_587C		;58a7
+	jr L_587C		;58a7   ; del 3 al 7 se rechaza
 L_58A9:
 	ret			;58a9
 L_58AA:
 	ld a,(0e1aeh)		;58aa
-	rra			;58ad
+	rra			;58ad   ; en riichi, cualquiera
 	ret c			;58ae
 	ld a,(0e1bfh)		;58af
-	cp 00fh		;58b2
+	cp 00fh		;58b2   ; en el descarte 15 decide si se defiende
 	jr nz,L_58BA		;58b4
-	call L_59EB		;58b6
+	call decide_si_la_maquina_se_defiende		;58b6
 	ret			;58b9
 L_58BA:
 	ld a,(0e1bfh)		;58ba
-	cp 012h		;58bd
+	cp 012h		;58bd   ; en el 18
 	jr nz,L_58CC		;58bf
 	ld a,(0e064h)		;58c1
-	rra			;58c4
+	rra			;58c4   ; con la semilla par
 	jr c,L_58CC		;58c5
 	ld a,001h		;58c7
-	ld (0e340h),a		;58c9
+	ld (0e340h),a		;58c9   ; a la defensa
 L_58CC:
 	ld a,(0e340h)		;58cc
-	rra			;58cf
-	jr nc,L_58D6		;58d0
-	call L_5A10		;58d2
+	rra			;58cf   ; bit 0 de 0xE340: en defensa
+	jr nc,cuenta_el_rio_del_1_por_palos		;58d0
+	call suelta_una_ficha_segura		;58d2   ; una ficha segura de la mano
 	ret			;58d5
-L_58D6:
-	ld hl,0e341h		;58d6
+
+; ----------------------------------------------------------------------
+; Cuenta los descartes del 1 por palos en 0xE341-0xE344 (palo 0, 1, 2 y honores) y los terminales -unos y nueves, sin contar el este- en 0xE345; cada cuenta por debajo de dos levanta su bit en 0xE346. El primer bit puesto dice que palo NO soltar: el que el 1 menos ha descartado es el que se esta guardando. 0xE347 lleva ese palo y la candidata se rechaza mientras sea de el. El bit 4 (terminales) va a 0x595C, que esta MAL ESCRITO: el jr nz tras el cp 1 devuelve antes de mirar el 9, asi que nunca rechaza nada.
+; ----------------------------------------------------------------------
+cuenta_el_rio_del_1_por_palos:
+	ld hl,0e341h		;58d6   ; las seis cuentas, a cero
 	ld de,0e342h		;58d9
 	ld (hl),000h		;58dc
 	ld bc,00006h		;58de
 	ldir		;58e1
-	ld a,(0e1beh)		;58e3
+	ld a,(0e1beh)		;58e3   ; tantos como descartes del 1
 	ld b,a			;58e6
 	ld de,0e15eh		;58e7
 L_58EA:
 	ld a,(de)			;58ea
-	and 0f0h		;58eb
+	and 0f0h		;58eb   ; el palo
 	jr nz,L_58F5		;58ed
-	ld hl,0e341h		;58ef
+	ld hl,0e341h		;58ef   ; palo 0
 	inc (hl)			;58f2
 	jr L_5911		;58f3
 L_58F5:
 	cp 010h		;58f5
 	jr nz,L_58FF		;58f7
-	ld hl,0e342h		;58f9
+	ld hl,0e342h		;58f9   ; palo 1
 	inc (hl)			;58fc
 	jr L_5911		;58fd
 L_58FF:
 	cp 020h		;58ff
 	jr nz,L_5909		;5901
-	ld hl,0e343h		;5903
+	ld hl,0e343h		;5903   ; palo 2
 	inc (hl)			;5906
 	jr L_5911		;5907
 L_5909:
 	cp 030h		;5909
 	jr nz,L_5911		;590b
-	ld hl,0e344h		;590d
+	ld hl,0e344h		;590d   ; honores
 	inc (hl)			;5910
 L_5911:
 	ld a,(de)			;5911
-	cp 031h		;5912
+	cp 031h		;5912   ; el este no cuenta como terminal
 	jr z,L_5924		;5914
 	and 00fh		;5916
-	cp 001h		;5918
+	cp 001h		;5918   ; los unos
 	jr z,L_5920		;591a
-	cp 009h		;591c
+	cp 009h		;591c   ; y los nueves
 	jr nz,L_5924		;591e
 L_5920:
 	ld hl,0e345h		;5920
-	inc (hl)			;5923
+	inc (hl)			;5923   ; un terminal mas
 L_5924:
 	inc de			;5924
 	djnz L_58EA		;5925
@@ -3852,7 +3976,7 @@ L_5924:
 	ld b,005h		;592f
 L_5931:
 	ld a,(hl)			;5931
-	cp 002h		;5932
+	cp 002h		;5932   ; menos de dos: bit puesto
 	jr nc,L_5939		;5934
 	ld a,(de)			;5936
 	or c			;5937
@@ -3863,63 +3987,71 @@ L_5939:
 	djnz L_5931		;593c
 	xor a			;593e
 	ld hl,0e346h		;593f
-	bit 0,(hl)		;5942
+	bit 0,(hl)		;5942   ; palo 0 poco soltado: no se suelta
 	jr nz,L_5971		;5944
 	ld a,010h		;5946
-	bit 1,(hl)		;5948
+	bit 1,(hl)		;5948   ; palo 1
 	jr nz,L_5971		;594a
 	ld a,020h		;594c
-	bit 2,(hl)		;594e
+	bit 2,(hl)		;594e   ; palo 2
 	jr nz,L_5971		;5950
 	ld a,030h		;5952
-	bit 3,(hl)		;5954
+	bit 3,(hl)		;5954   ; honores
 	jr nz,L_5971		;5956
-	bit 4,(hl)		;5958
+	bit 4,(hl)		;5958   ; terminales
 	jr z,L_5987		;595a
 L_595C:
-	ld a,(0e22bh)		;595c
+	ld a,(0e22bh)		;595c   ; ERRATA: con un 1 sale por el jr nz del cp 9, con lo demas por el primero; nunca llega al sorteo
 	and 00fh		;595f
 	cp 001h		;5961
 	jr nz,L_5987		;5963
 	cp 009h		;5965
 	jr nz,L_5987		;5967
-	call L_5988		;5969
-	call L_5A2B		;596c
+	call devuelve_la_copia_de_e22b		;5969
+	call sortea_el_descarte_a_e22b		;596c
 	jr L_595C		;596f
 L_5971:
-	ld (0e347h),a		;5971
+	ld (0e347h),a		;5971   ; 0xE347: el palo que no se suelta
 	ld a,(0e22bh)		;5974
 	and 0f0h		;5977
 	ld hl,0e347h		;5979
-	xor (hl)			;597c
+	xor (hl)			;597c   ; la candidata es de ese palo
 	jr nz,L_5987		;597d
-	call L_5988		;597f
-	call L_5A2B		;5982
+	call devuelve_la_copia_de_e22b		;597f   ; vuelve al monton
+	call sortea_el_descarte_a_e22b		;5982   ; y otra
 	jr L_5971		;5985
 L_5987:
 	ret			;5987
-L_5988:
-	ld a,(0e22bh)		;5988
-	call L_59A4		;598b
+devuelve_la_copia_de_e22b:
+	ld a,(0e22bh)		;5988   ; la ficha sorteada, de vuelta al monton
+	call devuelve_una_copia_al_monton		;598b
 	ret			;598e
-L_598F:
-	call L_583C		;598f
+
+; ----------------------------------------------------------------------
+; Sortea el descarte de la maquina (0x583C) y, mientras sea una de sus esperas (0x576E), lo devuelve al monton y sortea otro: la maquina nunca suelta una ficha que le sirva. Lo llaman 0x5141 (cuando reparte el 2, su primer descarte), 0x5577 (cada descarte) y 0x56A5 (una robada que ganaria antes de tiempo).
+; ----------------------------------------------------------------------
+sortea_hasta_que_no_sea_espera:
+	call sortea_el_descarte_de_la_maquina		;598f   ; el descarte candidato
 	ld a,(0e22bh)		;5992
-	call L_576E		;5995
+	call busca_en_las_esperas_del_2		;5995   ; es una de sus esperas?
 	cp (hl)			;5998
-	jr nz,L_59A3		;5999
+	jr nz,L_59A3		;5999   ; no: vale
 	ld a,(0e22bh)		;599b
-	call L_59A4		;599e
-	jr L_598F		;59a1
+	call devuelve_una_copia_al_monton		;599e   ; si: al monton y otro
+	jr sortea_hasta_que_no_sea_espera		;59a1
 L_59A3:
 	ret			;59a3
-L_59A4:
-	ld hl,059b3h		;59a4
+
+; ----------------------------------------------------------------------
+; Una copia menos repartida del tipo de la ficha A en la tabla de 0xE186 (la que 0x4F8A sube al repartir): por la tabla inversa de 0x59B3 saca el indice 0..33 y baja el contador. Es lo que hace que una ficha sorteada y rechazada, o la robada que la maquina pisa cada turno, pueda volver a salir.
+; ----------------------------------------------------------------------
+devuelve_una_copia_al_monton:
+	ld hl,059b3h		;59a4   ; el indice 0..33 por la tabla inversa
 	call suma_a_a_hl		;59a7
 	ld a,(hl)			;59aa
 	ld hl,0e186h		;59ab
-	call suma_a_a_hl		;59ae
-	dec (hl)			;59b1
+	call suma_a_a_hl		;59ae   ; su contador de copias repartidas
+	dec (hl)			;59b1   ; una menos
 	ret			;59b2
 
 ; ----------------------------------------------------------------------
@@ -3941,96 +4073,112 @@ DATA_indice_por_codigo_de_ficha:
 ; ======================================================================
 
 
-L_59EB:
+
+; ----------------------------------------------------------------------
+; En el descarte 15: 0xE340 = 1 (defensa) si el 1 esta en riichi con esperas (0xE1CD = 0x81) y ademas su turno de riichi es tardio (0xE33D de 15 en adelante), o el 1 ha soltado pocos honores o terminales (bits 3 y 4 de 0xE346), o el plan no tiene bits altos (0xE058 & 0xF8). Si no, 0. En defensa la maquina ni gana ni declara riichi (0x567E, 0x577D).
+; ----------------------------------------------------------------------
+decide_si_la_maquina_se_defiende:
 	ld a,(0e1cdh)		;59eb
-	cp 081h		;59ee
+	cp 081h		;59ee   ; 0x81: el 1 en riichi y con esperas
 	jr nz,L_5A07		;59f0
 	ld a,(0e33dh)		;59f2
-	cp 00fh		;59f5
+	cp 00fh		;59f5   ; turno de riichi tardio: defensa
 	jr nc,L_5A0A		;59f7
 	ld a,(0e346h)		;59f9
-	and 018h		;59fc
+	and 018h		;59fc   ; pocos honores o terminales soltados: defensa
 	jr nz,L_5A0A		;59fe
 	ld a,(0e058h)		;5a00
-	and 0f8h		;5a03
+	and 0f8h		;5a03   ; plan sin bits altos: defensa
 	jr z,L_5A0A		;5a05
 L_5A07:
-	xor a			;5a07
+	xor a			;5a07   ; no hay que defenderse
 	jr L_5A0C		;5a08
 L_5A0A:
-	ld a,001h		;5a0a
+	ld a,001h		;5a0a   ; 1: defensa
 L_5A0C:
 	ld (0e340h),a		;5a0c
 	ret			;5a0f
-L_5A10:
-	ld a,(0e208h)		;5a10
+
+; ----------------------------------------------------------------------
+; EN DEFENSA: busca en la mano del 2 una ficha que ya este en el rio del 1 -segura, por furiten- y la suelta de verdad: 0xE22B = esa, en su hueco entra una sorteada nueva y la mano se reordena. Si no hay ninguna, 0x5A2B sortea el descarte como siempre.
+; ----------------------------------------------------------------------
+suelta_una_ficha_segura:
+	ld a,(0e208h)		;5a10   ; las fichas de su mano
 	ld b,a			;5a13
 	ld de,0e14ch		;5a14
 L_5A17:
 	push bc			;5a17
-	ld a,(0e1beh)		;5a18
+	ld a,(0e1beh)		;5a18   ; contra todo el rio del 1
 	inc a			;5a1b
 	ld b,a			;5a1c
 	ld hl,0e15eh		;5a1d
 L_5A20:
 	ld a,(de)			;5a20
-	cp (hl)			;5a21
+	cp (hl)			;5a21   ; esta en el rio: segura
 	jr z,L_5A32		;5a22
 	inc hl			;5a24
 	djnz L_5A20		;5a25
 	inc de			;5a27
 	pop bc			;5a28
 	djnz L_5A17		;5a29
-L_5A2B:
-	call reparte_una_ficha		;5a2b
+sortea_el_descarte_a_e22b:
+	call reparte_una_ficha		;5a2b   ; sin ninguna segura: una sorteada
 	ld (0e22bh),a		;5a2e
 	ret			;5a31
 L_5A32:
 	pop bc			;5a32
-	ld (0e22bh),a		;5a33
-	call reparte_una_ficha		;5a36
+	ld (0e22bh),a		;5a33   ; la segura, al descarte
+	call reparte_una_ficha		;5a36   ; y una nueva en su hueco
 	ld (de),a			;5a39
 	ld a,(0e208h)		;5a3a
 	inc a			;5a3d
 	ld b,a			;5a3e
 	ld hl,0e14ch		;5a3f
-	call L_4F9B		;5a42
+	call L_4F9B		;5a42   ; la mano reordenada
 	ret			;5a45
-L_5A46:
-	call pinta_la_fuente_katakana		;5a46
+
+; ----------------------------------------------------------------------
+; EL SUBMODO 3 ARRANCA AQUI (0x42B2): la fuente katakana, la barra de arriba, la cabecera del recuento (0x7097), el marcador de la mano (0x5A67) y la marca del riichi del ganador (0xE1CD para el 1, 0xE1AE para el 2): 0x7018 sin riichi, 0x701E con el.
+; ----------------------------------------------------------------------
+monta_la_pantalla_del_recuento:
+	call pinta_la_fuente_katakana		;5a46   ; la fuente katakana
 	call pinta_la_barra_de_arriba		;5a49
-	call monta_la_cabecera_del_recuento		;5a4c
-	call L_5A67		;5a4f
+	call monta_la_cabecera_del_recuento		;5a4c   ; la cabecera: la mano ganadora
+	call pinta_el_marcador_de_la_mano		;5a4f   ; ronda y reparto
 	ld a,(0e302h)		;5a52
-	bit 1,a		;5a55
-	ld de,0e1cdh		;5a57
+	bit 1,a		;5a55   ; bit 1 de 0xE302: gana el 2
+	ld de,0e1cdh		;5a57   ; el riichi del 1
 	jr z,L_5A5F		;5a5a
-	ld de,0e1aeh		;5a5c
+	ld de,0e1aeh		;5a5c   ; o el del 2
 L_5A5F:
 	ld a,(de)			;5a5f
-	rra			;5a60
-	jp nc,pinta_la_marca_a		;5a61
-	jp pinta_la_marca_b		;5a64
-L_5A67:
+	rra			;5a60   ; bit 0: en riichi
+	jp nc,pinta_la_marca_a		;5a61   ; sin riichi, la marca a
+	jp pinta_la_marca_b		;5a64   ; con riichi, la marca b
+
+; ----------------------------------------------------------------------
+; El panel de la ronda: la lista de 0x5A8E y luego uno de los cuatro contadores segun el bit 0 de 0xE04C (este/sur) y el de 0xE04D (reparte el 1 o el 2): 0x5AB6 y 0x5AC4 en el este, 0x5AD2 y 0x5AE0 en el sur. Lo llaman 0x4C6C y 0x5A4F.
+; ----------------------------------------------------------------------
+pinta_el_marcador_de_la_mano:
 	ld hl,05a8eh		;5a67
-	call L_409D		;5a6a
+	call L_409D		;5a6a   ; el panel
 	ld hl,0e04ch		;5a6d
 	ld a,(hl)			;5a70
 	inc hl			;5a71
-	rra			;5a72
+	rra			;5a72   ; bit 0 de 0xE04C: sur
 	jr nc,L_5A81		;5a73
 	ld a,(hl)			;5a75
-	rra			;5a76
-	ld hl,05ad2h		;5a77
+	rra			;5a76   ; bit 0 de 0xE04D: reparte el 2
+	ld hl,05ad2h		;5a77   ; sur, reparte el 1
 	jr nc,L_5A8B		;5a7a
-	ld hl,05ae0h		;5a7c
+	ld hl,05ae0h		;5a7c   ; sur, reparte el 2
 	jr L_5A8B		;5a7f
 L_5A81:
 	ld a,(hl)			;5a81
-	rra			;5a82
-	ld hl,05ab6h		;5a83
+	rra			;5a82   ; este: reparte el 2?
+	ld hl,05ab6h		;5a83   ; este, reparte el 1
 	jr nc,L_5A8B		;5a86
-	ld hl,05ac4h		;5a88
+	ld hl,05ac4h		;5a88   ; este, reparte el 2
 L_5A8B:
 	jp L_409D		;5a8b
 

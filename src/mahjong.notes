@@ -3163,3 +3163,443 @@ C 0x5f08 honba a cero
 C 0x5f0a y la ronda cambia, con el reparto
 C 0x5f0f el que reparte ha ganado: un honba mas y sigue repartiendo
 C 0x5f15 bit 3 de 0xE1A8: el pago ha terminado
+
+# --- tanda 22 (2026-08-28): EL TURNO Y LA IA, 0x5144-0x5A8B ---
+# Las ocho fases del turno cuelgan de los bits de 0xE1AA (0x50B7); la maquina
+# no piensa: su mano se construyo a una ficha de completarse (0x78CE) y lo que
+# descarta se SORTEA del muro con un filtro que lo hace parecer humano (0x583C).
+L 0x5144 prepara_la_mesa_de_la_mano
+B 0x5144 La segunda mitad del arranque de la mano (cae desde 0x50DD): borra los 118 bytes de 0xE240-0xE2B5 -las figuras guardadas de los dos jugadores-, carga los 22 atributos de sprite de 0x51F4 en 0xE0A8 (los dos del cursor, los palos de riichi, la marca de la robada), manda los patrones de sprite de 0x524C a la VRAM, esconde los sprites 4 a 21 (Y = 0xE0) escribiendo 0x5204 en 0x3B10, pone el reloj 0xE052 a cero y da por hecha la fase 0 (bit 0 de 0xE1AA). Si reparte el 2, 0x513E ya habia puesto 0xE1AA = 0x3F, asi que la fase siguiente es la 6: la maquina descarta primero.
+C 0x5144 0xE240-0xE2B5: las figuras guardadas de los dos, a cero
+C 0x5151 los 22 atributos de sprite de 0x51F4, a 0xE0A8
+C 0x515f los patrones de sprite, a 0x1800
+C 0x5162 los sprites 4 a 21 escondidos en Y = 0xE0, a 0x3B10
+C 0x516e el reloj de la fase, a cero
+C 0x5177 fase 0 hecha
+L 0x517A carga_las_variables_del_que_juega
+B 0x517A EL CAMBIO DE JUGADOR, ida: copia a las variables COMPARTIDAS del turno las del jugador que toca. Primero siempre las del 1 (cursor 0xE1C2 a 0xE209, hueco de la robada 0xE1C3 a 0xE20A, ultimo hueco 0xE1CE a 0xE20B, marca de tsumo 0xE1D1 a 0xE22C, riichi y esperas 0xE1CD a 0xE33E) y, si el bit 0 de 0xE206 dice que juega el 2, encima las suyas (0xE207, 0xE208, 0xE20C, 0xE22A, 0xE1AE). Asi el menu, las llamadas y el motor trabajan con una sola copia sin saber de quien es. La vuelta es 0x51BC. Lo llaman 0x5004 (cada turno) y 0x582E (la maquina usando el menu).
+C 0x517a el cursor del 1
+C 0x5180 el hueco de su ficha robada
+C 0x5186 el ultimo hueco antes de las figuras
+C 0x518c su marca de tsumo
+C 0x5192 su riichi y sus esperas
+C 0x519b bit 0 de 0xE206: juega el 2
+C 0x519d y si es el 2, las suyas encima
+C 0x51af la marca de tsumo del 2, 0xE22A
+C 0x51b5 y su riichi, 0xE1AE
+L 0x51BC guarda_las_variables_del_que_juega
+B 0x51BC EL CAMBIO DE JUGADOR, vuelta: devuelve las variables compartidas a las del jugador que toca, al reves que 0x517A: al 1 (0x51C2) o al 2 (0x51DB). Lo llaman 0x5287, 0x55D3 y 0x5834, siempre justo despues de 0x663C, el despachador de llamadas, que es quien las cambia.
+C 0x51bf bit 0 de 0xE206: juega el 2
+C 0x51c2 al 1: cursor, hueco de la robada, ultimo hueco y riichi/esperas
+C 0x51db al 2: lo mismo en las suyas
+L 0x527F fase_1_elige_el_descarte
+B 0x527F FASE 1 DEL TURNO DEL JUGADOR 1: ELEGIR EL DESCARTE (bit 1 de 0xE1AA). Cada cuadro: el dibujo 1 del rincon, el despachador de llamadas de 0x663C por si ha pedido riichi, pon, chi o kan en el menu, y la vuelta de las variables. Si 0xE1AA sale a 0xFF de ahi es que ha hecho kan: roba la de reposicion por 0x5603. En las dificultades 2 y 3 (bits 1 y 2 de 0xE040) corre un reloj: a los 420 cuadros suena el 8 y a los 600 el descarte sale solo, el que tenga el cursor. Si no, espera al flanco de la tecla (bit 0 de 0xE23A). Con la ficha elegida (0xE1BC = la del cursor 0xE1C2), 0x49C6 puede avisar -dificultad 1, en riichi, la ficha es una espera- y entonces el dibujo 2 y no pasa; si no, bit 1 puesto y a la fase 2. Mientras tanto 0x52D1 mueve el cursor.
+C 0x527f el dibujo 1 del rincon
+C 0x5284 riichi, pon, chi o kan, si los ha pedido en el menu
+C 0x5287 y las variables de vuelta a las del 1
+C 0x528d 0xFF: ha hecho kan, roba la de reposicion
+C 0x5296 bits 1 y 2 de 0xE040: dificultades 2 y 3, con reloj
+C 0x5299 420 cuadros
+C 0x529f aun no
+C 0x52a3 sonido 8: el aviso
+C 0x52a6 600 cuadros: el descarte sale solo
+C 0x52b0 bit 0 de 0xE23A: flanco de la tecla
+C 0x52b3 la ficha del cursor
+C 0x52bd 0xE1BC = la ficha elegida
+C 0x52c0 el aviso de la dificultad 1: es una espera
+C 0x52c7 el dibujo 2, y no pasa
+C 0x52cd fase 1 hecha
+C 0x52cf y el cursor pintado
+L 0x52D1 mueve_el_cursor_de_la_mano
+B 0x52D1 El cursor sobre la mano del 1, cada ocho cuadros. En riichi con esperas (0xE1CD = 0x81) el cursor se clava en la ficha robada (0xE1C3): solo se puede descartar esa. Si no, el bit 2 de 0xE009 lo baja un hueco y el bit 3 lo sube, dando la vuelta por los extremos, con el sonido 5. Luego 0x5324 pone la X de los dos sprites del cursor (0xE0A9 y 0xE0AD) con la tabla de multiplos de 16 y 0x5334 los manda a 0x3B00, con los sprites 2 y 3 escondidos.
+C 0x52d4 cada ocho cuadros
+C 0x52da 0x81: en riichi y con esperas, el cursor se clava en la robada
+C 0x52e9 bit 2 de 0xE009: un hueco hacia abajo
+C 0x52ef sonido 5
+C 0x52f5 cursor - 1
+C 0x52fa por debajo de cero: a la robada, la ultima
+C 0x5308 bit 3 de 0xE009: un hueco hacia arriba
+C 0x5314 cursor + 1
+C 0x531b pasa de la robada: al cero
+C 0x5327 la X: multiplos de 16
+C 0x532e los dos sprites del cursor
+C 0x5336 los sprites 2 y 3 escondidos en Y = 0xE0
+C 0x5347 y los atributos de los cuatro primeros, a 0x3B00
+L 0x535E fase_2_riichi_y_furiten
+B 0x535E FASE 2: LA COMPROBACION DEL RIICHI (bit 2 de 0xE1AA), cada cuatro cuadros. Si el 1 no ha pedido riichi (bit 0 de 0xE1CD) o ya hay furiten marcado (bit 6), la ficha se quita sin mas por 0x53C7. Con riichi pedido, se calculan las esperas de la mano que queda (0x66E7) y sin ninguna (bit 7) se rechaza por 0x5378. Con esperas, en la dificultad 1 (bit 0 de 0xE040) se mira el furiten -la ficha que descarta es una de sus esperas, o alguna espera esta en su rio- y tambien se rechaza; en las 2 y 3 no se mira y se paga: 0x53B8, mil puntos a la mesa. Luego 0x53C7 saca la ficha de la mano, repinta y, con riichi, pone el palo como sprite sobre el descarte.
+C 0x5361 cada cuatro cuadros
+C 0x5367 bit 0 de 0xE1CD: ha pedido riichi
+C 0x536c bit 6: ya hay furiten marcado, no se mira mas
+C 0x536e las esperas de lo que queda
+C 0x5374 bit 7 al acarreo: tiene esperas
+L 0x5378 rechaza_el_riichi
+C 0x5378 SE RECHAZA EL RIICHI: el dibujo 2
+C 0x537f los cuatro sprites del cursor escondidos
+C 0x5391 0xE1CD a cero: riichi y esperas olvidados
+C 0x5397 y vuelta a la fase 1
+C 0x539d bit 0 de 0xE040: solo la dificultad 1 mira el furiten
+C 0x53a8 la ficha que descarta, en la lista de esperas 0xE1F5
+C 0x53ac esta: furiten, se rechaza
+C 0x53ae las esperas contra su rio
+C 0x53b4 bit 6: coincidencia, furiten
+L 0x53B8 paga_el_riichi_el_1
+C 0x53b8 EL RIICHI DEL JUGADOR 1: mil puntos
+C 0x53c1 y un palo mas en la mesa, en BCD
+L 0x53C7 quita_el_descarte_de_la_mano
+C 0x53c7 el hueco del cursor
+C 0x53d0 0x39: se vacia
+C 0x53d8 sin riichi, listo
+C 0x53de el palo de riichi como sprite: fila 0x90, primera fila del rio
+C 0x53e3 del descarte 10 en adelante
+C 0x53e9 la segunda fila, 0xA8
+C 0x53eb la X del descarte
+C 0x53f9 el sprite 12, a 0x3B30
+C 0x5403 0xE1CF a cero: la marca del rinshan
+C 0x5409 fase 2 hecha
+L 0x540C fase_3_ordena_la_mano
+B 0x540C FASE 3 (bit 3 de 0xE1AA), cada ocho cuadros: ordena los catorce huecos del 1 con 0x4F9B -el hueco vacio 0x39 cae al final-, repinta la mano y esconde los dos sprites del cursor.
+C 0x540f cada ocho cuadros
+C 0x5415 catorce huecos
+C 0x541a ordenados: el 0x39 vacio cae al final
+C 0x5422 los dos sprites del cursor escondidos
+C 0x5433 fase 3 hecha
+L 0x5436 fase_4_el_descarte_al_rio
+B 0x5436 FASE 4 (bit 4 de 0xE1AA), cada ocho cuadros: la ficha elegida (0xE1BC) va al rio del 1 (0xE15E, indice 0xE1BE) con el sonido 6, y se baja la marca de tsumo. Es la unica fase que la escribe.
+C 0x5439 cada ocho cuadros
+C 0x5443 sonido 6
+C 0x5449 un descarte mas
+C 0x5450 su hueco en el rio
+C 0x5456 la ficha
+C 0x545d fase 4 hecha
+L 0x5460 fase_5_roba_la_maquina
+B 0x5460 FASE 5: EL TURNO DE LA MAQUINA, PRIMERA MITAD (bit 5 de 0xE1AA), cada ocho cuadros. Cambia las figuras: guarda las del 1 (0xE2B6-0xE2F0 a 0xE240) y trae las del 2 (0xE27B). 0x567B mira si el descarte del 1 le da RON. Si no hay nada en marcha (0xE1A9) ni el 1 ha pedido agari (bit 0 de 0xE1C7): con el 1 dentro de su tope de descartes (0xE1C0) la maquina ROBA (0x549D: marca de tsumo, 0x5A2B sortea, al hueco 0xE208), una de cada cuatro veces intenta un KAN por el menu (0x5828 con 0xE20D = 0x10), luego 0x577A decide riichi, pon o chi, y por fin la mano se pinta boca abajo (0x551D esconde, 0x54C4 pinta, 0x54C7 devuelve) con la robada otra vez en su hueco. Si el 1 ya paso el tope, 0x563D devuelve las figuras y la mano se da por agotada (0x5654).
+C 0x5463 cada ocho cuadros
+C 0x5466 las figuras del 1, guardadas en 0xE240
+C 0x5471 y las del 2, a la zona de trabajo
+C 0x547c el descarte del 1 le da ron?
+C 0x5482 0xE1A9: algo en marcha, se espera
+C 0x5487 bit 0 de 0xE1C7: el 1 ha pedido agari
+C 0x548c 0xE1C0: el tope de descartes del 1
+C 0x5490 dentro del tope: la maquina roba
+C 0x5492 pasado el tope: las figuras de vuelta
+C 0x549a y la mano se agota
+C 0x54a2 sortea la ficha
+C 0x54a5 al hueco de la robada, 0xE208
+C 0x54ab una de cada cuatro veces
+C 0x54b1 0x10: kan
+C 0x54b4 lo intenta por el menu
+C 0x54b9 bit 0 de C: hecho
+C 0x54bb sin kan: las esperas de nuevo
+C 0x54be riichi, pon o chi
+C 0x54c1 la mano escondida
+C 0x54c4 pintada boca abajo
+C 0x54cd y de vuelta, 0xE208 fichas
+C 0x54d5 la robada otra vez en su hueco
+C 0x54db fase 5 hecha
+L 0x54DE pon_a_en_la_robada_del_2
+B 0x54DE Escribe A en el hueco de la ficha robada del 2 (0xE14C + 0xE208).
+C 0x54df el hueco de la robada del 2
+C 0x54e9 la ficha
+L 0x54EB fase_6_descarta_la_maquina
+B 0x54EB FASE 6: EL DESCARTE DE LA MAQUINA (bit 6 de 0xE1AA), en dos tiempos marcados por el bit 2 de 0xE1C4. El primero, a los 32 cuadros: 0x567B mira si la robada le da TSUMO; si no hay nada en marcha ni agari pedido, esconde la mano (0x551D), 0x553C elige QUE HUECO SE VE VACIO -que es teatro: la ficha que descarta no sale de la mano- y la pinta boca abajo. El segundo, 16 cuadros despues (0x556C): devuelve al monton la copia de la robada, SORTEA EL DESCARTE por 0x598F, lo pone en el rio del 2 (0xE172, indice 0xE1BF) con el sonido 6, baja la marca de tsumo, reinicia el reloj y da la fase por hecha.
+C 0x54ee bit 2 de 0xE1C4: segundo tiempo
+C 0x54f6 cada 32 cuadros
+C 0x54f9 primer tiempo hecho
+C 0x54fb la robada le da tsumo?
+C 0x5501 algo en marcha
+C 0x5506 el 1 ha pedido agari
+C 0x5508 la mano escondida
+C 0x550b y el hueco que se vera vacio
+L 0x550E pinta_la_mano_del_2_boca_abajo
+B 0x550E Pinta la mano del 2 tal como esta en 0xE14C -que en ese momento son los reversos que puso 0x551D- y devuelve la de verdad desde 0xE21C.
+C 0x550e pintada boca abajo
+C 0x5517 y de vuelta
+L 0x551D esconde_la_mano_del_2
+B 0x551D Guarda la mano de verdad del 2 (0xE14C, 0xE208 fichas) en 0xE21C y pone en su sitio los reversos de 0x4FB1, uno mas que fichas. Lo que se pinta despues son reversos; 0x550E la devuelve.
+C 0x5523 0xE208 fichas, a 0xE21C
+C 0x5528 los reversos de 0x4FB1
+C 0x5531 una mas: la robada
+C 0x5535 BC = 0xE208, el tamano de la mano del 2
+L 0x553C elige_el_hueco_que_se_ve_vacio
+B 0x553C TEATRO: que hueco de la mano boca abajo se muestra vacio, para que parezca que el descarte salio de ahi. En riichi (bit 0 de 0xE1AE) siempre el de la robada, como haria una persona; tambien a partir del descarte 0xE33D. Antes de eso, del descarte 8 en adelante, un hueco al azar (0x48CE) si el bit 0 de la semilla esta puesto y la robada si no; en los siete primeros, al reves. El descarte de verdad lo sortea 0x598F y no tiene nada que ver con el hueco.
+C 0x553f bit 0 de 0xE1AE: en riichi, siempre la robada
+C 0x5548 del descarte 0xE33D en adelante, la robada
+C 0x554d del 8 en adelante, por 0x5561
+C 0x5552 antes: bit 0 de la semilla, la robada
+C 0x5555 un hueco al azar
+C 0x555e 0x39: se ve vacio
+C 0x5564 bit 0 de la semilla: al azar
+C 0x5567 la robada, 0x39 en 0xE208
+L 0x556C el_descarte_de_la_maquina_al_rio
+C 0x556f cada 16 cuadros
+C 0x5572 los dos tiempos hechos
+C 0x5574 la copia de la robada vuelve al monton: ese hueco se pisa cada turno
+C 0x5577 EL DESCARTE: sorteado, y que no sea una espera
+C 0x5580 sonido 6
+C 0x5586 un descarte mas del 2
+C 0x558d su hueco en el rio
+C 0x5593 la ficha sorteada
+C 0x559a el reloj a cero
+C 0x55a0 fase 6 hecha
+L 0x55A2 fase_7_tras_el_descarte_de_la_maquina
+B 0x55A2 FASE 7 (bit 7 de 0xE1AA): lo que pasa entre el descarte de la maquina y el robo del 1. La primera vez (bit 1 de 0xE1C4) repinta la mano del 2 boca abajo sin la robada y devuelve las figuras del 1 (0x563D). Si el 2 ha pasado su tope de descartes (0xE1C1), a los 420 cuadros la mano se agota (0x5654). Si no: el dibujo 0, el despachador de llamadas -pon, chi, kan o ron del 1 sobre ese descarte- y la vuelta de las variables; 0xE1AA = 1 es que ha hecho llamada y vuelve a la fase 1 (0x5630), 0xFF que roba de reposicion (0x5603). En las dificultades 2 y 3 se roba solo a los 720 cuadros; en la 1 hay que pulsar (bit 0 de 0xE23A). Antes de robar, 0x49C6 avisa si el descarte de la maquina es una espera del 1 en riichi (dificultad 1): el dibujo 2 y se queda esperando el agari.
+C 0x55a5 bit 1 de 0xE1C4: primera vez ya hecha
+C 0x55a9 primera vez
+C 0x55ab la mano del 2 escondida
+C 0x55b0 sin la robada
+C 0x55b3 pintada y de vuelta
+C 0x55b6 las figuras del 1, de vuelta
+C 0x55bc 0xE1C1: el tope de descartes del 2
+C 0x55c0 dentro del tope
+C 0x55c2 pasado el tope: 420 cuadros
+C 0x55c8 aun no
+C 0x55c9 y la mano se agota
+C 0x55cd el dibujo 0
+C 0x55d0 pon, chi, kan o ron sobre el descarte de la maquina
+C 0x55d3 las variables de vuelta
+C 0x55d9 1: hubo llamada, a la fase 1
+C 0x55de 0xFF: kan, roba de reposicion
+C 0x55e6 dificultades 2 y 3
+C 0x55e9 720 cuadros y roba solo
+C 0x55f4 bit 0 de 0xE23A: hay que pulsar
+C 0x55f6 el descarte de la maquina
+C 0x55f9 es una espera del 1 en riichi, dificultad 1?
+C 0x55fc no: roba
+C 0x5600 si: el dibujo 2, y espera al agari
+L 0x5603 roba_el_jugador_1
+B 0x5603 EL ROBO DEL JUGADOR 1: reloj a cero, sonido 7, marca de tsumo, 0x4F64 sortea la ficha y va al hueco 0xE1C3 de la mano de 0xE13A; se pinta, el cursor se pone en la robada y 0xE1AA = 1: fase 1, a elegir el descarte. Tambien es la ficha de reposicion tras un kan (0x528F, 0x55E0).
+C 0x5606 el reloj a cero
+C 0x560b sonido 7
+C 0x5613 la ficha
+C 0x561d al hueco de la robada, en la mano
+C 0x562b el cursor sobre la robada
+C 0x562e 0xE1AA = 1: solo la fase 0 hecha, a elegir el descarte
+C 0x5633 bit 1 de 0xE1C4 abajo: la fase 7 volvera a empezar de cero
+L 0x5636 resta_el_reloj_a_hl
+B 0x5636 HL = HL - 0xE052, con el acarreo que traiga: acarreo a la salida cuando el reloj de la fase ha pasado de HL. Es como se miden los 420, 600 y 720 cuadros de las fases 1 y 7.
+C 0x5636 el reloj de la fase
+C 0x563a acarreo: ya ha pasado
+L 0x563D devuelve_las_figuras_del_1
+B 0x563D Al reves que 0x5466: las figuras del 2 a 0xE27B y las guardadas del 1 (0xE240) a la zona de trabajo 0xE2B6.
+C 0x563d las del 2, guardadas
+C 0x5648 las del 1, de vuelta
+L 0x5654 agota_la_mano
+B 0x5654 La mano se acaba sin ganador por agotarse los descartes: 0xE1A9 = 0x80 y a destapar la mano de la maquina (0x56F7). Llegan 0x50DA (las ocho fases hechas), 0x549A y 0x55C9 (los topes de descartes).
+C 0x5654 0x80: agotada
+C 0x565f bit 2 de 0xE302: sin ganador
+L 0x5661 espera_y_cierra_la_mano
+B 0x5661 0xE1A9 = 0xFF y unos 180 cuadros del reloj con la mano de la maquina a la vista; luego baja el bit 1 de 0xE1A8 y pone 0xE1A9 y 0xE1AA a cero: el turno se ha acabado y el submodo 2 sigue por 0x424B con lo que diga 0xE302.
+C 0x5663 0xFF: cerrando
+C 0x566a 180 cuadros
+C 0x566f aun no
+C 0x5674 bit 1 de 0xE1A8 abajo
+C 0x5677 0xE1A9 y 0xE1AA a cero: fin del turno
+L 0x567B mira_si_la_maquina_gana
+B 0x567B LA MAQUINA MIRA SI GANA. En modo defensa (bit 0 de 0xE340) ni lo intenta. La ficha es la robada (0xE22B) si ya paso la fase 5 -tsumo- y el descarte del 1 (0xE1BC) si no -ron-. Si no esta entre sus esperas (0xE20E, por 0x576E) no hay nada. Si esta, 0xE1BA la guarda y se mira el turno: antes del descarte 0xE33D la maquina NO GANA TODAVIA: con ron lo deja pasar y con tsumo sortea otra robada que no sea espera (0x598F). Tampoco gana justo en su turno de riichi (0xE1BB). Si no, 0xE1A9 = 1 y 0x56B6 decide si canta.
+C 0x567e bit 0 de 0xE340: en defensa no se gana
+C 0x5680 la robada
+C 0x5686 bit 5 de 0xE1AA: fase 5 hecha, es tsumo
+C 0x568a o el descarte del 1: ron
+C 0x568d entre sus esperas?
+C 0x5691 no
+C 0x5692 0xE1BA: la ficha que gana
+C 0x569c antes del descarte 0xE33D no gana
+C 0x56a2 con ron lo deja pasar
+C 0x56a5 con tsumo, otra robada que no sea espera
+C 0x56af justo en el turno del riichi tampoco
+C 0x56b3 0xE1A9 = 1: va a cantar
+L 0x56B6 la_maquina_decide_si_canta
+B 0x56B6 Con 0xE1A9 = 1 cuenta los han de su mano (0x575A) y canta con dos o mas, o con uno si hay menos de 5 honba; si no llega, limpia y se queda como estaba (0xE1A9 = 0). Con cualquier otro valor de 0xE1A9 (0x40 gano el 1, 0x80 agotada, 3 cantando) sigue destapando la mano (0x571C). Llega desde 0x5030 con A = 0xE1A9.
+C 0x56b6 1: decidir
+C 0x56ba los han
+C 0x56bd dos o mas: canta
+C 0x56c2 cero: no
+C 0x56c7 uno vale solo con menos de 5 honba
+C 0x56cf 0xE1A9 a cero: sigue jugando
+L 0x56D2 limpia_la_lista_de_jugadas
+C 0x56d2 la lista de jugadas y los han, a cero
+L 0x56E3 la_maquina_canta
+C 0x56e5 sonido 0x90: la maquina canta
+C 0x56f1 con tsumo
+C 0x56f4 la ficha que gana, al hueco de la robada
+L 0x56F7 destapa_la_mano_de_la_maquina
+B 0x56F7 Prepara el destape: copia la mano del 2 (catorce bytes de 0xE14C) a 0xE12B, apunta cuantas (0xE129 = 0xE208 + 1), pone el indice 0xE1B7 a cero, vacia 0xE14C y sube el bit 1 de 0xE1A9. Desde ahi 0x571C la va destapando ficha a ficha, una cada ocho cuadros.
+C 0x56f7 la mano, a 0xE12B
+C 0x5706 cuantas fichas
+C 0x570b el indice, a cero
+C 0x5711 la mano visible, vacia
+C 0x5718 bit 1 de 0xE1A9: destapando
+C 0x571a y se pinta vacia
+L 0x571C destapa_una_ficha
+B 0x571C Cada ocho cuadros devuelve una ficha de 0xE12B a 0xE14C y repinta; cuando el indice llega a la cuenta, reloj a cero y, con el bit 7 de 0xE1A9 (agotada), 0x565C marca sin ganador; en todo caso 0x5661 cierra tras tres segundos.
+C 0x571f cada ocho cuadros
+C 0x5728 todas destapadas?
+C 0x572e la que toca, de 0xE12B
+C 0x573b a la mano visible
+C 0x573f una mas
+C 0x5746 reloj a cero
+C 0x574c bit 7: agotada, sin ganador
+C 0x5750 lo demas: a cerrar
+C 0x5754 la ficha que gana, al hueco de la robada
+L 0x575A cuenta_los_han_de_la_maquina
+B 0x575A Analiza la mano del 2 (0x5F3E), pone los han a cero, le da al evaluador su marca de tsumo (0xE22A en 0xE1D1) y pasa los detectores (0x7B3F). Devuelve los han en A. Lo llama 0x56BA.
+C 0x575a la mano completa? y sus figuras
+C 0x575e los han a cero
+C 0x5767 los detectores
+C 0x576a los han
+L 0x576E busca_en_las_esperas_del_2
+B 0x576E Busca A en la lista de esperas del 2 (0xE20E, catorce huecos): Z y HL en la coincidencia; si no esta, HL se queda en el ultimo hueco y NZ. Lo usan 0x568D, 0x585E y 0x5995.
+C 0x576e catorce huecos
+C 0x5774 esta
+L 0x577A la_maquina_declara_riichi_o_llama
+B 0x577A RIICHI, PON O CHI DE LA MAQUINA, en la fase 5 tras robar. Riichi si no esta en defensa (0xE340), tiene esperas (0xE20E), la mano esta cerrada (0xE2B6 = 0), con 5 honba o mas su plan lo permite (0xE058), es exactamente su turno de riichi (0xE1BF + 1 = 0xE1BB) y no es el 19: paga mil por 0x5F31, sube el palo de la mesa, pone el palo como sprite sobre ese descarte (sprite 13, fila 0x2C o 0x14, columna invertida porque su rio va de derecha a izquierda), marca 0xE1AE = 1 y pasa por el menu con la opcion 2. Si no hay riichi (0x57EF): con los bits 1, 2 o 5 del plan intenta PON (opcion 4) y con los bits 1 o 2 CHI (opcion 8), por el menu; tras una llamada borra sus esperas y las recalcula (0x5820).
+C 0x577d en defensa, nada
+C 0x5783 sin esperas, nada
+C 0x5789 mano abierta, nada
+C 0x578f con 5 honba o mas
+C 0x5796 el plan tiene que permitirlo
+C 0x579a EL RIICHI DE LA MAQUINA: su descarte siguiente
+C 0x57a1 tiene que ser justo 0xE1BB
+C 0x57a6 y no el 19
+C 0x57ab mil puntos
+C 0x57b1 un palo mas en la mesa
+C 0x57bd el palo como sprite: fila 0x2C, primera fila de su rio
+C 0x57c1 del descarte 10 en adelante
+C 0x57c5 la segunda fila, 0x14
+C 0x57c9 la columna invertida: su rio va de derecha a izquierda
+C 0x57d5 la X
+C 0x57d8 0xE1AE = 1: en riichi
+C 0x57dd la opcion 2 del menu: riichi
+C 0x57e3 el sprite 13, a 0x3B34
+C 0x57ec y por el menu
+C 0x57f2 bits 1, 2 y 5 del plan: pon
+C 0x57f8 la opcion 4
+C 0x57ff bit 0 de C: hecho
+C 0x5805 bits 1 y 2: chi
+C 0x580a la opcion 8
+C 0x5812 hecho
+C 0x5813 las esperas, borradas
+C 0x5820 y recalculadas
+L 0x5828 la_maquina_usa_el_menu
+B 0x5828 La maquina pasa por el mismo despachador de llamadas que la persona (0x663C): la opcion en 0xE1C7 (desde 0xE20D), sus variables cargadas (0x517A), la llamada, las variables de vuelta (0x51BC) y 0xE1C7 limpio. Devuelve en C lo que dejo el despachador: bit 0, hecha.
+C 0x5828 la opcion, como si la hubiera elegido en el menu
+C 0x582e sus variables
+C 0x5831 la llamada
+C 0x5834 y de vuelta
+C 0x5838 la opcion, limpia
+L 0x583C sortea_el_descarte_de_la_maquina
+B 0x583C EL DESCARTE DE LA MAQUINA NO SALE DE SU MANO: se sortea del muro, y este filtro lo hace parecer humano. En el demo no sortea (bit 6 de 0xE002). En la dificultad 1 vale cualquiera. En las otras dos, hasta el descarte 12: si es su turno de riichi o mas, con un plan de palo (bits 1 y 2 de 0xE058) y antes del noveno, rechaza las de SU palo (0xE059); sin plan de palo, en los cuatro primeros solo suelta HONORES, del cuarto al septimo solo unos, doses, ochos y nueves, y luego cualquiera; antes del turno de riichi, rechaza las que sean una de SUS ESPERAS. Del descarte 12 en adelante (0x58AA): en riichi cualquiera; en el 15 decide si se defiende (0x59EB) y en el 18 se defiende si la semilla es par; en defensa suelta una ficha segura de su mano (0x5A10); si no, cuenta el rio del 1 por palos (0x58D6) y rechaza el palo que el 1 menos ha soltado. Cada ficha rechazada vuelve al monton (0x59A4) y se sortea otra.
+C 0x583f en el demo no se sortea
+C 0x5842 la candidata
+C 0x584b dificultad 1: vale cualquiera
+C 0x5850 del descarte 12 en adelante, por 0x58AA
+C 0x5858 ya en su turno de riichi?
+C 0x585e antes: si es una de sus esperas
+C 0x5862 se rechaza
+C 0x5868 bits 1 y 2 del plan: va a un palo
+C 0x586f del noveno en adelante, cualquiera
+C 0x587a de su palo: se rechaza
+C 0x587c la rechazada vuelve al monton y otra
+C 0x5887 los cuatro primeros descartes
+C 0x5890 solo honores
+C 0x5894 lo demas se rechaza
+C 0x5898 del octavo en adelante, cualquiera
+C 0x589f del 4 al 7: 8 y 9 valen
+C 0x58a3 1 y 2 tambien
+C 0x58a7 del 3 al 7 se rechaza
+C 0x58ad en riichi, cualquiera
+C 0x58b2 en el descarte 15 decide si se defiende
+C 0x58bd en el 18
+C 0x58c4 con la semilla par
+C 0x58c9 a la defensa
+C 0x58cf bit 0 de 0xE340: en defensa
+C 0x58d2 una ficha segura de la mano
+L 0x58D6 cuenta_el_rio_del_1_por_palos
+B 0x58D6 Cuenta los descartes del 1 por palos en 0xE341-0xE344 (palo 0, 1, 2 y honores) y los terminales -unos y nueves, sin contar el este- en 0xE345; cada cuenta por debajo de dos levanta su bit en 0xE346. El primer bit puesto dice que palo NO soltar: el que el 1 menos ha descartado es el que se esta guardando. 0xE347 lleva ese palo y la candidata se rechaza mientras sea de el. El bit 4 (terminales) va a 0x595C, que esta MAL ESCRITO: el jr nz tras el cp 1 devuelve antes de mirar el 9, asi que nunca rechaza nada.
+C 0x58d6 las seis cuentas, a cero
+C 0x58e3 tantos como descartes del 1
+C 0x58eb el palo
+C 0x58ef palo 0
+C 0x58f9 palo 1
+C 0x5903 palo 2
+C 0x590d honores
+C 0x5912 el este no cuenta como terminal
+C 0x5918 los unos
+C 0x591c y los nueves
+C 0x5923 un terminal mas
+C 0x5932 menos de dos: bit puesto
+C 0x5942 palo 0 poco soltado: no se suelta
+C 0x5948 palo 1
+C 0x594e palo 2
+C 0x5954 honores
+C 0x5958 terminales
+C 0x595c ERRATA: con un 1 sale por el jr nz del cp 9, con lo demas por el primero; nunca llega al sorteo
+C 0x5971 0xE347: el palo que no se suelta
+C 0x597c la candidata es de ese palo
+C 0x597f vuelve al monton
+C 0x5982 y otra
+L 0x5988 devuelve_la_copia_de_e22b
+C 0x5988 la ficha sorteada, de vuelta al monton
+L 0x598F sortea_hasta_que_no_sea_espera
+B 0x598F Sortea el descarte de la maquina (0x583C) y, mientras sea una de sus esperas (0x576E), lo devuelve al monton y sortea otro: la maquina nunca suelta una ficha que le sirva. Lo llaman 0x5141 (cuando reparte el 2, su primer descarte), 0x5577 (cada descarte) y 0x56A5 (una robada que ganaria antes de tiempo).
+C 0x598f el descarte candidato
+C 0x5995 es una de sus esperas?
+C 0x5999 no: vale
+C 0x599e si: al monton y otro
+L 0x59A4 devuelve_una_copia_al_monton
+B 0x59A4 Una copia menos repartida del tipo de la ficha A en la tabla de 0xE186 (la que 0x4F8A sube al repartir): por la tabla inversa de 0x59B3 saca el indice 0..33 y baja el contador. Es lo que hace que una ficha sorteada y rechazada, o la robada que la maquina pisa cada turno, pueda volver a salir.
+C 0x59a4 el indice 0..33 por la tabla inversa
+C 0x59ae su contador de copias repartidas
+C 0x59b1 una menos
+L 0x59EB decide_si_la_maquina_se_defiende
+B 0x59EB En el descarte 15: 0xE340 = 1 (defensa) si el 1 esta en riichi con esperas (0xE1CD = 0x81) y ademas su turno de riichi es tardio (0xE33D de 15 en adelante), o el 1 ha soltado pocos honores o terminales (bits 3 y 4 de 0xE346), o el plan no tiene bits altos (0xE058 & 0xF8). Si no, 0. En defensa la maquina ni gana ni declara riichi (0x567E, 0x577D).
+C 0x59ee 0x81: el 1 en riichi y con esperas
+C 0x59f5 turno de riichi tardio: defensa
+C 0x59fc pocos honores o terminales soltados: defensa
+C 0x5a03 plan sin bits altos: defensa
+C 0x5a07 no hay que defenderse
+C 0x5a0a 1: defensa
+L 0x5A10 suelta_una_ficha_segura
+B 0x5A10 EN DEFENSA: busca en la mano del 2 una ficha que ya este en el rio del 1 -segura, por furiten- y la suelta de verdad: 0xE22B = esa, en su hueco entra una sorteada nueva y la mano se reordena. Si no hay ninguna, 0x5A2B sortea el descarte como siempre.
+C 0x5a10 las fichas de su mano
+C 0x5a18 contra todo el rio del 1
+C 0x5a21 esta en el rio: segura
+L 0x5A2B sortea_el_descarte_a_e22b
+C 0x5a2b sin ninguna segura: una sorteada
+C 0x5a33 la segura, al descarte
+C 0x5a36 y una nueva en su hueco
+C 0x5a42 la mano reordenada
+L 0x5A46 monta_la_pantalla_del_recuento
+B 0x5A46 EL SUBMODO 3 ARRANCA AQUI (0x42B2): la fuente katakana, la barra de arriba, la cabecera del recuento (0x7097), el marcador de la mano (0x5A67) y la marca del riichi del ganador (0xE1CD para el 1, 0xE1AE para el 2): 0x7018 sin riichi, 0x701E con el.
+C 0x5a46 la fuente katakana
+C 0x5a4c la cabecera: la mano ganadora
+C 0x5a4f ronda y reparto
+C 0x5a55 bit 1 de 0xE302: gana el 2
+C 0x5a57 el riichi del 1
+C 0x5a5c o el del 2
+C 0x5a60 bit 0: en riichi
+C 0x5a61 sin riichi, la marca a
+C 0x5a64 con riichi, la marca b
+L 0x5A67 pinta_el_marcador_de_la_mano
+B 0x5A67 El panel de la ronda: la lista de 0x5A8E y luego uno de los cuatro contadores segun el bit 0 de 0xE04C (este/sur) y el de 0xE04D (reparte el 1 o el 2): 0x5AB6 y 0x5AC4 en el este, 0x5AD2 y 0x5AE0 en el sur. Lo llaman 0x4C6C y 0x5A4F.
+C 0x5a6a el panel
+C 0x5a72 bit 0 de 0xE04C: sur
+C 0x5a76 bit 0 de 0xE04D: reparte el 2
+C 0x5a77 sur, reparte el 1
+C 0x5a7c sur, reparte el 2
+C 0x5a82 este: reparte el 2?
+C 0x5a83 este, reparte el 1
+C 0x5a88 este, reparte el 2
+L 0x49C6 avisa_si_es_espera_en_amachua
+B 0x49C6 LA AYUDA DE LA DIFICULTAD 1: con la tecla 1 (bit 0 de 0xE040) y el 1 en riichi (bit 0 de 0xE1CD), devuelve acarreo si la ficha A es una de sus esperas (0xE1F5, hasta el cero final). Lo usan 0x52C0 (no le deja descartar una ficha con la que gana) y 0x55F9 (le avisa de que el descarte de la maquina le da ron). En las otras dificultades nunca avisa.
+C 0x49ca bit 0 de 0xE040: solo con la tecla 1
+C 0x49cf bit 0 de 0xE1CD: y en riichi
+C 0x49d5 trece esperas como mucho
+C 0x49d9 el cero del final: no esta
+C 0x49dc esta
+C 0x49e1 sin acarreo: no
+C 0x49e3 acarreo: es una espera
+C 0x5079 0x40: gano el 1; se va a destapar la mano de la maquina
+C 0x5083 con diez o mas se destapa tal cual
+C 0x5086 con menos, se sortea una ficha
+C 0x5097 que pisa el penultimo hueco de la mano de la maquina antes de destaparla

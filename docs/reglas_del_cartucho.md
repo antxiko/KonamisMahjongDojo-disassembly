@@ -22,7 +22,7 @@ guion de 0x4AE8.
 | Los palos 0 y 1 son caracteres y círculos, en algún orden | — | — | SUPOSICIÓN (no leído; se vería en los patrones de las fichas) |
 | No hay muro: cada ficha se sortea al hacer falta, rechazando los tipos con 4 copias gastadas | 0x4F64, 0x4F2B | diverge (no hay muro muerto ni orden de robo) | LEÍDO |
 | Dos indicadores: 0xE1D3 es el del dora y 0xE1D4 el del ura-dora, que sólo cuenta con riichi; el dora es el siguiente del indicador (9→1, 北→東, 中→白) | 0x81A9, 0x8270 | coincide en la cuenta; los dos indicadores se pintan igual en pantalla (0x7024) | LEÍDO; que el ura se vea es SUPOSICIÓN de que no se tapa en otro sitio |
-| Cada jugador tiene 18 robos por mano (20 en un caso de 0xE1C0); a partir del descarte 18 ya no hay riichi | 0x50DD, 0x665C | diverge (en cuatro manda el muro) | LEÍDO |
+| **El que reparte tiene 20 descartes y el otro 18** (0xE1C0 para el 1, 0xE1C1 para el 2, puestos en 0x50DD); en cuanto uno se pasa, la mano se agota sin ganador (0x548C, 0x55BC → 0x5654). A partir del descarte 18 ya no hay riichi | 0x50DD, 0x548C, 0x55BC, 0x665C | diverge (en cuatro manda el muro) | LEÍDO |
 | 30.000 puntos por jugador al empezar | 0x4C43 | — | MEDIDO |
 
 ## 2. El reparto: no es limpio
@@ -34,6 +34,13 @@ guion de 0x4AE8.
 | Las copias que la máquina gasta se descuentan de 0xE186: al jugador no le pueden salir después | 0x7ADA, 0x79B4 | LEÍDO |
 | La mano del jugador se roba de verdad (13 fichas) y, **a partir de la tercera mano sin ganar él** (0xE062), se le siembra un trío y una o dos escaleras encima | 0x4DA6, 0x48E1; 0xE062 sube en 0x5EE1 y 0x76A9 y vuelve a cero en 0x5EF2 | LEÍDO (el contador es "manos sin ganar el jugador 1", corrige la nota de la tanda 5 que sólo lo veía subir) |
 | En el demo la máquina lleva siempre la mano fija de 0x7AEA: seis parejas y un 南 suelto, siete parejas a falta del 南 | 0x78D5, D 0x7AEA | LEÍDO |
+| **La máquina no descarta de su mano.** Sus 13 fichas son fijas y la robada de cada turno pisa siempre el mismo hueco (0xE208, 0x54A5); lo que va a su río es una ficha SORTEADA del muro (0x583C), filtrada para que parezca un descarte humano: en las dificultades 2 y 3, los cuatro primeros son honores, del 4 al 7 unos, doses, ochos y nueves, nunca una de sus esperas antes de su turno de riichi, y con plan de palo nunca de su palo; en la 1, cualquiera. Cada candidata rechazada vuelve al montón (0x59A4) | 0x583C-0x58D5, 0x598F, 0x556C | LEÍDO |
+| **El hueco que se ve vacío en su mano boca abajo es teatro** (0x553C): en riichi y desde el descarte 0xE33D siempre el de la robada; antes, al azar o la robada según el bit 0 de la semilla | 0x553C, 0x551D | LEÍDO |
+| **La máquina no gana antes de su descarte 0xE33D** aunque tenga la ficha: con ron la deja pasar y con tsumo sortea otra robada que no sea espera; tampoco gana justo en su turno de riichi. Canta con 2 han o más, o con 1 si hay menos de 5 honba | 0x567B, 0x56B6 | LEÍDO |
+| **Defensa**: en el descarte 15, si el jugador está en riichi con esperas y (su turno de riichi es de 15 en adelante, o el jugador ha soltado menos de dos honores o terminales, o el plan no tiene bits altos) pasa a defensa (0xE340 = 1); también en el 18 con la semilla par. En defensa no gana, no declara riichi, y descarta de verdad una ficha de su mano que ya esté en el río del jugador -segura por furiten-, reponiéndola con una sorteada | 0x59EB, 0x5A10, 0x567E, 0x577D | LEÍDO |
+| Del descarte 12 en adelante, sin defensa, no suelta el palo que el jugador menos ha descartado (cuenta su río por palos, 0x58D6). La rama de los terminales está mal escrita: el `jr nz` tras `cp 1` devuelve antes de mirar el 9 y nunca rechaza nada | 0x58D6-0x5987, **errata en 0x595C** | LEÍDO |
+| Una de cada cuatro veces tras robar (bits 0-1 de la semilla a cero) intenta un kan por el menú | 0x54A8 | LEÍDO |
+| Si gana el jugador con menos de diez descartes, antes de destapar la mano de la máquina una ficha sorteada pisa su penúltimo hueco | 0x5083-0x50A1 | LEÍDO; el porqué es SUPOSICIÓN |
 
 ## 3. Las llamadas
 
@@ -46,7 +53,7 @@ guion de 0x4AE8.
 | **En riichi, el ankan sólo vale si no cambia las esperas**: se recalculan y, si cambian, se deshace. La máquina pasa esa comprobación siempre | 0x6E87, 0x6E0F | coincide con la regla estándar | LEÍDO |
 | Tras un kan, la ficha siguiente es la de reposición y marca 0xE1CF para el 嶺上開花 | 0x6E45, 0x7EB1 | coincide | LEÍDO |
 | Cada llamada sube 0xE2B6: mano abierta. Y lo que roba del rival se apunta en 0xE22D/0xE232 porque desaparece del río | 0x68BB, 0x6B95, 0x6917 | — | LEÍDO |
-| La máquina, en el pon, exige tres copias y que ni la ficha-1 ni la ficha+1 estén al lado; con más de una forma de chi, no hace chi | 0x684A-0x686E, 0x69FD | — | LEÍDO el código; el porqué (la IA mete la robada en su mano antes) es SUPOSICIÓN |
+| La máquina, en el pon, exige tres copias y que ni la ficha-1 ni la ficha+1 estén al lado; con más de una forma de chi, no hace chi. Intenta el pon y el chi en la fase 5, DESPUÉS de robar, con la robada ya en su hueco (0x54BE → 0x577A → 0x57EF), y pasa por el mismo despachador que la persona (0x5828 → 0x663C) | 0x684A-0x686E, 0x69FD, 0x577A, 0x5828 | — | LEÍDO el código y el momento; que las 14 fichas expliquen las tres copias sigue siendo SUPOSICIÓN |
 
 ## 4. El riichi
 
@@ -57,7 +64,7 @@ guion de 0x4AE8.
 | **El palo de riichi de la mesa sólo se lo lleva un ganador que estuviera en riichi** (bit 0 de 0xE1CD el 1, de 0xE1AE el 2), de mil en mil, uno cada 32 cuadros; la única excepción es el jugador 1 ganando en la mano que cierra la partida (sur, reparte el 2), que se los lleva esté o no en riichi. Si no, se quedan en la mesa (0xE04A) para la mano siguiente. En el demo el cierre se salta este paso (0x5E75) y el palo se queda: los volcados 042-055 dan 0xE04A = 1 | 0x5E70-0x5EA8 | **diverge** (en cuatro los palos van al ganador siempre) | LEÍDO; comprobado a mano el 2026-08-28 |
 | Doble riichi: declarado con el descarte 0 (0xE1CC = 0; 0xE1BB para la máquina) | 0x7BBE, 0x7C0B | coincide | LEÍDO |
 | Ippatsu: la mano se cierra en el descarte siguiente al de la declaración | 0x7BD2 | coincide (no se comprueba que no haya habido llamadas en medio) | LEÍDO |
-| La máquina declara riichi exactamente en su descarte número 0xE1BB, si está en tenpai y cerrada; 0xE1BB = sorteo − 1 + 3/5/7 según la tecla 1/2/3 | 0x579A, 0x50F5 | — | LEÍDO. Si un 0xE1BB alto la hace más dura o más blanda sigue sin saberse |
+| La máquina declara riichi exactamente en su descarte número 0xE1BB (y nunca en el 19), si tiene esperas, la mano está cerrada, no está en defensa y, con 5 honba o más, su plan lo permite; 0xE1BB = sorteo − 1 + 3/5/7 según la tecla 1/2/3 | 0x577A-0x57EC, 0x50F5 | — | LEÍDO. Si un 0xE1BB alto la hace más dura o más blanda sigue sin saberse |
 
 ## 5. Ganar: agari, furiten y castigos
 
@@ -164,8 +171,8 @@ doble yakuman. Con un yakuman en la lista no se escriben las demás jugadas
 
 | tecla | rótulo | qué cambia | dónde |
 | --- | --- | --- | --- |
-| 1 | AMACHUA | el ron en furiten se rechaza sin castigo; sin furiten de riichi; la máquina suma 3 a su turno de riichi | 0x5045, 0x4260, 0x50F5 |
-| 2 | SEMIPROFESSIONAL | el furiten se castiga con 12.000/8.000; +5 al turno de riichi de la máquina | 0x4260, 0x50F5 |
+| 1 | AMACHUA | el ron en furiten se rechaza sin castigo; sin furiten de riichi; el riichi en furiten se rechaza (0x539A); la máquina suma 3 a su turno de riichi; sin reloj (hay que pulsar para robar); la ayuda de 0x49C6: en riichi no deja descartar una espera y avisa cuando el descarte de la máquina le da ron; los descartes de la máquina no se filtran | 0x5045, 0x4260, 0x539A, 0x50F5, 0x55F1, 0x49C6, 0x584B |
+| 2 | SEMIPROFESSIONAL | el furiten se castiga con 12.000/8.000; +5 al turno de riichi de la máquina; reloj: 10 s para descartar (aviso a los 7) y el robo sale solo a los 12 s; los descartes de la máquina, filtrados | 0x4260, 0x50F5, 0x5292-0x52AB, 0x55E2-0x55EF, 0x583C |
 | 3 | PROFESSIONAL | lo de la 2; +7 al turno de riichi; el sorteo de 0xE33D se repite si sale 20 o más; y **a la máquina le falta siempre la ficha de índice 11** de su mano construida | 0x4EEA, 0x7A9D |
 
 ## Cabos abiertos para el paso 5
