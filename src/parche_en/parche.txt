@@ -250,6 +250,51 @@ BB Z@latina_del_cartucho
 36 O@latina_del_cartucho
 37 S@latina_del_cartucho
 3C E@latina_del_cartucho
+# Y los digrafos de la fase 2b: dos letras de 3x7 en cada tile.
+3D estrecho "  "
+42 estrecho " D"
+43 estrecho " K"
+48 estrecho " R"
+49 estrecho " Y"
+4F estrecho "AK"
+54 estrecho "AL"
+55 estrecho "AN"
+5A estrecho "AW"
+5B estrecho "CA"
+60 estrecho "CH"
+61 estrecho "D "
+66 estrecho "DR"
+67 estrecho "ED"
+6C estrecho "FU"
+6D estrecho "GA"
+C0 estrecho "HI"
+C1 estrecho "I "
+C6 estrecho "IC"
+C7 estrecho "IS"
+CC estrecho "KA"
+CD estrecho "LO"
+D2 estrecho "LT"
+D3 estrecho "ME"
+D8 estrecho "MI"
+D9 estrecho "N "
+DE estrecho "NA"
+DF estrecho "NO"
+E4 estrecho "O "
+E5 estrecho "ON"
+EB estrecho "OR"
+F0 estrecho "PE"
+F1 estrecho "PO"
+F6 estrecho "RD"
+F7 estrecho "RI"
+FC estrecho "SS"
+FD estrecho "T "
+7F estrecho "TE"
+84 estrecho "TS"
+8B estrecho "U "
+91 estrecho "UM"
+96 estrecho "WE"
+9D estrecho "WI"
+A2 estrecho "Y "
 
 
 # EL PANEL FIJO. El cartucho pone 局 (kyoku, la mano) pegado al viento, ドラ
@@ -325,3 +370,128 @@ f11 c22  "PRO"
 
 [formatoA DATA_marca_c charset=dificultad]
 f11 c22  "SEM"
+
+
+# =========================================================================
+# FASE 2b: EL MENU, LOS MENSAJES Y LOS AVISOS
+# =========================================================================
+# Aqui las letras de 8x8 no dan de si: la caja de mensajes son siete celdas
+# por linea y el japones dice en cuatro silabas lo que en ingles son cuatro
+# palabras. Asi que este tercio pasa a la FUENTE ESTRECHA de 3x7 y mete DOS
+# letras en cada tile, con lo que la caja pasa de 7 a 14 caracteres por
+# linea y el menu de 6 a 12.
+#
+# Lo que cuesta: un tile por cada PAR DISTINTO de letras -no por letra-, y
+# aqui salen 44. Hay 49 tiles libres (los que son fila del medio de una
+# ficha y no gasto la fase 2a, mas las doce letras del alfabeto de la barra
+# que ningun rotulo usa), asi que entra con 5 de margen. La rejilla de
+# 'caracter y medio' -letras de 5px- costaria 66 tiles y NO cabria: al caer
+# a caballo de dos tiles, cada celda del texto es casi unica.
+#
+# OJO al tocar estos textos: el tile depende del PAR, asi que cambiar una
+# palabra cambia el reparto de tiles. Se regeneran con tools/reparte_digrafos.py.
+
+# Las letras heredan el color del tile que ocupan, y estos venian de tres
+# sitios distintos -kanji blancos de la barra, katakana negra sobre cian de
+# las cajas y el 流局-. Todos pasan a 0x17, negro sobre cian, que es el de
+# la caja de mensajes y el del menu.
+
+[colores DATA_colores_del_tablero_900 base=rom destino=0x4900 tiles=0x20-0xFF reubica=pinta_el_tablero]
+3D 0x17
+42 0x17
+43 0x17
+48 0x17
+49 0x17
+4F 0x17
+54 0x17
+55 0x17
+5A 0x17
+5B 0x17
+60 0x17
+61 0x17
+66 0x17
+67 0x17
+6C 0x17
+6D 0x17
+C0 0x17
+C1 0x17
+C6 0x17
+C7 0x17
+CC 0x17
+CD 0x17
+D2 0x17
+D3 0x17
+D8 0x17
+D9 0x17
+DE 0x17
+DF 0x17
+E4 0x17
+E5 0x17
+EB 0x17
+F0 0x17
+F1 0x17
+F6 0x17
+F7 0x17
+FC 0x17
+FD 0x17
+7F 0x17
+84 0x17
+8B 0x17
+91 0x17
+96 0x17
+9D 0x17
+A2 0x17
+
+# EL MENU DE LLAMADAS. Seis celdas por fila (c26-c31) con el cursor en c25.
+# アガリ es ganar la mano; リーチ, cantar riichi.
+
+[formatoB DATA_dibujo_de_seis_filas charset=digrafos]
+f9 c26  {02 02 02 02 02 02}
+f10 c26  "WIN         "
+f11 c26  "RIICHI      "
+f12 c26  "PON         "
+f13 c26  "CHI         "
+f14 c26  "KAN         "
+
+# LOS MENSAJES DE LA CAJA CIAN, dos lineas de siete celdas. El cartucho los
+# dice en katakana: ツモ・ポン・チー・カン セヨ (haz tsumo, pon, chi o kan),
+# カン・ステハイ セヨ (haz kan o descarta) y デキマセン (no puedes).
+
+[formatoB DATA_dibujo_0 charset=digrafos]
+f11 c2   "TSUMO PON CHI "
+f12 c2   "OR KAN        "
+
+[formatoB DATA_dibujo_1 charset=digrafos]
+f11 c2   "KAN OR DISCARD"
+f12 c2   "              "
+
+[formatoB DATA_dibujo_2 charset=digrafos]
+f11 c2   "NOT ALLOWED   "
+f12 c2   "              "
+
+# LOS TRES AVISOS de la fila 11, cada uno una lista de formato A al mismo
+# destino: furiten (no puedes ganar con esa ficha), minogashi (dejaste pasar
+# el ron) y yakunashi (cantaste sin jugada).
+
+[formatoA DATA_tres_avisos_de_la_fila_11 charset=digrafos]
+f11 c2  "FURITEN       "
+---
+f11 c2  "MISSED RON    "
+---
+f11 c2  "NO YAKU       "
+
+# Y el que sale debajo cuando la mano acaba con penalizacion: チョンボ.
+
+[formatoA DATA_rotulo_de_la_fila_12 charset=digrafos]
+f12 c2  "PENALTY       "
+
+# Y el cartel de la mano sin ganador. La caja son ocho celdas (c17-c24) en
+# las filas 9 a 13; el japones pone ahi 流局 en dos kanji de 16x16, que en
+# ingles caben centrados en dos lineas.
+
+[formatoB DATA_cartel_de_ryuukyoku charset=digrafos]
+f9 c20  {01 01}
+f10 c17 {01 01 01 01 01 01 01}
+f11 c17  "      DRAW      "
+f12 c17  "      GAME      "
+f13 c17 {01 01 01 01 01 01 01}

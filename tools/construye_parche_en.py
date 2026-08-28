@@ -371,6 +371,22 @@ def mete_en_la_zona_libre(libre, bloque, datos):
     return org
 
 
+PARCHEADAS = {}     # rutina -> sus lineas ya sustituidas
+NFRAG = {}          # rutina -> el numero de fragmento que le toco la primera vez
+
+
+def reapunta_rutina(listado, dir_salida, n, rutina, pares):
+    """Sustituye en una rutina ACUMULANDO: dos secciones pueden tocar la misma
+    -el bloque de patrones del tablero y el de sus colores los carga los dos
+    pinta_el_tablero-, y la segunda tiene que partir de lo que dejo la primera
+    o le borra el cambio. Siempre se escribe el mismo fichero de fragmento."""
+    base = PARCHEADAS.get(rutina) or lineas_del_bloque(listado, rutina)
+    lineas = sustituye(base, pares, rutina)
+    PARCHEADAS[rutina] = lineas
+    escribe_fragmento(dir_salida, NFRAG.setdefault(rutina, n), rutina, lineas)
+    return lineas
+
+
 def escribe_fragmento(dir_salida, n, bloque, lineas, hasta=None):
     ruta = os.path.join(dir_salida, "%02d_%s.asm" % (n, bloque))
     cab = ["; @bloque %s" % bloque]
@@ -457,9 +473,8 @@ def main():
                 # reapunta. El hueco original queda a 0xFF.
                 nuevo = mete_en_la_zona_libre(libre, bloque, bytes(datos))
                 rutina = args["reubica"]
-                escribe_fragmento(dir_salida, n, rutina,
-                                  sustituye(lineas_del_bloque(listado, rutina),
-                                            [("0%04xh" % ini, "0%04xh" % nuevo)], rutina))
+                reapunta_rutina(listado, dir_salida, n, rutina,
+                                [("0%04xh" % ini, "0%04xh" % nuevo)])
                 escribe_fragmento(dir_salida, n, bloque,
                                   ["; reubicado en 0x%04X: no cabia en sus %d bytes" % (nuevo, tam)]
                                   + relleno(tam))
@@ -583,9 +598,8 @@ def main():
                     raise SystemExit("%s: el bloque con cola no descomprime a lo esperado" % bloque)
                 if "reapunta" in args:
                     rutina = args["reapunta"]
-                    nuevas = sustituye(lineas_del_bloque(listado, rutina),
-                                       [("0%04xh" % cola, "0%04xh" % nueva_cola)], rutina)
-                    escribe_fragmento(dir_salida, n, rutina, nuevas)
+                    reapunta_rutina(listado, dir_salida, n, rutina,
+                                    [("0%04xh" % cola, "0%04xh" % nueva_cola)])
                     informe.append("%-38s reapuntada: 0x%04X -> 0x%04X" % (rutina, cola, nueva_cola))
             else:
                 comp = formato_b.comprime([(destino, bytes(datos))])
@@ -599,9 +613,8 @@ def main():
                     raise SystemExit("%s: reubica y cola no se pueden juntar" % bloque)
                 nuevo_org = mete_en_la_zona_libre(libre, bloque, comp)
                 rutina = args["reubica"]
-                escribe_fragmento(dir_salida, n, rutina,
-                                  sustituye(lineas_del_bloque(listado, rutina),
-                                            [("0%04xh" % ini, "0%04xh" % nuevo_org)], rutina))
+                reapunta_rutina(listado, dir_salida, n, rutina,
+                                [("0%04xh" % ini, "0%04xh" % nuevo_org)])
                 escribe_fragmento(dir_salida, n, bloque,
                                   ["; reubicado en 0x%04X: comprimido son %d bytes y su hueco %d"
                                    % (nuevo_org, len(comp), tam)] + relleno(tam))
@@ -624,7 +637,7 @@ def main():
                     raise SystemExit("%s: sustitucion rara: %r" % (bloque, ln))
                 viejo, nuevo = (x.strip() for x in ln.split("=>", 1))
                 pares.append((viejo, nuevo))
-            escribe_fragmento(dir_salida, n, bloque, sustituye(lineas_del_bloque(listado, bloque), pares, bloque))
+            reapunta_rutina(listado, dir_salida, n, bloque, pares)
             informe.append("%-38s codigo, %d sustituciones" % (bloque, len(pares)))
             continue
 
