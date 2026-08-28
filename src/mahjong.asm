@@ -4235,36 +4235,48 @@ L_5A8B:
 	jp L_409D		;5a8b
 
 ; ----------------------------------------------------------------------
-; DATOS marcador_de_la_mano: Formato A desde 0x5A6A: seis destinos entre las
-;   filas 8 y 14.
+; DATOS panel_de_la_ronda: Formato A desde 0x5A6A: EL PANEL FIJO DE LA BARRA,
+;   seis destinos: 局 (kyoku, la mano; tiles CC D2 / CD D3 en las filas 10-11,
+;   columna 14), ドラ (dora: D8 DE) dos veces en la fila 10 (columnas 17 y 20),
+;   ウラ (ura: D9 DE) en la fila 9 encima de la segunda, y 本場 (honba: 72 7E 7F /
+;   73 78 84 85 / 79 8A 8B) en las filas 12-14, columnas 12-15. El viento y el
+;   numero de la mano los pone al lado uno de los cuatro contadores de 0x5AB6.
+;   Leido dibujando la VRAM (tools/pantalla.py sobre los volcados de
+;   tools/omsx_vuelca_vram.tcl).
 ;   0x5a8e..0x5ab6  (40 bytes)
-DATA_marcador_de_la_mano:
+DATA_panel_de_la_ronda:
 	defb 034h,039h,0d9h,0deh,0feh,04eh,039h,0cch,0d2h,001h,0d8h,0deh,001h,0d8h,0deh,0feh	; 5a8e  49...N9.........
 	defb 06eh,039h,0cdh,0d3h,0feh,08dh,039h,072h,07eh,07fh,0feh,0ach,039h,073h,078h,084h	; 5a9e  n9....9r~...9sx.
 	defb 085h,0feh,0cdh,039h,079h,08ah,08bh,0ffh	; 5aae  ...9y...
 
 ; ----------------------------------------------------------------------
-; DATOS contador_0: Formato A: cuatro tiles en las filas 10 y 11, columna 10.
+; DATOS indicador_este_1: Formato A: 東一 (este, primera mano) en dos kanji de
+;   16x16, tiles A8 AE 9C A2 / A9 AF 9D A3 en las filas 10-11, columna 10; con
+;   el 局 del panel de 0x5A8E forma 東一局. Lo elige 0x5A67 con 0xE04C (ronda: bit
+;   0 = sur) y 0xE04D (bit 0 = reparte el 2).
 ;   0x5ab6..0x5ac4  (14 bytes)
-DATA_contador_0:
+DATA_indicador_este_1:
 	defb 04ah,039h,0a8h,0aeh,09ch,0a2h,0feh,06ah,039h,0a9h,0afh,09dh,0a3h,0ffh	; 5ab6  J9.....j9.....
 
 ; ----------------------------------------------------------------------
-; DATOS contador_1: Formato A desde 0x5A8B, mismas dos filas.
+; DATOS indicador_este_2: Formato A: 東二 (este, segunda mano: reparte el 2),
+;   tiles A8 AE 90 96 / A9 AF 91 97 en el mismo sitio.
 ;   0x5ac4..0x5ad2  (14 bytes)
-DATA_contador_1:
+DATA_indicador_este_2:
 	defb 04ah,039h,0a8h,0aeh,090h,096h,0feh,06ah,039h,0a9h,0afh,091h,097h,0ffh	; 5ac4  J9.....j9.....
 
 ; ----------------------------------------------------------------------
-; DATOS contador_2: Formato A, mismas dos filas.
+; DATOS indicador_sur_1: Formato A: 南一 (sur, primera mano), tiles B4 BA 9C A2
+;   / B5 BB 9D A3.
 ;   0x5ad2..0x5ae0  (14 bytes)
-DATA_contador_2:
+DATA_indicador_sur_1:
 	defb 04ah,039h,0b4h,0bah,09ch,0a2h,0feh,06ah,039h,0b5h,0bbh,09dh,0a3h,0ffh	; 5ad2  J9.....j9.....
 
 ; ----------------------------------------------------------------------
-; DATOS contador_3: Formato A, mismas dos filas.
+; DATOS indicador_sur_2: Formato A: 南二 (sur, segunda mano, la ultima de la
+;   partida: la que enciende オーラス en 0x4C92), tiles B4 BA 90 96 / B5 BB 91 97.
 ;   0x5ae0..0x5aee  (14 bytes)
-DATA_contador_3:
+DATA_indicador_sur_2:
 	defb 04ah,039h,0b4h,0bah,090h,096h,0feh,06ah,039h,0b5h,0bbh,091h,097h,0ffh	; 5ae0  J9.....j9.....
 
 ; ======================================================================
@@ -8440,10 +8452,12 @@ copia_las_esperas_a_e348:
 	ret			;782b
 
 ; ----------------------------------------------------------------------
-; DATOS dibujo_de_cinco_filas: Formato B desde 0x76AD: cinco destinos entre
-;   las filas 9 y 13.
+; DATOS cartel_de_ryuukyoku: Formato B desde 0x76AD: cinco destinos entre las
+;   filas 9 y 13, columnas 17-24: una caja en blanco con 流局 (ryuukyoku, la
+;   mano sin ganador) en dos kanji de 16x16, tiles C0 C6 / C1 C7 y CC D2 / CD
+;   D3 en las filas 11-12. Leido dibujando los tiles del tercio central.
 ;   0x782c..0x7853  (39 bytes)
-DATA_dibujo_de_cinco_filas:
+DATA_cartel_de_ryuukyoku:
 	defb 034h,079h,002h,001h,080h,051h,079h,007h,001h,080h,071h,079h,088h,001h,0c0h,0c6h	; 782c  4y...Qy...qy....
 	defb 001h,0cch,0d2h,001h,001h,080h,091h,079h,088h,001h,0c1h,0c7h,001h,0cdh,0d3h,001h	; 783c  .......y........
 	defb 001h,080h,0b1h,079h,007h,001h,000h	; 784c
@@ -10529,11 +10543,15 @@ DATA_patrones_del_titulo_500:
 	defb 000h	; 86d5
 
 ; ----------------------------------------------------------------------
-; DATOS patrones_del_titulo_080: Formato B desde 0x43AA: 264 bytes a los
-;   patrones 0x2080: los tiles 0x10-0x30, entre ellos los trozos con los que
-;   se escriben los rotulos de la espera (0x7428).
+; DATOS patrones_del_final_080: Formato B desde 0x43AA, EN EL ESTADO 13: 264
+;   bytes a los patrones 0x2080, los tiles 0x10-0x30 de la pantalla del FINAL:
+;   0x10-0x21 son los dos kanji de 24x24 del 終局 (shuukyoku, fin de la partida)
+;   que pinta 0x8598, y 0x22-0x30 el marco y las fichas del muro de la caja de
+;   0x87B4. CORRIGE el nombre anterior ("del titulo"): se comprobo volcando la
+;   VRAM en el estado 14 con tools/omsx_vuelca_vram.tcl; los rotulos de la
+;   espera (0x7428) NO salen de aqui sino de los tiles del tercio de abajo.
 ;   0x86d6..0x8799  (195 bytes)
-DATA_patrones_del_titulo_080:
+DATA_patrones_del_final_080:
 	defb 080h,060h,0bdh,004h,007h,003h,007h,006h,00ch,099h,0e3h,000h,006h,007h,00ch,00ch	; 86d6  .`..............
 	defb 018h,018h,035h,000h,0e0h,0e0h,060h,060h,0c0h,0c0h,080h,036h,01ch,018h,031h,0e7h	; 86e6  ..5...``...6..1.
 	defb 0fch,061h,00ch,007h,0c3h,043h,0e6h,066h,02ch,09bh,0a1h,080h,000h,080h,0e0h,070h	; 86f6  .a...C.f,......p
@@ -10549,18 +10567,22 @@ DATA_patrones_del_titulo_080:
 	defb 008h,0ffh,000h	; 8796
 
 ; ----------------------------------------------------------------------
-; DATOS colores_del_titulo_080: Formato B desde 0x43B0: los 264 bytes de
-;   colores que hacen pareja con el bloque de arriba, a 0x0080.
+; DATOS colores_del_final_080: Formato B desde 0x43B0: los 264 bytes de
+;   colores que hacen pareja con el bloque de arriba, a 0x0080: el dorado del
+;   終局 y el rosa del muro.
 ;   0x8799..0x87b4  (27 bytes)
-DATA_colores_del_titulo_080:
+DATA_colores_del_final_080:
 	defb 080h,040h,048h,0b1h,048h,0b1h,030h,0c0h,081h,096h,007h,09fh,008h,096h,008h,09fh	; 8799  .@H.H.0.........
 	defb 008h,096h,006h,09fh,00ah,096h,010h,0c0h,008h,030h,000h	; 87a9  .........0.
 
 ; ----------------------------------------------------------------------
-; DATOS nombres_del_titulo: Formato B desde 0x43B9: catorce destinos, las
-;   filas 5 a 18 de la columna 6.
+; DATOS nombres_del_final: Formato B desde 0x43B9: catorce destinos, las filas
+;   5 a 18 de la columna 6: LA CAJA del final de la partida, veinte celdas de
+;   ancho, con el marco 0x22-0x2F y el interior a 0x30 (verde); el estado 14
+;   pinta encima el muro de fichas y el 終局. Antes se llamaba "del titulo" y no
+;   lo es: lo pinta el estado 12 (0x43B9), no el titulo.
 ;   0x87b4..0x8832  (126 bytes)
-DATA_nombres_del_titulo:
+DATA_nombres_del_final:
 	defb 0a6h,078h,081h,022h,012h,026h,081h,023h,080h,0c6h,078h,081h,02eh,012h,030h,081h	; 87b4  .x.".&.#..x...0.
 	defb 02fh,080h,0e6h,078h,081h,02eh,012h,030h,081h,02fh,080h,006h,079h,081h,02eh,012h	; 87c4  /..x...0./..y...
 	defb 030h,081h,02fh,080h,026h,079h,081h,02eh,012h,030h,081h,02fh,080h,046h,079h,081h	; 87d4  0./.&y...0./.Fy.

@@ -1,0 +1,15 @@
+# El parche de traduccion al ingles de Konami's Mahjong, en formato legible.
+# Lo lee tools/construye_parche_en.py (ahi esta la sintaxis) y saca los
+# fragmentos que tools/parchea.py empalma en el listado.
+
+# ---------------------------------------------------------------- el titulo
+# Las tres dificultades. AMACHUA es "amateur" transcrito al romaji; las otras
+# dos ya estaban en ingles. Los tiles {EC ED} son el "key" pequeno del
+# cartucho, y el rotulo del ano y el logotipo (fila 8) se copian tal cual.
+[formatoA DATA_rotulos_del_menu charset=bajo0]
+f13 c9   "KEYBOARD ONLY"
+f16 c10  "PLAY SELECT"
+f18 c6   alto0 "1-" {EC ED} " AMATEUR"
+f20 c6   alto0 "2-" {EC ED} " SEMIPROFESSIONAL"
+f22 c6   alto0 "3-" {EC ED} " PROFESSIONAL"
+f8  c10  {1A 1B 1C 1D 1E 1F 00} "1984"
