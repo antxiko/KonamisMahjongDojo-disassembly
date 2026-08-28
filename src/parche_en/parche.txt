@@ -579,3 +579,72 @@ D2 {EE EE C7 87 03 01 00 00}
 D3 {00 00 F0 F8 BC 1C 0E 0E}
 D4 {0E 0E 0E 0E 0E 0E 0E 0E}
 D5 {0E 0E 1C BC F8 F0 00 00}
+
+# =========================================================================
+# FASE 3: LOS ROTULOS DE LA ESPERA
+# =========================================================================
+# Debajo del recuento, el cartucho dice con que espera se gano la mano y si
+# fue por tsumo o por ron. Es lo ultimo que quedaba en katakana, y ahora
+# canta porque todo lo de arriba esta en ingles.
+#
+# Aqui tampoco caben letras de 8x8 -RYANMEN son siete y el hueco seis
+# celdas-, asi que va con la misma fuente estrecha de dos letras por tile.
+# Las cuentas cuadran JUSTO: 17 digrafos distintos y 17 tiles libres, y el
+# 0x27 se queda para FU, que en digrafos es un tile solo igual que antes.
+# El reparto lo hace tools/reparte_digrafos_espera.py; se regenera.
+
+# Los cuatro que salen del bloque SIN comprimir.
+[crudos DATA_patrones_sin_comprimir_3020 base=rom destino=0x7020 tiles=0x04-0x0F]
+08 estrecho "AN"
+09 estrecho "FU"
+0A estrecho "HA"
+0B estrecho "I "
+0C estrecho "KA"
+0D estrecho "ME"
+0E estrecho "N "
+0F estrecho "NC"
+
+# Y los trece del bloque grande, que se lee DOS veces: entero desde su
+# principio y otra vez desde 0x93AA para las manos dibujadas del tablero.
+# Esa segunda entrada cae justo en el tile 0x28, asi que los de antes se
+# pueden cambiar recomprimiendo solo esa parte y reapuntando la instruccion.
+
+[patrones DATA_patrones_del_tercio_de_abajo base=rom destino=0x70D0 tiles=0x1A-0xFF cola=0x93AA reapunta=pinta_las_dos_manos_del_tablero]
+1A estrecho "NK"
+1B estrecho "O "
+1C estrecho "PE"
+1D estrecho "PO"
+1E estrecho "RO"
+1F estrecho "RY"
+20 estrecho "SH"
+21 estrecho "TA"
+22 estrecho "TS"
+23 estrecho "UM"
+# Las siete tiras. El tsumo empieza en 0x744A y no en 0x744B: SHANPON baja
+# de seis celdas a cuatro y deja ese byte libre, que es justo el que le
+# faltaba a TSUMO (tres tiles y el remate).
+
+[cuerpos DATA_rotulos_de_la_espera charset=digrafos]
+0x7428 "RYANMEN"
+0x742F "KANCHAN"
+0x7436 "PENCHAN"
+0x743D "TANKI"
+0x7444 "SHANPON"
+0x744A "TSUMO"
+0x744E "RON"
+
+[codigo L_72E4]
+ld hl,0744bh => ld hl,0744ah
+
+# Y los marcos de los fu: sueltan su borde izquierdo (el tile 0x26, que hace
+# falta para el reparto) y su フ pasa a decir FU, que en digrafos es un
+# tile solo igual que antes. Ese FU va al bloque SIN comprimir porque el
+# comprimido no daba para un tile mas.
+
+[formatoA DATA_marcos_de_los_fu charset=digrafos]
+f16 c10  {01 01 01 09}
+f16 c22  {01 01 01 09}
+f19 c10  {01 01 01 09}
+f19 c22  {01 01 01 09}
+f22 c10  {01 01 01 09}
+f22 c22  {01 01 01 09}
