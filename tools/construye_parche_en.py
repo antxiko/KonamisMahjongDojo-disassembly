@@ -25,7 +25,9 @@ definen en una seccion [patrones] y se usan despues.
 
   Las dos admiten `reubica=RUTINA`: el bloque no cabe en su hueco, asi que se
   aparca en la zona libre del final y el `ld hl,0XXXXh` de RUTINA se reapunta.
-  El hueco original queda a 0xFF.
+  El hueco original queda a 0xFF. Si no lo carga un `ld hl` sino una TABLA DE
+  PUNTEROS, se anade `puntero_en=BLOQUE_DE_LA_TABLA` y lo que se cambia son los
+  dos defb de su entrada (`reubica=` sigue haciendo falta para pedirlo).
 
   [cuerpos BLOQUE charset=NOMBRE]
       0xDIRECCION token token ...
@@ -473,8 +475,15 @@ def main():
                 # reapunta. El hueco original queda a 0xFF.
                 nuevo = mete_en_la_zona_libre(libre, bloque, bytes(datos))
                 rutina = args["reubica"]
-                reapunta_rutina(listado, dir_salida, n, rutina,
-                                [("0%04xh" % ini, "0%04xh" % nuevo)])
+                if "puntero_en" in args:
+                    # no lo carga un `ld hl` sino una TABLA de punteros: lo que
+                    # hay que cambiar son los dos defb de su entrada
+                    reapunta_rutina(listado, dir_salida, n, args["puntero_en"],
+                                    [("defb 0%02xh,0%02xh" % (ini & 0xFF, ini >> 8),
+                                      "defb 0%02xh,0%02xh" % (nuevo & 0xFF, nuevo >> 8))])
+                else:
+                    reapunta_rutina(listado, dir_salida, n, rutina,
+                                    [("0%04xh" % ini, "0%04xh" % nuevo)])
                 escribe_fragmento(dir_salida, n, bloque,
                                   ["; reubicado en 0x%04X: no cabia en sus %d bytes" % (nuevo, tam)]
                                   + relleno(tam))

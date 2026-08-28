@@ -14,20 +14,27 @@ SOBRAN_BARRA = "7F 84 8B 91 96 9D A2 AF B4 B5 BA BB".split()
 
 # --- los textos, celda a celda ---------------------------------------------
 # (bloque, tipo, [(fila, col, ancho_en_celdas, texto), ...])
+# TODOS los textos llevan un TILE ENTERO de margen a la izquierda -dos
+# espacios-: pegados al borde de su caja se leen mal. Que el margen sea un tile
+# y no medio tiene ademas un premio: el texto empieza en frontera de tile, los
+# pares salen alineados y se repiten entre rotulos, asi que cuesta bastantes
+# menos tiles (con medio tile de margen no cabia: 53 pares para 49 tiles).
+# Y por la derecha no se deja mas de UN tile vacio, para que la caja se vea
+# llena; con 7 celdas eso son textos de 10 a 12 caracteres tras el margen.
 MENU = [
-    ("f10 c26", 6, "WIN"),
-    ("f11 c26", 6, "RIICHI"),
-    ("f12 c26", 6, "PON"),
-    ("f13 c26", 6, "CHI"),
-    ("f14 c26", 6, "KAN"),
+    ("f10 c26", 6, "  WIN"),
+    ("f11 c26", 6, "  RIICHI"),
+    ("f12 c26", 6, "  PON"),
+    ("f13 c26", 6, "  CHI"),
+    ("f14 c26", 6, "  KAN"),
 ]
 CAJA = [                                     # 7 celdas = 14 caracteres
-    ("DATA_dibujo_0", [("f11 c2", 7, "TSUMO PON CHI"), ("f12 c2", 7, "OR KAN")]),
-    ("DATA_dibujo_1", [("f11 c2", 7, "KAN OR DISCARD"), ("f12 c2", 7, "")]),
-    ("DATA_dibujo_2", [("f11 c2", 7, "NOT ALLOWED"), ("f12 c2", 7, "")]),
+    ("DATA_dibujo_0", [("f11 c2", 7, "  CALL TSUMO"), ("f12 c2", 7, "  PON CHI KAN")]),
+    ("DATA_dibujo_1", [("f11 c2", 7, "  CALL KAN OR"), ("f12 c2", 7, "  DISCARD ONE")]),
+    ("DATA_dibujo_2", [("f11 c2", 7, "  NOT ALLOWED"), ("f12 c2", 7, "")]),
 ]
-AVISOS = ["FURITEN", "MISSED RON", "NO YAKU"]        # f11 c2, 7 celdas
-CHOMBO = "PENALTY"                                   # f12 c2, 7 celdas
+AVISOS = ["  FURITEN HAND", "  MISSED RON", "  NO YAKU HAND"]   # f11 c2, 7 celdas
+CHOMBO = "  PENALTY HAND"                                     # f12 c2, 7 celdas
 # El cartel de la mano sin ganador (ryuukyoku): una caja de 8 celdas de ancho
 # con 流局 en dos kanji de 16x16. Sus tiles (C0 C1 C6 C7 CC CD D2 D3) entran en
 # el reparto de digrafos, asi que hay que reescribirlo por narices.
@@ -50,6 +57,14 @@ for t in AVISOS:
 todos += pares(CHOMBO, 7)
 for _, n_, t in RYUU:
     todos += pares(t, n_)
+
+for bloque, lineas in CAJA:
+    for _, n_, t in lineas:
+        if t and (n_ - (len(t) + 1) // 2) > 1:
+            raise SystemExit("%s: %r deja %d tiles vacios a la derecha"
+                             % (bloque, t, n_ - (len(t) + 1) // 2))
+        if t and not t.startswith("  "):
+            raise SystemExit("%s: %r sin el tile de margen a la izquierda" % (bloque, t))
 
 distintos = sorted(set(todos))
 disponibles = LIBRES + SOBRAN_BARRA
@@ -99,7 +114,9 @@ w("")
 w("# EL MENU DE LLAMADAS. Seis celdas por fila (c26-c31) con el cursor en c25.")
 w("# アガリ es ganar la mano; リーチ, cantar riichi.")
 w("")
-w("[formatoB DATA_dibujo_de_seis_filas charset=digrafos]")
+w("# (Con el margen ya no cabe en su hueco -51 bytes de 50-, asi que se")
+w("# reubica y se reapunta el ld hl de L_4CAF.)")
+w("[formatoB DATA_dibujo_de_seis_filas charset=digrafos reubica=L_4CAF]")
 w('f9 c26  {02 02 02 02 02 02}')
 for pos, n, t in MENU:
     w('%-8s "%s"' % (pos, t.ljust(n * 2)))
@@ -109,7 +126,10 @@ w("# dice en katakana: ツモ・ポン・チー・カン セヨ (haz tsumo, pon,
 w("# カン・ステハイ セヨ (haz kan o descarta) y デキマセン (no puedes).")
 for bloque, lineas in CAJA:
     w("")
-    w("[formatoB %s charset=digrafos]" % bloque)
+    # los tres no los carga un `ld hl` sino la tabla de punteros de 0x47B2, y
+    # con el margen ya no caben en su hueco: se reubican y se reapunta la tabla
+    w("[formatoB %s charset=digrafos reubica=si puntero_en=DATA_punteros_de_los_tres_dibujos]"
+      % bloque)
     for pos, n, t in lineas:
         w('%-8s "%s"' % (pos, t.ljust(n * 2)))
 w("")
