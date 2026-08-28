@@ -1,0 +1,120 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>El código — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Portada</a><a href="EMPEZAR.html">Empezar</a><a href="EL-JUEGO.html">El juego</a><a href="LAS-REGLAS.html">Las reglas</a><a href="LA-MAQUINA.html">La máquina</a><a href="EL-CARTUCHO.html">El cartucho</a><a href="EL-CODIGO.html" style=color:var(--tinta)>El código</a><a href="HALLAZGOS.html">Hallazgos</a><a href="PREGUNTAS-ABIERTAS.html">Preguntas abiertas</a><a href="../THE-CODE.html" style="margin-left:auto;color:var(--oro)">English</a></nav>
+<h1 id="el-codigo">El código</h1>
+<p>De los 32768 bytes del cartucho, <b>15.432 son código y 17.336 son datos</b>. No queda ni uno sin asignar.</p>
+<h2 id="el-juego-entero-corre-dentro-de-la-interrupcion">El juego entero corre dentro de la interrupción</h2>
+<p>Cuando INIT termina de montar la máquina, no llama a ningún bucle principal: llega a 0x404F, que es un <code>jr</code> a sí mismo, y ahí se queda para siempre. Todo lo demás cuelga del gancho <code>H.KEYI</code> que acaba de instalar.</p>
+<pre><code>404F:  jr 404Fh</code></pre>
+<p>La rutina de interrupción hace tres cosas en orden. Reconoce el VDP, mueve el sonido —siempre, pase lo que pase—, y luego mira el semáforo de 0xE005: si el fotograma anterior sigue dentro, se sale sin más; si no, lo levanta, vuelve a abrir las interrupciones, lee los mandos y le da un latido a la máquina de estados. Ese semáforo es lo único que impide que un cuadro largo se solape con el siguiente.</p>
+<p>Así que un fotograma de este juego es una llamada, no una vuelta de bucle, y todo el estado tiene que vivir fuera de la pila. De ahí que el kilobyte de 0xE000 a 0xE3FF esté lleno de contadores, cursores y banderas.</p>
+<h2 id="el-despachador-que-se-lee-a-si-mismo">El despachador que se lee a sí mismo</h2>
+<p>Los quince estados y sus pasos se despachan con esta rutina, y no es la de siempre:</p>
+<pre><code>408F:  add a,a          ; cada entrada son dos bytes
+4090:  pop hl           ; la direccion de RETORNO es la tabla
+4091:  call 4063h       ; HL += A
+4094:  ld e,(hl)
+4095:  inc hl
+4096:  ld d,(hl)
+4097:  ex de,hl
+4098:  jp (hl)          ; y salta: no se vuelve por aqui</code></pre>
+<p>El <code>pop hl</code> se queda con la dirección de retorno y la usa como base de la tabla, o sea que <b>la tabla va pegada detrás del <code>call</code></b> que invoca al despachador. Se ahorra el <code>ld hl,tabla</code> de cada llamada, y a cambio el manejador que salga hereda como dirección de retorno lo que hubiera debajo de la tabla.</p>
+<p>Hay cinco tablas escritas así, y entre las cinco son todo el esqueleto del juego: quince palabras para los estados en 0x40ED, y dos, dos, nueve y cuatro para los pasos de los estados 7, 10, 11 y 12.</p>
+<p>Para el desensamblado esto es un problema por partida doble: el <code>jp (hl)</code> corta el trazado, y los bytes que hay detrás de cada <code>call</code> son datos en mitad del código. Los treinta y dos destinos van declarados a mano en el <code>.entries</code> y los cinco rangos en el <code>.nocode</code>, cada uno con su justificación escrita al lado.</p>
+<h2 id="un-solo-juego-de-variables-para-los-dos-jugadores">Un solo juego de variables para los dos jugadores</h2>
+<p>El menú de llamadas, el motor de manos y el detector de jugadas no saben de quién es el turno. Trabajan siempre sobre las mismas direcciones, y lo que hay antes y después es una copia: 0x517A trae a esas variables compartidas las del jugador que toca —cursor, hueco de la ficha robada, último hueco, marca de tsumo, riichi y esperas— y 0x51BC las devuelve.</p>
+<p>Es la razón de que la máquina pueda cantar pon o chi pasando <b>por el mismo despachador de menú</b> que la persona: se le cargan sus variables, se le pone el bit de la llamada y entra por donde entraría un jugador.</p>
+<h2 id="el-motor-de-manos">El motor de manos</h2>
+<p>Decidir si una mano está completa es lo más grande del cartucho (0x5F3E-0x656D), y no es una tabla ni una búsqueda genérica: es un <b>árbol de casos escrito a mano</b> sobre la mano ya ordenada. En cada paso mira la ficha del cursor y las tres o cuatro siguientes, y de lo que encuentra —iguales, seguidas, sueltas— cuelga una rama distinta. Lo que va encontrando lo apunta en cuatro listas: escaleras, tríos, cuartetos y la pareja, cada figura con una marca que dice si está abierta.</p>
+<p>Cuando una rama no cuadra, hay vuelta atrás, pero <b>no es recursiva</b>: se guarda una copia de la mano y de las figuras en uno de dos huecos, con un byte que dice cuántas copias hay y otro qué rama probar al restaurar. Dos niveles y ni uno más. Si se agotan, la mano se declara indescomponible.</p>
+<p>Encima de ese motor corre el detector de jugadas de 0x7B3F: <b>veintisiete comprobaciones</b> que leen lo que dejaron las cuatro listas y apuntan cada jugada que cuadra con su número de han.</p>
+<p>Y todo se apoya en cómo está codificada una ficha. El número va en el nibble bajo, así que «la siguiente de la escalera» es una resta que da 0xFF, y los honores, que empiezan en 0x31, no cuadran en ninguna escalera sin que nadie tenga que comprobarlo.</p>
+<h2 id="como-se-hizo-y-por-que-te-puedes-fiar">Cómo se hizo, y por qué te puedes fiar</h2>
+<p>El listado no se escribe a mano. <code>tools/z80trace.py</code> sigue el flujo real desde los puntos de entrada declarados, <code>tools/mkasm.py</code> monta el <code>.asm</code> con las anotaciones ancladas a dirección, y de ahí salen las cifras.</p>
+<p><code>make verify</code> reensambla y compara con la ROM original: tiene que salir <b>idéntico byte a byte</b>, y sale. Pero eso solo no basta, porque unos datos leídos como código dan el mismo binario —los bytes no cambian, cambia lo que se dice de ellos—, así que <code>make sanity</code> comprueba además que ningún rango declarado como datos aparezca como instrucción, que ningún punto de entrada caiga dentro de una zona de datos, y que ni uno de los 32768 bytes se quede sin asignar.</p>
+<p>Sobre eso hay dos medidas más. <code>make notas</code> caza los dos fallos que se pierden en silencio al anotar: un comentario anclado a una dirección que no es instrucción, y dos comentarios para la misma. Y <code>tools/densidad.py</code> mide, rutina a rutina, cuántas instrucciones llevan comentario:</p>
+<table><tr><th></th><th></th></tr><tr><td>bloques de código con etiqueta</td><td>1.001</td></tr><tr><td>de ellos, con nombre propio</td><td>340</td></tr><tr><td>bloques de datos, con su nombre y la anchura de sus filas</td><td>89</td></tr><tr><td>instrucciones</td><td>7.548</td></tr><tr><td>instrucciones con comentario</td><td>2.320 (<b>30,7 %</b>)</td></tr><tr><td>rutinas por debajo del 10 % de comentarios</td><td><b>0</b></td></tr></table>
+<p>Esa última fila es la que importa: una rutina con nombre pero sin un solo comentario está bautizada, no explicada, y aquí no queda ninguna.</p>
+<footer><p><em>Konami's Mahjong</em> lo publico Konami para MSX; su numero de catalogo es RC-707 y son 32 KB. El cartucho firma <b>&copy; Konami 1984</b> con su propia fuente, bajo el titulo en kanji, y no hay creditos ni iniciales en ninguna otra parte del binario. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion.</p></footer></div>

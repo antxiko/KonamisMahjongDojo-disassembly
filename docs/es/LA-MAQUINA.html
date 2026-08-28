@@ -1,0 +1,123 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>La máquina — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Portada</a><a href="EMPEZAR.html">Empezar</a><a href="EL-JUEGO.html">El juego</a><a href="LAS-REGLAS.html">Las reglas</a><a href="LA-MAQUINA.html" style=color:var(--tinta)>La máquina</a><a href="EL-CARTUCHO.html">El cartucho</a><a href="EL-CODIGO.html">El código</a><a href="HALLAZGOS.html">Hallazgos</a><a href="PREGUNTAS-ABIERTAS.html">Preguntas abiertas</a><a href="../THE-MACHINE.html" style="margin-left:auto;color:var(--oro)">English</a></nav>
+<h1 id="la-maquina">La máquina</h1>
+<p>El rival de este cartucho juega bien. Declara riichi, canta pon y chi, se defiende cuando va perdiendo y gana manos caras. Lo que no hace es <b>pensar</b>: no evalúa su mano, no calcula esperas para decidir qué soltar y no tiene nada parecido a una búsqueda. Lo que tiene es un decorado muy bien montado, y todo él está en el código.</p>
+<h2 id="su-mano-no-se-roba-se-construye">Su mano no se roba: se construye</h2>
+<p>Antes de repartir nada, 0x78CE arma catorce fichas a medida siguiendo un plan que guarda en 0xE058: elige un palo, un objetivo de cuántas fichas van en tríos, y rellena el resto con escaleras de ese palo o con parejas, dejando una pareja al final. Después <b>quita una</b> (0x7A93).</p>
+<p>O sea que la máquina empieza cada mano <b>a una sola ficha de completarla</b>. Y no es un atajo invisible: las copias que gasta se descuentan de los contadores de 0xE186, así que al jugador ya no le pueden salir después.</p>
+<p>El plan lo deciden el marcador de la propia máquina —en números rojos tira de uno, por debajo de 10.000 de otro—, los honba y varios sorteos. Con la tercera dificultad, además, la ficha que falta es siempre la de índice 11.</p>
+<h2 id="ni-descarta-de-su-mano">Ni descarta de su mano</h2>
+<p>Sus trece fichas no se mueven en toda la mano. La que roba cada turno cae siempre en el mismo hueco (0xE208), y <b>lo que va a su río es una ficha sorteada del muro</b>, no una de su mano (0x583C).</p>
+<p>Ese sorteo pasa por un filtro que lo hace parecer un descarte humano. Con las dificultades 2 y 3:</p>
+<ul><li>los <b>cuatro primeros</b> descartes son honores, y nada más que honores;</li><li>los <b>cuatro siguientes</b>, unos, doses, ochos y nueves; del noveno en adelante ya vale cualquiera;</li><li>nunca una de sus propias esperas, hasta que llega su turno de riichi;</li><li>si el plan va a un palo, nunca una de ese palo;</li><li>y del descarte 12 en adelante, sin defensa, tampoco el palo que el jugador menos ha soltado, que 0x58D6 cuenta yendo por su río.</li></ul>
+<p>Cada candidata rechazada vuelve al montón y se vuelve a sortear. Con la primera dificultad no hay filtro: sale lo que salga.</p>
+<p>Es exactamente el orden en que descarta una persona —primero lo que no sirve, luego los extremos, al final lo del medio—, obtenido sin mirar la mano ni una vez.</p>
+<h3 id="la-errata-de-0x595c">La errata de 0x595C</h3>
+<p>Junto al filtro del palo hay otro que debería evitar soltar terminales, y está mal escrito. Compara el número de la ficha con el 1 y, si no lo es, se vuelve; y si lo es, compara ese mismo 1 con el 9, que tampoco cuadra, y se vuelve igual:</p>
+<pre><code>595C:  ld a,(0E22Bh)      ; la candidata
+595F:  and 0Fh            ; su numero
+5961:  cp 1
+5963:  jr nz,5987         ; no es un 1 -&gt; se acepta
+5965:  cp 9               ; A vale 1: nunca es 9
+5967:  jr nz,5987         ; -&gt; se acepta igual
+5969:  call ...           ; devolver al monton y sortear otra:
+596C:  call ...           ; TRES instrucciones que no corren nunca</code></pre>
+<p>Las tres instrucciones de abajo están perfectamente formadas y <b>no se ejecutan jamás</b>. Se nota poco, porque el filtro de los cuatro descartes que van del quinto al octavo ya empuja hacia los extremos por otro camino.</p>
+<h2 id="el-hueco-vacio-de-su-mano-es-teatro">El hueco vacío de su mano es teatro</h2>
+<p>Al pintar la mano del rival boca abajo, una de las fichas se dibuja como hueco para que se vea de dónde acaba de robar. Cuál se elija lo decide 0x553C: en riichi, y a partir de cierto descarte, siempre el de la ficha robada; antes de eso, <b>al azar o el de la robada según el bit 0 de la semilla</b>.</p>
+<p>No hay nada detrás. La información que ese hueco parece dar —«acaba de robar y se ha quedado esa»— la mitad de las veces es falsa.</p>
+<h2 id="no-gana-cuando-puede-gana-cuando-toca">No gana cuando puede, gana cuando toca</h2>
+<p>La máquina tiene un número de descarte marcado (0xE33D) antes del cual <b>no canta</b>, aunque tenga la mano hecha (0x567B). Con ron, deja pasar la ficha; con tsumo, sortea otra robada que no sea de sus esperas. Tampoco gana justo en su turno de riichi.</p>
+<p>Y cuando por fin canta, exige que valga la pena: 2 han o más, o 1 si hay menos de 5 honba.</p>
+<p>El riichi lo declara <b>exactamente en el descarte número 0xE1BB</b>, que se arma sumándole a un sorteo una cantidad que depende de la tecla: 3 con la primera dificultad, 5 con la segunda y 7 con la tercera. Y el bit 0 de la semilla decide si esa suma se hace o no, así que la mitad de las veces la dificultad no cuenta.</p>
+<h2 id="la-defensa">La defensa</h2>
+<p>En el descarte 15, si el jugador está en riichi con esperas y se cumple alguna de tres condiciones —que el turno de riichi del rival caiga del 15 en adelante, que el jugador haya soltado menos de dos honores o terminales, o que el plan no tenga los bits altos—, la máquina pasa a defensa. También en el 18, si la semilla es par.</p>
+<p>En defensa cambia de comportamiento entero: no gana, no declara riichi, y por primera vez <b>descarta de verdad una ficha de su mano</b>, eligiendo una que ya esté en el río del jugador, que por furiten no le puede dar ron. El hueco que deja se rellena con una sorteada.</p>
+<h2 id="las-tres-dificultades-todas-juntas">Las tres dificultades, todas juntas</h2>
+<table><tr><th></th><th>1 · AMACHUA</th><th>2 · SEMIPROFESSIONAL</th><th>3 · PROFESSIONAL</th></tr><tr><td>ron en furiten</td><td>se rechaza, sin castigo</td><td>castigo de 12.000 / 8.000</td><td>castigo de 12.000 / 8.000</td></tr><tr><td>furiten de riichi</td><td>no hay</td><td>sí</td><td>sí</td></tr><tr><td>reloj para descartar</td><td>no hay</td><td>10 s, aviso a los 7</td><td>10 s, aviso a los 7</td></tr><tr><td>ayuda al jugador</td><td>sí: avisa del ron y no deja descartar una espera propia en riichi</td><td>no</td><td>no</td></tr><tr><td>descartes del rival</td><td>sin filtrar</td><td>filtrados</td><td>filtrados</td></tr><tr><td>turno de riichi del rival</td><td>sorteo + 3</td><td>sorteo + 5</td><td>sorteo + 7</td></tr><tr><td>la mano construida</td><td>—</td><td>—</td><td>le falta siempre la ficha 11</td></tr><tr><td>sorteo de 0xE33D</td><td>se acepta el primero</td><td>se acepta el primero</td><td>se repite si sale 20 o más</td></tr></table>
+<p><img src="../imagenes/partida.png" alt="Una partida en la primera dificultad"></p>
+<p>Y no hace falta acordarse de qué se pulsó: la barra de arriba lo rotula durante toda la partida, con una lista distinta para cada dificultad (0x4CB8).</p>
+<footer><p><em>Konami's Mahjong</em> lo publico Konami para MSX; su numero de catalogo es RC-707 y son 32 KB. El cartucho firma <b>&copy; Konami 1984</b> con su propia fuente, bajo el titulo en kanji, y no hay creditos ni iniciales en ninguna otra parte del binario. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion.</p></footer></div>

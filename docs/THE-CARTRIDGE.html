@@ -1,0 +1,116 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The cartridge — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-RULES.html">The rules</a><a href="THE-MACHINE.html">The machine</a><a href="THE-CARTRIDGE.html" style=color:var(--tinta)>The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html">Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/EL-CARTUCHO.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-cartridge">The cartridge</h1>
+<p>It is <b>32 KB</b> taking up two pages of the MSX map, from 0x4000 to 0xBFFF, and an MSX1 handles them comfortably: no megaROM, no bank switching, no extra sound hardware.</p>
+<h2 id="the-sixteen-bytes-the-bios-reads">The sixteen bytes the BIOS reads</h2>
+<pre><code>4000:  41 42 10 40 00 00 00 00 00 00 00 00 00 00 00 00
+       A  B  INIT=0x4010</code></pre>
+<p>The header declares <code>AB</code> and an INIT vector, and leaves the other three pointers —STATEMENT, DEVICE and TEXT— at zero. The cartridge adds no BASIC statements and does not declare itself as a device: it boots and takes the machine.</p>
+<p>But the BIOS only maps <b>page 1</b> when it reads that header, so the top half of the cartridge does not exist yet when INIT starts. The first thing 0x4010 does is switch it on itself: it reads its own slot with <code>RSLREG</code>, keeps the two bits for page 1 and calls <code>ENASLT</code> with H = 0x80, which is page 2. From that call on there are 32 KB in sight.</p>
+<p>The rest of the startup is short: it writes <code>jp 0x4071</code> into the interrupt hook <code>H.KEYI</code> (0xFD9A), puts the stack at 0xE400, clears in one go the 1024 bytes from 0xE000 to 0xE3FF —which are every variable the game has—, sets up the PSG and the VDP, and drops into a jump to itself it never leaves. The rest is in <a href="THE-CODE.html">The code</a>.</p>
+<h2 id="the-vdp-with-the-two-tables-swapped">The VDP, with the two tables swapped</h2>
+<p>It is SCREEN 2 with 16×16 sprites, and the eight registers are loaded from the list at 0x4A1A:</p>
+<table><tr><th>table</th><th>where</th></tr><tr><td>colours</td><td>0x0000</td></tr><tr><td>sprite patterns</td><td>0x1800</td></tr><tr><td>patterns</td><td>0x2000</td></tr><tr><td>names</td><td>0x3800</td></tr><tr><td>sprite attributes</td><td>0x3B00</td></tr></table>
+<p>The striking part is the order: R3 = 0x7F and R4 = 0x07 put <b>the colours at the bottom and the patterns on top</b>, exactly the other way round from what the usual values give (0xFF and 0x03). It works just the same, but anyone reading a dump assuming the usual layout will read one thing for the other.</p>
+<p>There is another detail that throws you when reading the drawing lists: the VRAM destinations they carry are sixteen bits and <b>fall outside video memory</b>, which on an MSX1 is 16 KB. 0x7962 is not a bug: <code>SETWRT</code> swallows the top two bits and writes to 0x3962, that is, row 11, column 2 of the name table. Every list in the cartridge is written that way.</p>
+<h2 id="the-two-drawing-interpreters">The two drawing interpreters</h2>
+<p>Almost everything that reaches the screen is a list that goes through one of these two.</p>
+<p><b>Format A</b> is read by 0x4099, and it is the simple one: two bytes of VRAM destination and then the bytes as they are, with 0xFE for &quot;another destination follows&quot; and 0xFF to finish. The clever part is that it has <b>two doors</b>: entering at 0x409D the bytes pass through untouched and the list draws, and entering at 0x4099 an <code>and c</code> with C = 0 turns them all into zero and the very same list <b>erases</b>. There is no second table to switch off what was switched on.</p>
+<p><b>Format B</b> is read by 0x468F, and it compresses: each order is a seven-bit counter, and bit 7 says whether what follows is that many literal bytes or a single byte to be repeated that many times. The font, the tile drawings and the backgrounds all come up through it.</p>
+<h2 id="the-letters-and-the-tiles">The letters and the tiles</h2>
+<p>The tile numbers of the labels are <b>shifted ASCII</b>. The font at 0x83B1 is 48 patterns going to tiles 0xC0 through 0xEF: the ten digits, the copyright circle, the hyphen and A to Z, so that a letter&#x27;s tile is its ASCII plus 0x90. That is why the cartridge&#x27;s labels read in clear in a dump, with nothing to decode. The same block is copied to the colour table and to the pattern table, so the letters come out coloured.</p>
+<p>A tile&#x27;s drawing is <b>six consecutive tiles</b>, two wide by three tall, and the table at 0x4735 gives the first of the six from the tile&#x27;s code: one row per suit, another for the honours, and all of them stepping down six at a time. In the honours row there are two values that are not tiles: code 0x38 draws the back and 0x39 the empty slot.</p>
+<h2 id="the-sound">The sound</h2>
+<p>The cartridge brings its own player, at 0x9C4A. You ask for a sound with its number in A, and that number is also its <b>priority</b>: if the channel is already carrying a higher one, the request is ignored. Below 0x8D they are effects and all go to the same channel; above that they are music on three channels.</p>
+<p>Each channel is eleven bytes of RAM —counter, duration, number, pointer, octave, volume, repeat count— and the driver takes <b>one step per frame</b> from the interrupt. A sound&#x27;s orders are one byte each: 0x2n sets the duration, 0x1n sends a noise to PSG register 6, 0xFE repeats and 0xFF ends; in an effect, the high nibble is the volume and the next twelve bits the period.</p>
+<p>The pitches come from twelve divisors at 0x9FD9, one per semitone, and the octave is got by <b>doubling the period</b> as many times as the note&#x27;s register says: the more it doubles, the lower it sounds. There are 33 sounds in the pointer table at 0x9CA3, and thirty-one places in the cartridge ask for one.</p>
+<h2 id="the-last-8-219-bytes">The last 8,219 bytes</h2>
+<p>From 0x9FE5 to 0xBFFF there are <b>8,219 bytes of 0xFF in a row</b>, and not one instruction in the cartridge points there. The content ends at 0x9FE4, twenty-seven bytes short of the 24 KB boundary, which means the program was written to fit in 24.</p>
+<p>What the binary does <b>not</b> say is which chip the cartridge carried, because 0xFF is what you get back from both an unprogrammed EPROM and an unconnected bus. It could be a 32 KB memory with the last bank blank or a 24 KB one the dumper read eight too many from, and from the dump the two are identical.</p>
+<h2 id="the-mark-that-is-not-there">The mark that is not there</h2>
+<p>Many Konami cartridges of this period hide their RC-7xx catalogue number and the game&#x27;s title in katakana at the end of the ROM; it was <b>Manuel Pazos</b> (<a href="https://twitter.com/ManuelPazosMSX">@ManuelPazosMSX</a>) who found that out.</p>
+<p>This one does not carry it. In all 32768 bytes there is not one <code>RC-7</code> in ASCII, nor the word <code>KONAMI</code>, nor anything resembling that signature: the last byte with content belongs to the semitone table, and behind it there is only filler. The RC-707 of this cartridge comes from the catalogue, not from the binary.</p>
+<footer><p><em>Konami's Mahjong</em> was published by Konami for the MSX; its catalogue number is RC-707 and it is 32 KB. The cartridge signs <b>&copy; Konami 1984</b> in its own font, under the kanji title, and there are no credits and no initials anywhere else in the binary. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

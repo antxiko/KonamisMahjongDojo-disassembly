@@ -246,10 +246,14 @@ D 0x7690 0x76A6 filas_de_las_figuras_del_recuento  Once palabras con direcciones
 F 0x7690 2
 
 # ---------------------------------------------------------------------------
-# LA MAQUINA DE ESTADOS, medida sobre el cartucho corriendo (2026-08-22).
-# Ver docs/la_partida.md. El demo se juega SOLO y es determinista desde el
-# encendido: dos pasadas independientes dieron los mismos instantes al
-# centesimo. Un ciclo completo son 168,96 s y vuelve a empezar.
+# LA MAQUINA DE ESTADOS, medida sobre el cartucho corriendo. Ver
+# docs/la_partida.md. El demo se juega SOLO y es determinista desde el
+# encendido: dos arrancadas en frio independientes dan la misma traza, instante
+# a instante. Lo que NO es constante es la vuelta: el estado 0 se repite en
+# t=5,95, 169,48, 338,44 y 509,00 s, o sea vueltas de 163,53, 168,96 y 170,56 s.
+# La semilla sale del registro R del refresco (0x41C6) y con ella cambia la mano
+# que se construye la maquina, asi que determinista no es periodico. CORRIGE la
+# medida anterior, que daba el ciclo por constante en 168,96 s.
 # ---------------------------------------------------------------------------
 L 0x41FF avanza_de_estado
 B 0x41FF Avanza al estado siguiente y resetea el submodo: `inc (0xE000)` y luego `ld (0xE001),0`. La usan los estados 1 a 14, y es el 0x4202/0x4204 que aparece escribiendo en el trazado del demo.
@@ -263,7 +267,7 @@ B 0x4212 Avanza al submodo siguiente dentro del estado: `inc (0xE001)`. Es el un
 C 0x4215 submodo = submodo + 1
 
 L 0x4196 vuelve_al_estado_0
-B 0x4196 CIERRA EL BUCLE DEL JUEGO: pone el estado a 0 y el submodo a 0. Medido en el demo: se llega aqui en t=168,48 y otra vez en t=337,44, o sea cada 168,96 s.
+B 0x4196 CIERRA EL BUCLE DEL JUEGO: pone el estado a 0 y el submodo a 0. Medido en el demo con volcados en cada cambio de estado: se pasa por aqui en t=169,48, t=338,44 y t=509,00 s, o sea vueltas de 168,96 y 170,56 s. No todas duran lo mismo.
 C 0x4197 estado = 0, se empieza de nuevo
 C 0x41A2 y el submodo tambien
 
@@ -401,7 +405,11 @@ C 0x41c6 LA SEMILLA DEL AZAR: el registro R del refresco de la memoria
 C 0x41c8 si R sale cero se usa el contador de fotogramas en su lugar
 C 0x41d0 el segundo byte de la semilla, siempre el contador de fotogramas
 C 0x41da bit 0 de 0xE1A8: empieza el reparto; 0x4F25 lo baja cuando termina
-C 0x41ec el sexto envite cierra la partida
+C 0x41dc el viento de la ronda
+C 0x41e0 en la ronda del este, la espera sale de los honba
+C 0x41e5 si el viento de la ronda es el del que reparte, la espera es la larga
+C 0x41ec la espera son honba+1 fotogramas mientras no llegue a 6
+C 0x41f0 y 64 fotogramas en cuanto llega. CORRIGE la lectura anterior, que tomaba este `cp 6` por el cierre de la partida: 0x41FC solo guarda A en 0xE004, que es la cuenta atras de fotogramas del estado
 
 L 0x41F4 espera_32_y_avanza_de_estado
 B 0x41F4 La salida corriente de un estado: borra 0xE1B8, pide 32 fotogramas de espera y pasa al estado siguiente. 0x41FC es la entrada de los que traen su propia espera en A, y 0x41FF la de los que no quieren ninguna.

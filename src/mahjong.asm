@@ -333,7 +333,7 @@ L_4168:
 	jp espera_32_y_avanza_de_estado		;4193
 
 ; ----------------------------------------------------------------------
-; CIERRA EL BUCLE DEL JUEGO: pone el estado a 0 y el submodo a 0. Medido en el demo: se llega aqui en t=168,48 y otra vez en t=337,44, o sea cada 168,96 s.
+; CIERRA EL BUCLE DEL JUEGO: pone el estado a 0 y el submodo a 0. Medido en el demo con volcados en cada cambio de estado: se pasa por aqui en t=169,48, t=338,44 y t=509,00 s, o sea vueltas de 168,96 y 170,56 s. No todas duran lo mismo.
 ; ----------------------------------------------------------------------
 vuelve_al_estado_0:
 	xor a			;4196
@@ -384,19 +384,19 @@ L_41CE:
 	call prepara_el_reparto		;41d4
 	ld hl,0e1a8h		;41d7
 	set 0,(hl)		;41da   ; bit 0 de 0xE1A8: empieza el reparto; 0x4F25 lo baja cuando termina
-	ld a,(0e04ch)		;41dc
+	ld a,(0e04ch)		;41dc   ; el viento de la ronda
 	or a			;41df
-	jr z,L_41E8		;41e0
+	jr z,L_41E8		;41e0   ; en la ronda del este, la espera sale de los honba
 	ld hl,0e04dh		;41e2
-	xor (hl)			;41e5
+	xor (hl)			;41e5   ; si el viento de la ronda es el del que reparte, la espera es la larga
 	jr z,L_41F0		;41e6
 L_41E8:
 	ld a,(0e04bh)		;41e8
 	inc a			;41eb
-	cp 006h		;41ec   ; el sexto envite cierra la partida
+	cp 006h		;41ec   ; la espera son honba+1 fotogramas mientras no llegue a 6
 	jr c,L_41FC		;41ee
 L_41F0:
-	ld a,040h		;41f0
+	ld a,040h		;41f0   ; y 64 fotogramas en cuanto llega. CORRIGE la lectura anterior, que tomaba este `cp 6` por el cierre de la partida: 0x41FC solo guarda A en 0xE004, que es la cuenta atras de fotogramas del estado
 	jr L_41FC		;41f2
 
 ; ----------------------------------------------------------------------

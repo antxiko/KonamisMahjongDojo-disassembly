@@ -19,13 +19,17 @@ from estilo_web import ESTILO  # noqa: E402
 
 
 # Un menu por idioma. La web se publica en ingles en la raiz de docs/ y en
-# castellano bajo docs/es/. Son seis paginas por idioma.
+# castellano bajo docs/es/. Son ocho paginas por idioma.
 NAV_EN = [("index.html", "Home"), ("GETTING-STARTED.html", "Start"),
-          ("THE-GAME.html", "The game"), ("THE-CARTRIDGE.html", "The cartridge"),
+          ("THE-GAME.html", "The game"), ("THE-RULES.html", "The rules"),
+          ("THE-MACHINE.html", "The machine"),
+          ("THE-CARTRIDGE.html", "The cartridge"),
           ("THE-CODE.html", "The code"), ("FINDINGS.html", "Findings"),
           ("OPEN-QUESTIONS.html", "Open questions")]
 NAV_ES = [("index.html", "Portada"), ("EMPEZAR.html", "Empezar"),
-          ("EL-JUEGO.html", "El juego"), ("EL-CARTUCHO.html", "El cartucho"),
+          ("EL-JUEGO.html", "El juego"), ("LAS-REGLAS.html", "Las reglas"),
+          ("LA-MAQUINA.html", "La máquina"),
+          ("EL-CARTUCHO.html", "El cartucho"),
           ("EL-CODIGO.html", "El código"), ("HALLAZGOS.html", "Hallazgos"),
           ("PREGUNTAS-ABIERTAS.html", "Preguntas abiertas")]
 
@@ -33,6 +37,8 @@ NAV_ES = [("index.html", "Portada"), ("EMPEZAR.html", "Empezar"),
 # necesita saber cual es la pareja de cada pagina.
 _PAREJAS = [("GETTING-STARTED.html", "EMPEZAR.html"),
             ("THE-GAME.html", "EL-JUEGO.html"),
+            ("THE-RULES.html", "LAS-REGLAS.html"),
+            ("THE-MACHINE.html", "LA-MAQUINA.html"),
             ("THE-CARTRIDGE.html", "EL-CARTUCHO.html"),
             ("THE-CODE.html", "EL-CODIGO.html"),
             ("FINDINGS.html", "HALLAZGOS.html"),
@@ -42,39 +48,44 @@ for _en, _es in _PAREJAS:
     PAREJA[_en] = _es
     PAREJA[_es] = _en
 
-# El pie va en el idioma de la pagina. Solo dice lo que este proyecto tiene
-# medido: el juego, quien lo publico, el numero de catalogo y el tamano. Lo que
-# el cartucho firme en su pantalla de titulo no se ha comprobado aqui, asi que
-# no se afirma.
+# El pie va en el idioma de la pagina, y dice lo que el cartucho firma: el
+# copyright esta escrito con la fuente del propio juego bajo el titulo en kanji
+# (lista de 0x8531). No hay creditos ni iniciales en ninguna parte del binario.
 PIE = {
-    "es": "<em>Super Cobra</em> lo publico Konami para MSX; su numero de catalogo es RC-705 y son 8 KB. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion.",
-    "en": "<em>Super Cobra</em> was published by Konami for the MSX; its catalogue number is RC-705 and it is 8 KB. All rights in the game remain with their holders. This is preservation, study and documentation work.",
+    "es": "<em>Konami's Mahjong</em> lo publico Konami para MSX; su numero de catalogo es RC-707 y son 32 KB. El cartucho firma <b>&copy; Konami 1984</b> con su propia fuente, bajo el titulo en kanji, y no hay creditos ni iniciales en ninguna otra parte del binario. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion.",
+    "en": "<em>Konami's Mahjong</em> was published by Konami for the MSX; its catalogue number is RC-707 and it is 32 KB. The cartridge signs <b>&copy; Konami 1984</b> in its own font, under the kanji title, and there are no credits and no initials anywhere else in the binary. All rights in the game remain with their holders. This is preservation, study and documentation work.",
 }
 
 
 def enlinea(t):
-    """Formato dentro de una linea: codigo, negrita, cursiva, enlaces, imagenes."""
-    trozos = re.split(r"(`[^`]+`)", t)
-    out = []
-    for i, tr in enumerate(trozos):
-        if i % 2:                                   # dentro de comillas: literal
-            out.append(f"<code>{html.escape(tr[1:-1])}</code>")
-            continue
-        s = html.escape(tr)
-        s = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", r'<img src="\2" alt="\1">', s)
-        s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", lambda m:
-                   f'<a href="{ruta(m.group(2))}">{m.group(1)}</a>', s)
-        s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
-        s = re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"<em>\1</em>", s)
-        out.append(s)
-    return "".join(out)
+    """Formato dentro de una linea: codigo, negrita, cursiva, enlaces, imagenes.
+
+    El codigo entre comillas se APARTA primero y se devuelve al final. Partir la
+    linea por las comillas y formatear cada trozo por separado, que es lo obvio,
+    deja sin convertir toda negrita que lleve codigo dentro -`**detras del
+    `call`**` se quedaba con los asteriscos a la vista-, porque la apertura y el
+    cierre caen en trozos distintos.
+    """
+    codigos = []
+
+    def aparta(m):
+        codigos.append("<code>%s</code>" % html.escape(m.group(1)))
+        return "\x00%d\x01" % (len(codigos) - 1)
+
+    s = html.escape(re.sub(r"`([^`]+)`", aparta, t))
+    s = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", r'<img src="\2" alt="\1">', s)
+    s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", lambda m:
+               f'<a href="{ruta(m.group(2))}">{m.group(1)}</a>', s)
+    s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
+    s = re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"<em>\1</em>", s)
+    return re.sub("\x00([0-9]+)\x01", lambda m: codigos[int(m.group(1))], s)
 
 
 # La web se sirve desde docs/, asi que lo que este fuera de esa carpeta no
 # existe para el navegador: esos enlaces se mandan al repositorio. Se puede
 # cambiar sin tocar el codigo con la variable de entorno.
-REPO = os.environ.get("SUPERCOBRA_REPO",
-                      "https://github.com/antxiko/SuperCobra-disassembly")
+REPO = os.environ.get("MAHJONG_REPO",
+                      "https://github.com/antxiko/Mahjong-disassembly")
 
 
 def ruta(href):
@@ -188,21 +199,30 @@ def convierte(texto, titulo, actual, idioma="en"):
         nav += f'<a href="es/{otro}" style="margin-left:auto;color:var(--oro)">Castellano</a>'
     else:
         nav += f'<a href="../{otro}" style="margin-left:auto;color:var(--oro)">English</a>'
-    return (f"<title>{html.escape(titulo)}</title>\n<style>{ESTILO}</style>\n"
+    # El charset y el viewport van explicitos: estas paginas llevan kanji y
+    # katakana, y sin la declaracion un navegador que no reciba el charset
+    # por cabecera las leeria como si fueran de un byte.
+    return ('<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+            f"<title>{html.escape(titulo)}</title>\n<style>{ESTILO}</style>\n"
             f'<div class="w"><nav class="top">{nav}</nav>\n' + "\n".join(out) +
             f'\n<footer><p>{PIE[idioma]}</p></footer></div>\n')
 
 
 def main(docdir, idioma="en"):
+    # Solo se convierten las paginas del menu. En docs/ viven ademas los
+    # documentos de trabajo con las medidas en crudo, que no son parte de la
+    # web y se quedan como estan.
+    paginas = {h[:-5] + ".md" for h, _ in (NAV_EN if idioma == "en" else NAV_ES)}
     n = 0
     for fn in sorted(os.listdir(docdir)):
-        if not fn.endswith(".md"):
+        if not fn.endswith(".md") or fn not in paginas:
             continue
         src = os.path.join(docdir, fn)
         dst = os.path.join(docdir, fn[:-3] + ".html")
         texto = open(src, encoding="utf-8").read()
         m = re.search(r"^#\s+(.*)$", texto, re.M)
-        titulo = (m.group(1) if m else fn[:-3]) + " — Super Cobra (1983)"
+        titulo = (m.group(1) if m else fn[:-3]) + " — Konami's Mahjong (1984)"
         open(dst, "w", encoding="utf-8").write(
             convierte(texto, titulo, fn[:-3] + ".html", idioma))
         print(f"  {fn} -> {os.path.basename(dst)}")

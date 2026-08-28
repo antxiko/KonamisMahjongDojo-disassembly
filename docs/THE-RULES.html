@@ -1,0 +1,128 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The rules — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-RULES.html" style=color:var(--tinta)>The rules</a><a href="THE-MACHINE.html">The machine</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html">Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/LAS-REGLAS.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-rules">The rules</h1>
+<p>This cartridge plays a recognisable mahjong: Japanese riichi, with its calls, its yaku, its fu and its payment table. But it is a <b>two-player</b> game, and that forces decisions a four-seat table takes for granted. Every rule here carries the address of the routine that makes it.</p>
+<h2 id="the-tiles">The tiles</h2>
+<p>A tile is one byte: the suit in the high nibble and the number in the low one. That gives 34 codes with gaps —0x01 to 0x09, 0x11 to 0x19, 0x21 to 0x29 and 0x31 to 0x37—, four copies of each, that is the 136 of a full set. The list is at 0x4FBF and the inverse table, the one that returns an index from 0 to 33 with no gaps, at 0x59B3.</p>
+<table><tr><th>suit</th><th>what it is</th></tr><tr><td>0</td><td>the <b>characters</b>, 一萬 to 九萬</td></tr><tr><td>1</td><td>the <b>circles</b></td></tr><tr><td>2</td><td>the <b>bamboos</b></td></tr><tr><td>3</td><td>the seven <b>honours</b>, 東南西北白發中 in that order</td></tr></table>
+<p>The bamboos identify themselves: the 緑一色 detector at 0x8118 only accepts 0x22, 0x23, 0x24, 0x26, 0x28 and the 0x36 dragon, which are exactly the green bamboos. The other two show up on screen. The demo&#x27;s freshly dealt hand —the one in the picture on <a href="THE-GAME.html#the-table">The game</a>— is <code>02 06 08 08 09 · 11 13 15 17 · 22 22 · 31 31 33</code>, and what gets drawn is five characters, four circles, two bamboos and three honours, in that order.</p>
+<p>Putting the number in the low nibble is not a coding whim: it makes &quot;the next one in the run&quot; a subtraction, and it means the honours, from 0x31 up, cannot fit into any run by arithmetic alone. The hand engine leans on that constantly.</p>
+<h2 id="there-is-no-wall">There is no wall</h2>
+<p>The tiles of a game do not come from a shuffled run. <b>They are drawn one at a time as they are needed</b>, and what stops a fifth copy coming out is a table of thirty-four counters at 0xE186, one per type: if the draw picks a type with all four copies spent, it is put back and drawn again (0x4F64, 0x4F2B). That is rejection sampling without replacement, not a shuffle.</p>
+<p>So there is no dead wall and no draw order either, and the end of a hand is decided some other way: <b>the dealer gets 20 discards and the other 18</b> (0xE1C0 and 0xE1C1, set at 0x50DD). As soon as one of them runs past, the hand is exhausted with no winner. From discard 18 on, riichi can no longer be declared.</p>
+<h2 id="the-calls">The calls</h2>
+<table><tr><th>call</th><th>what it needs</th><th>where</th></tr><tr><td>pon</td><td>two copies in hand and the opponent&#x27;s last discard; not in riichi</td><td>0x680B</td></tr><tr><td>chi</td><td>a run with the opponent&#x27;s last discard, no honours</td><td>0x692F</td></tr><tr><td>kan</td><td>three forms: with the opponent&#x27;s discard, with four in hand, or adding the drawn tile to your own pon</td><td>0x6C12</td></tr></table>
+<p>With two or three possible ways to chi, the player picks with left and right and confirms with space. The closed kan is drawn with the two outer tiles face down, and it ships with the rule most often forgotten: <b>in riichi, the closed kan is only allowed if it does not change the waits</b>. 0x6E87 recomputes them, compares, and undoes the kan if they do not match.</p>
+<p>After a kan the next tile is the replacement, and it is flagged for 嶺上開花. Every call bumps 0xE2B6, the call count: the hand stops being closed, and that is what takes away the riichi, the pinfu and one han from several yaku.</p>
+<h2 id="the-riichi">The riichi</h2>
+<p>It can be declared with a closed hand, right after drawing, not being in riichi already and without having reached discard 18 (0x6653). It costs <b>1,000 points</b>, which go onto the table (0xE04A) as a stick. Declared on the first discard it is a double riichi, and if the hand closes on the next discard there is ippatsu.</p>
+<p>And here there is a clear divergence: <b>only a winner who was in riichi takes the stick from the table</b>. If the winner never declared it, the sticks stay on the table for the next hand (0x5E70-0x5EA8). The one exception is player 1 winning the hand that ends the game, who takes them declared or not.</p>
+<h2 id="winning">Winning</h2>
+<p>A complete hand is four sets and a pair (0x6042), seven pairs (0x64F8) or thirteen orphans (0x651D). Calling with an incomplete hand is refused with no penalty. Calling <b>with no yaku</b> is a penalty: 12,000 points if the player is dealing and 8,000 if not.</p>
+<p>Furiten —waiting on a tile you have already discarded— is worked out by crossing your waits with your own river and with whatever the opponent took from it. And it is not treated the same across the three difficulties: on the first, a furiten ron is simply refused; on the second and the third it is <b>punished</b> with those same 12,000 or 8,000.</p>
+<h2 id="the-yaku">The yaku</h2>
+<p>The detector at 0x7B3F runs through twenty-seven checks, and each one that fits records the yaku with its han. The names live at 0x747B, in katakana, and the pointer table that indexes them at 0x7642: <b>thirty-eight named yaku</b>, of which the first eleven are yakuman. As soon as a yakuman turns up the list is cut and the other yaku are not written.</p>
+<p>The last tile of each name is the han of the <b>open</b> version, and 0x70BF overwrites it with the closed value when the hand has no calls: one table serves both cases.</p>
+<p>Nearly everything matches four-player riichi, han included, with the open-hand reductions —chinitsu 6 and 5, honitsu and junchan 3 and 2, ittsu, sanshoku and chanta 2 and 1— and open tanyao allowed. What is <b>not</b> there: shousuushii, chankan, nagashi mangan, aka-dora, kan-dora or double yakuman.</p>
+<p>And what diverges, read from the code:</p>
+<table><tr><th>yaku</th><th>what this cartridge does</th><th>where</th></tr><tr><td>pinfu</td><td><b>only counts with ron</b>, never with tsumo</td><td>0x7C99</td></tr><tr><td>sanshoku doukou</td><td>worth <b>3 han</b>, not 2</td><td>0x7E1C</td></tr><tr><td>chuuren poutou</td><td><b>only detected in suit 0</b></td><td>0x7F1A</td></tr><tr><td>chinroutou</td><td><b>lets 東 through</b> as if it were a one</td><td>0x8197</td></tr><tr><td>renhou</td><td>recorded under the chiihou name, that is, as a yakuman</td><td>0x82E3</td></tr><tr><td>haitei with tsumo</td><td>worth 2 han <b>with the tsumo inside</b>, so it is not counted twice</td><td>0x7C71</td></tr><tr><td>seven pairs</td><td>worth its 2 han, but <b>without its 25 fu</b></td><td>0x7176</td></tr></table>
+<p>The seat wind is 東 for the dealer and 南 for the other player, and yakuhai gives one han per triplet, two if the wind is a double one.</p>
+<h2 id="the-fu">The fu</h2>
+<p>They are counted as in four-player riichi: base 20, or 30 with a closed hand and ron; a triplet 2 or 4 for simples and 4 or 8 for terminals and honours, open or closed; a quad 8 and 16, or 16 and 32; a pair 2 if it is dragons or a wind that counts and 4 if it is both winds; a wait 2 for kanchan, penchan or tanki; 2 more for tsumo; and the total rounded up to the next ten. All of it in BCD, with <code>daa</code>.</p>
+<p>The exception is seven pairs, which instead of its fixed 25 fu is counted like any other hand. And there is a detail in the pair: the non-dealer is credited with 東 instead of their own 南, that is, the dealer&#x27;s wind and not their own.</p>
+<h2 id="the-payment">The payment</h2>
+<p>Under 5 han the payment comes out of two tables of nine rows by four words each, in BCD: the dealer&#x27;s at 0x5CBB and the other player&#x27;s at 0x5D03. The fu give the row and the han the column, and the figures match the standard Japanese mahjong table exactly: 30 fu and 2 han are 2,900 if the dealer wins and 2,000 if not.</p>
+<p>From 5 han up there is no fu row any more, only limits: mangan 12,000 and 8,000, haneman 18,000 and 12,000, baiman 24,000 and 16,000, sanbaiman 36,000 and 24,000, and 13 han is the ceiling —there is no kazoe yakuman—. A yakuman is 48,000 and 32,000, and they stack up to five. On top of all that go 300 points per honba on a ron and 100 on a tsumo.</p>
+<p>Two oddities in those tables:</p>
+<ul><li><b>20 fu with 1 han pays zero.</b> The first row of both tables is 0000, and since the 30 fu minimum for an open hand does not exist here, there is a hand —open, made of runs, ryanmen wait, won by ron— that is called and collects nothing beyond the honba.</li><li><b>From 100 fu up it pays as 8 han</b>, that is, baiman. Which is why the ninth row of the tables, which exists and is written out, is never read.</li></ul>
+<h3 id="the-scores-do-not-add-up-to-60-000-and-that-is-by-design">The scores do not add up to 60,000, and that is by design</h3>
+<p>With tsumo, the cartridge takes the payment from other tables, the &quot;on the draw&quot; ones, which are what <b>a single player</b> would pay at a four-seat table. But 0x5B85 loads the same word into both pending amounts and then only reduces the one for the payer (0xE1B1), not the one for the collector (0xE1E4). The result: the loser pays one player&#x27;s share and the winner collects the full ron figure.</p>
+<p>Points are created out of nothing, and the scoring screen shows it without flinching: ハライ is what was paid and トクテン what was collected, and with tsumo they differ. In the demo —7 han, 30 fu, tsumo by the dealer— 6,000 are paid and 18,000 collected, and the scores end at 48,000 and 23,000.</p>
+<h2 id="the-game">The game</h2>
+<p>The deal passes to the other player when the non-dealer wins; it stays if the dealer wins or is tenpai in a hand with no winner. Every hand with no winner and every hand the dealer wins bump the honba counter, which goes back to zero when the deal changes.</p>
+<p>From <b>5 honba</b> on it gets harder: 2 han of yaku, not counting dora, are needed to win at all (<em>ryanhan shibari</em>), and to collect the tenpai payment of a hand with no winner every wait has to be worth 3 han. Tenpai pays 1,500 from whoever is not to whoever is; with both or with neither, nothing.</p>
+<p>The scores can go below zero. The sign does not live inside the number, which is unsigned BCD, but apart, in 0xE100, and it shows on screen: when drawing, 0x44E7 picks one tile or another according to that bit.</p>
+<footer><p><em>Konami's Mahjong</em> was published by Konami for the MSX; its catalogue number is RC-707 and it is 32 KB. The cartridge signs <b>&copy; Konami 1984</b> in its own font, under the kanji title, and there are no credits and no initials anywhere else in the binary. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

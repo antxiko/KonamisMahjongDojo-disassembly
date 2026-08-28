@@ -1,0 +1,128 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Las reglas — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Portada</a><a href="EMPEZAR.html">Empezar</a><a href="EL-JUEGO.html">El juego</a><a href="LAS-REGLAS.html" style=color:var(--tinta)>Las reglas</a><a href="LA-MAQUINA.html">La máquina</a><a href="EL-CARTUCHO.html">El cartucho</a><a href="EL-CODIGO.html">El código</a><a href="HALLAZGOS.html">Hallazgos</a><a href="PREGUNTAS-ABIERTAS.html">Preguntas abiertas</a><a href="../THE-RULES.html" style="margin-left:auto;color:var(--oro)">English</a></nav>
+<h1 id="las-reglas">Las reglas</h1>
+<p>Este cartucho juega un mahjong reconocible: riichi japonés, con sus llamadas, sus yaku, sus fu y su tabla de pago. Pero es de <b>dos jugadores</b>, y eso obliga a decidir cosas que en una mesa de cuatro se dan por hechas. Cada regla de aquí lleva la dirección de la rutina que la toma.</p>
+<h2 id="las-fichas">Las fichas</h2>
+<p>Una ficha es un byte: el palo en el nibble alto y el número en el bajo. Salen 34 códigos con huecos —0x01 a 0x09, 0x11 a 0x19, 0x21 a 0x29 y 0x31 a 0x37—, con cuatro copias de cada uno, o sea las 136 de un juego completo. La lista está en 0x4FBF y la tabla inversa, la que devuelve un índice de 0 a 33 sin huecos, en 0x59B3.</p>
+<table><tr><th>palo</th><th>qué es</th></tr><tr><td>0</td><td>los <b>caracteres</b>, 一萬 a 九萬</td></tr><tr><td>1</td><td>los <b>círculos</b></td></tr><tr><td>2</td><td>los <b>bambúes</b></td></tr><tr><td>3</td><td>los siete <b>honores</b>, 東南西北白發中 en ese orden</td></tr></table>
+<p>Los bambúes se identifican solos: el detector del 緑一色 de 0x8118 solo acepta 0x22, 0x23, 0x24, 0x26, 0x28 y el dragón 0x36, que son exactamente los bambúes verdes. Los otros dos se ven en pantalla. La mano recién repartida del demo —la de la imagen de <a href="EL-JUEGO.html#la-mesa">El juego</a>— es <code>02 06 08 08 09 · 11 13 15 17 · 22 22 · 31 31 33</code>, y lo que sale dibujado son cinco caracteres, cuatro círculos, dos bambúes y tres honores, en ese orden.</p>
+<p>Que el número vaya en el nibble bajo no es un capricho de codificación: hace que «la siguiente de la escalera» sea una resta, y que los honores, a partir de 0x31, no puedan cuadrar en ninguna escalera por aritmética. El motor de manos se apoya en eso todo el rato.</p>
+<h2 id="no-hay-muro">No hay muro</h2>
+<p>Las fichas de una partida no salen de una tira revuelta al empezar. <b>Se sortean una a una según hacen falta</b>, y lo que impide que salga una quinta copia es una tabla de treinta y cuatro contadores en 0xE186, uno por tipo: si el sorteo saca un tipo con las cuatro copias gastadas, se resiembra y se vuelve a sortear (0x4F64, 0x4F2B). Es muestreo sin reemplazo por rechazo, no una baraja.</p>
+<p>De ahí que tampoco haya muro muerto ni orden de robo, y que el final de la mano se decida de otra manera: <b>el que reparte tiene 20 descartes y el otro 18</b> (0xE1C0 y 0xE1C1, puestos en 0x50DD). En cuanto uno se pasa, la mano se agota sin ganador. Del descarte 18 en adelante ya no se puede declarar riichi.</p>
+<h2 id="las-llamadas">Las llamadas</h2>
+<table><tr><th>llamada</th><th>qué exige</th><th>dónde</th></tr><tr><td>pon</td><td>dos copias en mano y el último descarte del rival; no en riichi</td><td>0x680B</td></tr><tr><td>chi</td><td>escalera con el último descarte del rival, honores no</td><td>0x692F</td></tr><tr><td>kan</td><td>tres formas: con el descarte del rival, con cuatro en mano, o añadiendo la robada a un pon propio</td><td>0x6C12</td></tr></table>
+<p>Con dos o tres formas posibles de chi, el jugador elige con izquierda y derecha y confirma con espacio. El kan cerrado se pinta con las dos fichas de fuera boca abajo, y trae de serie la regla que más se olvida: <b>en riichi, el kan cerrado solo vale si no cambia las esperas</b>. 0x6E87 las recalcula, las compara y, si no cuadran, deshace el kan.</p>
+<p>Tras un kan la ficha siguiente es la de reposición, y queda marcada para el 嶺上開花. Cada llamada sube 0xE2B6, la cuenta de llamadas: la mano deja de estar cerrada, y eso es lo que quita el riichi, el pinfu y un han a varias jugadas.</p>
+<h2 id="el-riichi">El riichi</h2>
+<p>Se puede declarar con la mano cerrada, acabando de robar, no estando ya en riichi y sin haber llegado al descarte 18 (0x6653). Cuesta <b>1.000 puntos</b>, que van a la mesa (0xE04A) en forma de palo. Declarado con el primer descarte es doble riichi, y si la mano se cierra en el descarte siguiente hay ippatsu.</p>
+<p>Y aquí hay una divergencia clara: <b>el palo de la mesa solo se lo lleva un ganador que estuviera en riichi</b>. Si gana quien no lo declaró, los palos se quedan sobre la mesa para la mano siguiente (0x5E70-0x5EA8). La única excepción es el jugador 1 ganando la mano que cierra la partida, que se los lleva declarara o no.</p>
+<h2 id="ganar">Ganar</h2>
+<p>Una mano completa son cuatro figuras y una pareja (0x6042), siete parejas (0x64F8) o trece huérfanos (0x651D). Cantar con la mano incompleta se rechaza sin castigo. Cantar <b>sin jugada</b> sí es castigo: 12.000 puntos si el jugador reparte y 8.000 si no.</p>
+<p>El furiten —esperar una ficha que ya se ha descartado— se calcula cruzando las esperas con el propio río y con lo que el rival haya robado de él. Y no se trata igual en las tres dificultades: con la primera, el ron en furiten se rechaza y ya está; con la segunda y la tercera <b>se castiga</b> con esos mismos 12.000 u 8.000.</p>
+<h2 id="las-jugadas">Las jugadas</h2>
+<p>El detector de 0x7B3F pasa por veintisiete comprobaciones, y cada una que cuadra apunta la jugada con su número de han. Los nombres están en 0x747B, en katakana, y la tabla de punteros que los indexa en 0x7642: <b>treinta y ocho jugadas con nombre</b>, de las cuales las once primeras son yakuman. En cuanto sale un yakuman, la lista se corta y las demás jugadas no se escriben.</p>
+<p>El último tile de cada nombre es el han de la jugada <b>abierta</b>, y 0x70BF lo pisa con el valor cerrado cuando la mano no tiene llamadas: así una sola tabla sirve para los dos casos.</p>
+<p>Casi todo coincide con el riichi de cuatro jugadores, han incluidos, con las rebajas de mano abierta —chinitsu 6 y 5, honitsu y junchan 3 y 2, ittsu, sanshoku y chanta 2 y 1— y el tanyao abierto permitido. Lo que <b>no</b> hay: shousuushii, chankan, nagashi mangan, aka-dora, kan-dora ni doble yakuman.</p>
+<p>Y lo que se aparta, leído del código:</p>
+<table><tr><th>jugada</th><th>qué hace este cartucho</th><th>dónde</th></tr><tr><td>pinfu</td><td><b>solo vale con ron</b>, nunca con tsumo</td><td>0x7C99</td></tr><tr><td>sanshoku doukou</td><td>vale <b>3 han</b>, no 2</td><td>0x7E1C</td></tr><tr><td>chuuren poutou</td><td><b>solo se detecta en el palo 0</b></td><td>0x7F1A</td></tr><tr><td>chinroutou</td><td><b>deja pasar el 東</b> como si fuera un uno</td><td>0x8197</td></tr><tr><td>renhou</td><td>se apunta con el nombre del chiihou, o sea como yakuman</td><td>0x82E3</td></tr><tr><td>haitei con tsumo</td><td>vale 2 han <b>con el tsumo dentro</b>, para no sumarlo dos veces</td><td>0x7C71</td></tr><tr><td>siete parejas</td><td>valen sus 2 han, pero <b>no tienen sus 25 fu</b></td><td>0x7176</td></tr></table>
+<p>El viento del asiento es 東 para el que reparte y 南 para el otro, y el yakuhai da un han por trío, dos si el viento es doble.</p>
+<h2 id="los-fu">Los fu</h2>
+<p>Se cuentan como en el riichi de cuatro: base 20, o 30 con la mano cerrada y ron; trío 2 o 4 si es de fichas de en medio y 4 u 8 si es de terminales u honores, según esté abierto o cerrado; cuarteto 8 y 16, o 16 y 32; pareja 2 si es de dragón o de viento que cuente y 4 si es de los dos vientos; espera 2 con kanchan, penchan o tanki; 2 más por tsumo; y el total redondeado a la decena de arriba. Todo en BCD, con <code>daa</code>.</p>
+<p>La excepción es la de las siete parejas, que en vez de sus 25 fu fijos se cuentan como una mano cualquiera. Y hay un detalle en la pareja: al que no reparte se le cuenta el 東 en vez de su 南, o sea el viento del que reparte y no el suyo.</p>
+<h2 id="el-pago">El pago</h2>
+<p>Con menos de 5 han, el pago sale de dos tablas de nueve filas por cuatro palabras cada una, en BCD: la del que reparte en 0x5CBB y la del otro en 0x5D03. La fila la dan los fu y la columna los han, y las cifras coinciden exactamente con la tabla estándar del mahjong japonés: 30 fu y 2 han son 2.900 si gana el que reparte y 2.000 si no.</p>
+<p>De 5 han en adelante ya no hay fila de fu, sino topes: mangan 12.000 y 8.000, haneman 18.000 y 12.000, baiman 24.000 y 16.000, sanbaiman 36.000 y 24.000, y 13 han es el límite —no hay kazoe yakuman—. Un yakuman son 48.000 y 32.000, y se apilan hasta cinco. A todo se le suman 300 puntos por honba en el ron y 100 en el tsumo.</p>
+<p>Dos rarezas de esas tablas:</p>
+<ul><li><b>20 fu con 1 han paga cero.</b> La primera fila de las dos tablas es 0000, y como aquí no existe el mínimo de 30 fu para mano abierta, hay una mano — abierta, de escaleras, espera ryanmen y ron— que se canta y no cobra nada más que los honba.</li><li><b>De 100 fu para arriba se paga como 8 han</b>, o sea baiman. Por eso la novena fila de las tablas, que existe y está escrita, no se lee nunca.</li></ul>
+<h3 id="los-marcadores-no-suman-60-000-y-es-por-diseno">Los marcadores no suman 60.000, y es por diseño</h3>
+<p>Con tsumo, el cartucho saca el pago de otras tablas, las de «al robar», que son lo que pagaría <b>un solo jugador</b> en una mesa de cuatro. Pero 0x5B85 carga la misma palabra en los dos pendientes y luego solo rebaja el del que paga (0xE1B1), no el del que cobra (0xE1E4). Resultado: el perdedor paga la parte de uno y el ganador cobra la cifra entera del ron.</p>
+<p>Se crean puntos de la nada, y la pantalla del recuento lo enseña sin disimulo: ハライ es lo pagado y トクテン lo cobrado, y con tsumo son distintos. En el demo —7 han, 30 fu, tsumo del que reparte— se pagan 6.000 y se cobran 18.000, y los marcadores acaban en 48.000 y 23.000.</p>
+<h2 id="la-partida">La partida</h2>
+<p>El reparto pasa al otro cuando gana el que no reparte; se queda si gana el que reparte o si está en tenpai en una mano sin ganador. Cada mano sin ganador y cada mano que gana el que reparte suben el contador de honba, que vuelve a cero al cambiar el reparto.</p>
+<p>A partir de <b>5 honba</b> se endurece: hacen falta 2 han de jugadas, sin contar dora, para poder ganar (<em>ryanhan shibari</em>), y para cobrar el tenpai de una mano sin ganador cada espera tiene que valer 3 han. El tenpai se paga 1.500 del que no está al que está; con los dos o con ninguno, nada.</p>
+<p>Los marcadores pueden bajar de cero. El signo no va dentro del número, que es BCD sin signo, sino aparte, en 0xE100, y se ve en pantalla: al pintar, 0x44E7 elige un tile u otro según ese bit.</p>
+<footer><p><em>Konami's Mahjong</em> lo publico Konami para MSX; su numero de catalogo es RC-707 y son 32 KB. El cartucho firma <b>&copy; Konami 1984</b> con su propia fuente, bajo el titulo en kanji, y no hay creditos ni iniciales en ninguna otra parte del binario. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion.</p></footer></div>

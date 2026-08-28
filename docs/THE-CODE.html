@@ -1,0 +1,120 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The code — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-RULES.html">The rules</a><a href="THE-MACHINE.html">The machine</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html" style=color:var(--tinta)>The code</a><a href="FINDINGS.html">Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/EL-CODIGO.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-code">The code</h1>
+<p>Of the cartridge&#x27;s 32768 bytes, <b>15,432 are code and 17,336 are data</b>. Not one is left unassigned.</p>
+<h2 id="the-whole-game-runs-inside-the-interrupt">The whole game runs inside the interrupt</h2>
+<p>When INIT has finished setting the machine up, it does not call any main loop: it reaches 0x404F, which is a <code>jr</code> to itself, and stays there forever. Everything else hangs off the <code>H.KEYI</code> hook it has just installed.</p>
+<pre><code>404F:  jr 404Fh</code></pre>
+<p>The interrupt routine does three things in order. It acknowledges the VDP, it moves the sound —always, whatever happens—, and then it looks at the semaphore at 0xE005: if the previous frame is still inside, it leaves without more ado; if not, it raises it, reopens interrupts, reads the controls and gives the state machine one beat. That semaphore is the only thing keeping a long frame from overlapping the next one.</p>
+<p>So a frame of this game is a call, not a turn of a loop, and all the state has to live outside the stack. Hence the kilobyte from 0xE000 to 0xE3FF full of counters, cursors and flags.</p>
+<h2 id="the-dispatcher-that-reads-itself">The dispatcher that reads itself</h2>
+<p>The fifteen states and their steps are dispatched by this routine, and it is not the usual one:</p>
+<pre><code>408F:  add a,a          ; each entry is two bytes
+4090:  pop hl           ; the RETURN address is the table
+4091:  call 4063h       ; HL += A
+4094:  ld e,(hl)
+4095:  inc hl
+4096:  ld d,(hl)
+4097:  ex de,hl
+4098:  jp (hl)          ; and jump: there is no coming back here</code></pre>
+<p>The <code>pop hl</code> keeps the return address and uses it as the base of the table, which means <b>the table sits right behind the <code>call</code></b> that invokes the dispatcher. It saves the <code>ld hl,table</code> on every call, and in exchange whichever handler comes out inherits as its return address whatever lay under the table.</p>
+<p>There are five tables written that way, and between them they are the whole skeleton of the game: fifteen words for the states at 0x40ED, and two, two, nine and four for the steps of states 7, 10, 11 and 12.</p>
+<p>For a disassembly this is a problem twice over: the <code>jp (hl)</code> cuts the trace, and the bytes behind each <code>call</code> are data in the middle of the code. The thirty-two destinations are declared by hand in the <code>.entries</code> and the five ranges in the <code>.nocode</code>, each with its justification written alongside.</p>
+<h2 id="one-set-of-variables-for-both-players">One set of variables for both players</h2>
+<p>The call menu, the hand engine and the yaku detector do not know whose turn it is. They always work on the same addresses, and what happens before and after is a copy: 0x517A brings into those shared variables the ones belonging to whoever is playing —cursor, drawn-tile slot, last slot, tsumo flag, riichi and waits— and 0x51BC puts them back.</p>
+<p>It is the reason the machine can call pon or chi going <b>through the very same menu dispatcher</b> a person does: its variables are loaded, the call bit is set, and in it goes the way a player would.</p>
+<h2 id="the-hand-engine">The hand engine</h2>
+<p>Deciding whether a hand is complete is the largest thing in the cartridge (0x5F3E-0x656D), and it is not a table nor a generic search: it is a <b>hand-written tree of cases</b> over the already sorted hand. At each step it looks at the tile under the cursor and the three or four after it, and off what it finds —equal, consecutive, loose— hangs a different branch. What it finds it records in four lists: runs, triplets, quads and the pair, each set with a flag saying whether it is open.</p>
+<p>When a branch does not work out there is backtracking, but <b>it is not recursive</b>: a copy of the hand and of the sets is saved into one of two slots, with one byte saying how many copies there are and another which branch to try on restoring. Two levels and not one more. If they run out, the hand is declared undecomposable.</p>
+<p>On top of that engine runs the yaku detector at 0x7B3F: <b>twenty-seven checks</b> that read what the four lists left behind and record every yaku that fits with its han.</p>
+<p>And all of it leans on how a tile is encoded. The number goes in the low nibble, so &quot;the next one in the run&quot; is a subtraction giving 0xFF, and the honours, starting at 0x31, cannot fit into any run without anyone having to check.</p>
+<h2 id="how-it-was-done-and-why-you-can-trust-it">How it was done, and why you can trust it</h2>
+<p>The listing is not written by hand. <code>tools/z80trace.py</code> follows the real flow from the declared entry points, <code>tools/mkasm.py</code> builds the <code>.asm</code> with the address-anchored annotations, and the numbers come out of that.</p>
+<p><code>make verify</code> reassembles and compares against the original ROM: it has to come out <b>identical byte for byte</b>, and it does. But that alone is not enough, because data read as code gives the same binary —the bytes do not change, what changes is what is said about them—, so <code>make sanity</code> also checks that no range declared as data shows up as an instruction, that no entry point falls inside a data area, and that not one of the 32768 bytes is left unassigned.</p>
+<p>On top of that there are two more measures. <code>make notas</code> catches the two mistakes that get lost in silence when annotating: a comment anchored to an address that is not an instruction, and two comments for the same one. And <code>tools/densidad.py</code> measures, routine by routine, how many instructions carry a comment:</p>
+<table><tr><th></th><th></th></tr><tr><td>labelled code blocks</td><td>1,001</td></tr><tr><td>of those, with a name of their own</td><td>340</td></tr><tr><td>data blocks, with their name and row width</td><td>89</td></tr><tr><td>instructions</td><td>7,548</td></tr><tr><td>instructions with a comment</td><td>2,320 (<b>30.7 %</b>)</td></tr><tr><td>routines under 10 % commented</td><td><b>0</b></td></tr></table>
+<p>That last row is the one that matters: a routine with a name but not a single comment is christened, not explained, and there is none of those left here.</p>
+<footer><p><em>Konami's Mahjong</em> was published by Konami for the MSX; its catalogue number is RC-707 and it is 32 KB. The cartridge signs <b>&copy; Konami 1984</b> in its own font, under the kanji title, and there are no credits and no initials anywhere else in the binary. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

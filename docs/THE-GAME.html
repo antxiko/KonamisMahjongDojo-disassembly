@@ -1,0 +1,120 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The game — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html" style=color:var(--tinta)>The game</a><a href="THE-RULES.html">The rules</a><a href="THE-MACHINE.html">The machine</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html">Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/EL-JUEGO.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-game">The game</h1>
+<p>Konami&#x27;s Mahjong is a Japanese mahjong <b>for two players</b>: you against the cartridge, head to head, without the other two seats at the table. It is played on the keyboard only —the title screen says as much— and a game is four dealer turns: east with player 1 dealing, east with player 2, south with 1 and south with 2. Each one repeats as long as the dealer keeps winning, so there can be more than four hands, but never more than four turns.</p>
+<p><img src="imagenes/titulo.png" alt="The title screen"></p>
+<p>The title is four kanji, 麻雀道場, <em>Mahjong Dōjō</em>. Under it, the copyright written in the game&#x27;s own font, and then the menu in ASCII: <code>KEYBOARD ONLY</code>, <code>PLAY SELECT</code> and the three difficulties in romaji, <code>1-key AMACHUA</code>, <code>2-key SEMIPROFESSIONAL</code> and <code>3-key PROFESSIONAL</code>.</p>
+<p>That key does not just pick a label. The table at 0x4AE0 turns it into the byte 0xE002 —0x40, 0x60 or 0x50—, and out of its bits 5 and 4 comes 0xE040, which is the real difficulty. There is a fourth entry, the one for key 4, and it is zero: it does nothing. What each difficulty changes is in <a href="THE-MACHINE.html">The machine</a>.</p>
+<h2 id="fifteen-states-and-the-game-is-one-of-them">Fifteen states, and the game is one of them</h2>
+<p>The whole cartridge is a state machine with two bytes of memory: 0xE000 says which state it is in and 0xE001 which step inside it. The table at 0x40ED holds fifteen words, and there is no way out of it.</p>
+<table><tr><th>state</th><th>what happens</th></tr><tr><td>0-4</td><td>the startup, the banner coming down and the presentation text</td></tr><tr><td><b>5</b></td><td><b>the title</b>, with the three-difficulty menu</td></tr><tr><td>6-7</td><td>the demo starts</td></tr><tr><td><b>8</b></td><td><b>the difficulty screen</b>, only reachable by pressing a key</td></tr><tr><td>9</td><td>black: the screen is cleared and the playing table drawn</td></tr><tr><td>10</td><td>the table is ready, and the deal begins</td></tr><tr><td><b>11</b></td><td><b>the whole hand</b>, in nine steps</td></tr><tr><td>12</td><td>the end of the round</td></tr><tr><td>13-14</td><td>終局, the end of the game</td></tr></table>
+<p>From 14 it goes back to 0 and starts again. State 11 is where the game lives, and its nine steps are the deal, the hand, taking the table apart and the scoring:</p>
+<table><tr><th>step</th><th>what it does</th></tr><tr><td>0-1</td><td>the deal, tile by tile</td></tr><tr><td><b>2</b></td><td><b>the hand is played</b>: draws, discards, calls</td></tr><tr><td>3-6</td><td>the hands are turned over and the scoring screen is built</td></tr><tr><td><b>7</b></td><td><b>the scoring</b>: fu, han, yaku and payment</td></tr><tr><td>8</td><td>and on to state 12</td></tr></table>
+<p>Step 2 takes nearly all of the time: 103.7 of the 130.3 seconds the demo&#x27;s hand lasts.</p>
+<h2 id="the-demo-does-not-think-it-reads-a-script">The demo does not think: it reads a script</h2>
+<p>When the cartridge boots and nobody touches anything, a hand is dealt, played out, scored, and started again. There is no separate demo mode: it <b>walks the same state machine a real game does</b>, through the same routines.</p>
+<p>The difference is where the keypresses come from. On entering state 7, 0x416B hooks the block at 0x4AE8 —<b>one hundred and four bytes</b>— up as the keyboard, and 0x4A68 serves them instead of the matrix for as long as bit 6 of 0xE002 is clear, which is what tells a demo from a game. The values are the very masks the real reader builds: bit 0 up, bit 1 down, bit 2 left, bit 3 right, bit 4 space, bit 5 select. The format is variable length and the low nibble of each entry decides: at zero, the keypress takes one byte and lasts 64 frames; otherwise it takes two, and the second says how many times in a row it repeats. The eight zeros at the end are the script running out.</p>
+<p>That is why the demo comes out <b>the same every time</b>: two independent cold boots give the same trace, instant for instant. What is not constant is how long each lap takes. State 0 comes round again at 5.95, 169.48, 338.44 and 509.00 seconds from power-on, that is laps of <b>163.53, 168.96 and 170.56 seconds</b>: the random seed comes from the memory refresh register R (0x41C6), and with it changes the hand the machine builds for itself and how long it takes to run out. Deterministic is not the same as periodic.</p>
+<h2 id="the-table">The table</h2>
+<p><img src="imagenes/mesa.png" alt="The table before the deal"></p>
+<p>Top and bottom, the two scores: <b>30,000 points each</b> to start, in BCD and in hundreds of a point. In the middle, the wind and hand number (東一局) and the repeat counter (本場). To their right, the two indicator tiles, one for the dora and one for the ura-dora; the ura only counts if there is a riichi, but both are drawn the same. On the left, the counter of riichi sticks left on the table.</p>
+<p>The cyan panel on the right is the call menu, and 0x660A fixes its order: アガリ, リーチ, <b>ポン, チー</b>, カン. Each option leaves one bit in 0xE1C7 —1, 2, 4, 8 and 0x10, top to bottom— and 0x663C dispatches the last four.</p>
+<p><img src="imagenes/reparto.png" alt="The hand just dealt"></p>
+<p>The opponent&#x27;s hand goes on top and face down, yours at the bottom and face up. The deal is animated in batches, and each one runs at its own pace —every 32, every 16 or every 4 frames— because what you are watching is the animation: the thirteen tiles are already dealt before the first one is drawn.</p>
+<h2 id="the-turn">The turn</h2>
+<p>A turn is split into eight phases, each one a bit of 0xE1AA. The one that matters is phase 1, choosing the discard, and that is where the difficulties part ways: on the first there is no clock and you have to press a key to draw, while on the second and the third a timer runs that warns with a sound at 420 frames and discards on its own at 600, whichever tile the cursor is on.</p>
+<p><img src="imagenes/mano.png" alt="The hand halfway through"></p>
+<p>The first difficulty also has a helping hand the other two do not: 0x49C6 will not let you discard one of your own waits while in riichi, and it warns you when the opponent&#x27;s discard gives you a ron.</p>
+<h2 id="the-scoring">The scoring</h2>
+<p><img src="imagenes/recuento.png" alt="The scoring screen"></p>
+<p>When somebody calls, the hand stops and step 7 builds the count on screen, in the order it is worked out: first the sets with their fu, one every 64 frames; then the wait and the base fu; the sum; the total rounded up to the next ten; and finally the names of the yaku, one per call, with the payment behind them.</p>
+<p>Top left is who wins —親 if it is the dealer—, フ and ファン are the fu and the han, ハライ what the loser pays and トクテン what the winner takes. On the right, the list of yaku with their value in han. Below, the hand split into sets, with the fu of each one and the kind of wait.</p>
+<p>That ハライ and トクテン do not match is <b>not a misreading</b>: with tsumo they are two different figures on purpose, and that is covered in <a href="THE-RULES.html">The rules</a>.</p>
+<p>The points do not jump from one figure to another either: they move a hundred at a time, one per frame, with their sound.</p>
+<h2 id="the-ending">The ending</h2>
+<p><img src="imagenes/final.png" alt="The end-of-game banner"></p>
+<p>The game ends when the non-dealer wins the last turn, and then the closing sequence builds a wall of tiles and writes 終局 across it, <em>shūkyoku</em>, the end of the game. Some nine seconds later it goes back to the title.</p>
+<footer><p><em>Konami's Mahjong</em> was published by Konami for the MSX; its catalogue number is RC-707 and it is 32 KB. The cartridge signs <b>&copy; Konami 1984</b> in its own font, under the kanji title, and there are no credits and no initials anywhere else in the binary. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

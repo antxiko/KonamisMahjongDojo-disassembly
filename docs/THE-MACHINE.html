@@ -1,0 +1,123 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The machine — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-RULES.html">The rules</a><a href="THE-MACHINE.html" style=color:var(--tinta)>The machine</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html">Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/LA-MAQUINA.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-machine">The machine</h1>
+<p>The opponent in this cartridge plays well. It declares riichi, calls pon and chi, defends itself when it is losing and wins expensive hands. What it does not do is <b>think</b>: it never evaluates its hand, never works out waits to decide what to throw, and has nothing resembling a search. What it has is a very well built stage set, and all of it is in the code.</p>
+<h2 id="its-hand-is-not-drawn-it-is-built">Its hand is not drawn: it is built</h2>
+<p>Before anything is dealt, 0x78CE assembles fourteen tiles to order following a plan it keeps in 0xE058: it picks a suit, a target for how many tiles go in triplets, and fills the rest with runs of that suit or with pairs, leaving a pair at the end. Then it <b>takes one away</b> (0x7A93).</p>
+<p>Which means the machine starts every hand <b>one single tile short of completing it</b>. And it is not an invisible shortcut: the copies it spends are deducted from the counters at 0xE186, so the player can no longer draw them.</p>
+<p>The plan is decided by the machine&#x27;s own score —one branch when it is in the red, another below 10,000—, by the honba and by several random draws. On the third difficulty, the missing tile is always the one at index 11.</p>
+<h2 id="nor-does-it-discard-from-its-hand">Nor does it discard from its hand</h2>
+<p>Its thirteen tiles do not move for the whole hand. The tile it draws each turn always lands in the same slot (0xE208), and <b>what goes into its river is a tile drawn at random</b>, not one from its hand (0x583C).</p>
+<p>That draw goes through a filter that makes it look like a human discard. On difficulties 2 and 3:</p>
+<ul><li>the <b>first four</b> discards are honours, and nothing but honours;</li><li>the <b>next four</b> are ones, twos, eights and nines; from the ninth on anything goes;</li><li>never one of its own waits, until its riichi turn comes round;</li><li>if the plan is going for a suit, never one of that suit;</li><li>and from discard 12 on, when not defending, not the suit the player has discarded least either, which 0x58D6 works out by counting their river.</li></ul>
+<p>Every rejected candidate goes back into the pile and another is drawn. On the first difficulty there is no filter: whatever comes out, goes out.</p>
+<p>It is exactly the order a person discards in —first what is no use, then the extremes, the middle last— arrived at without looking at the hand even once.</p>
+<h3 id="the-mistake-at-0x595c">The mistake at 0x595C</h3>
+<p>Next to the suit filter there is another one meant to avoid throwing terminals, and it is written wrong. It compares the tile&#x27;s number with 1 and, if it is not a 1, returns; and if it is, it compares that same 1 with 9, which does not match either, and returns just the same:</p>
+<pre><code>595C:  ld a,(0E22Bh)      ; the candidate
+595F:  and 0Fh            ; its number
+5961:  cp 1
+5963:  jr nz,5987         ; not a 1 -&gt; accepted
+5965:  cp 9               ; A is 1: it is never 9
+5967:  jr nz,5987         ; -&gt; accepted anyway
+5969:  call ...           ; put it back and draw another:
+596C:  call ...           ; THREE instructions that never run</code></pre>
+<p>The three instructions below are perfectly well formed and <b>never execute</b>. It barely shows, because the filter on the four discards from the fifth to the eighth already pushes towards the extremes by another route.</p>
+<h2 id="the-empty-slot-in-its-hand-is-theatre">The empty slot in its hand is theatre</h2>
+<p>When the opponent&#x27;s face-down hand is drawn, one of the tiles is shown as a gap so you can see where it has just drawn. Which one gets picked is decided by 0x553C: in riichi, and past a certain discard, always the drawn tile&#x27;s slot; before that, <b>either at random or the drawn tile&#x27;s, depending on bit 0 of the seed</b>.</p>
+<p>There is nothing behind it. The information that gap seems to give you —&quot;it has just drawn and kept that one&quot;— is false half the time.</p>
+<h2 id="it-does-not-win-when-it-can-it-wins-when-it-is-due">It does not win when it can, it wins when it is due</h2>
+<p>The machine has a discard number marked (0xE33D) before which it <b>will not call</b>, even holding the hand (0x567B). With ron it lets the tile go by; with tsumo it draws another tile that is not one of its waits. It will not win on its riichi turn either.</p>
+<p>And when it finally does call, it demands it be worth it: 2 han or more, or 1 if there are fewer than 5 honba.</p>
+<p>It declares riichi <b>exactly on discard number 0xE1BB</b>, which is built by adding to a random draw an amount that depends on the key: 3 on the first difficulty, 5 on the second and 7 on the third. And bit 0 of the seed decides whether that sum happens at all, so half the time the difficulty does not count.</p>
+<h2 id="the-defence">The defence</h2>
+<p>On discard 15, if the player is in riichi with waits and one of three conditions holds —that the opponent&#x27;s riichi turn falls on 15 or later, that the player has thrown fewer than two honours or terminals, or that the plan has none of the high bits— the machine goes into defence. Also on discard 18, if the seed is even.</p>
+<p>In defence its whole behaviour changes: it does not win, it does not declare riichi, and for the first time it <b>really does discard a tile from its hand</b>, picking one that is already in the player&#x27;s river, which by furiten cannot give them a ron. The gap that leaves is filled with a randomly drawn tile.</p>
+<h2 id="the-three-difficulties-side-by-side">The three difficulties, side by side</h2>
+<table><tr><th></th><th>1 · AMACHUA</th><th>2 · SEMIPROFESSIONAL</th><th>3 · PROFESSIONAL</th></tr><tr><td>furiten ron</td><td>refused, no penalty</td><td>12,000 / 8,000 penalty</td><td>12,000 / 8,000 penalty</td></tr><tr><td>riichi furiten</td><td>none</td><td>yes</td><td>yes</td></tr><tr><td>discard clock</td><td>none</td><td>10 s, warning at 7</td><td>10 s, warning at 7</td></tr><tr><td>help for the player</td><td>yes: warns of a ron and blocks discarding your own wait in riichi</td><td>no</td><td>no</td></tr><tr><td>opponent&#x27;s discards</td><td>unfiltered</td><td>filtered</td><td>filtered</td></tr><tr><td>opponent&#x27;s riichi turn</td><td>draw + 3</td><td>draw + 5</td><td>draw + 7</td></tr><tr><td>the built hand</td><td>—</td><td>—</td><td>always missing tile 11</td></tr><tr><td>the 0xE33D draw</td><td>first one accepted</td><td>first one accepted</td><td>redrawn if it comes out 20 or more</td></tr></table>
+<p><img src="imagenes/partida.png" alt="A game on the first difficulty"></p>
+<p>And you do not need to remember which key you pressed: the top bar labels it for the whole game, with a different list for each difficulty (0x4CB8).</p>
+<footer><p><em>Konami's Mahjong</em> was published by Konami for the MSX; its catalogue number is RC-707 and it is 32 KB. The cartridge signs <b>&copy; Konami 1984</b> in its own font, under the kanji title, and there are no credits and no initials anywhere else in the binary. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

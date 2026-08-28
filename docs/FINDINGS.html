@@ -1,0 +1,118 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Findings — Konami&#x27;s Mahjong (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-RULES.html">The rules</a><a href="THE-MACHINE.html">The machine</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html" style=color:var(--tinta)>Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/HALLAZGOS.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="findings">Findings</h1>
+<p>Things that turned up while taking the cartridge apart and that do not fit on any other page. Each one says where it comes from.</p>
+<h2 id="the-same-8-is-both-a-state-and-a-difficulty">The same 8 is both a state and a difficulty</h2>
+<p>When the demo starts, the cartridge writes an 8 into the state byte. That 8 never gets dispatched —the next instruction goes through the routine that does <code>inc</code>, so the state that runs is 9— and yet the 8 is written. The reason is three instructions further down:</p>
+<pre><code>418C:  ld a,008h
+418E:  ld (0E000h),a    ; the state... which will turn into 9
+418F:  rra              ; the same 8, rotated: out comes a 4
+4190:  ld (0E040h),a    ; and that 4 is THE DIFFICULTY</code></pre>
+<p>One byte serving two things that have nothing to do with each other, and as a side effect it leaves the demo playing <b>on the middle difficulty</b>. You can see it in memory —0xE040 is 4 for the whole cycle— and you can see it on screen, because the top bar labels it: in the demo it reads セミプロ, and a game started with key 1 reads アマ in the same place.</p>
+<p>That is also the only way to reach state 8 for real, the difficulty screen: by writing the 8 from the keyboard reader, which is somewhere else and does not go through the <code>inc</code>. Which is why the demo never sees it.</p>
+<h2 id="four-filler-bytes-for-a-round-address">Four filler bytes for a round address</h2>
+<p>INIT writes the interrupt hook&#x27;s jump by hand: <code>ld a,0C3h</code>, the address, and off to <code>H.KEYI</code>. The address it writes is 0x4071, and the code before it ends with a <code>ret</code> at 0x406C. The four spare bytes, 0x406D to 0x4070, are filled with 0xFF: not rubbish and not assembler leftovers, they are there so the interrupt routine starts exactly where INIT says it starts.</p>
+<h2 id="the-table-s-text-lives-in-the-gap-inside-the-tiles">The table&#x27;s text lives in the gap inside the tiles</h2>
+<p>The playing screen is practically full: the 256 tiles of each third barely cover the tile drawings, which spend six tiles each.</p>
+<p>But the rows of tiles always fall <b>across two thirds</b>, and that leaves a gap. In the middle third you only ever see the bottom row of the tiles above and the top row of the tiles below: <b>the middle row of each tile is never drawn there</b>. And that is where the text is tucked in.</p>
+<p>Crossing the tile table with the name tables of 124 video memory dumps, of the 97 tiles the central bar uses <b>56 are exactly the middle pair of some tile</b>: the 東 is the two spare pairs from the tiles starting at 0xA6 and 0xAC, the 局 those of the ones at 0xCA and 0xD0, and the whole call menu comes out of the gaps in four more tiles. The other 41 are tiles of its own.</p>
+<p>So the same tile number is half a mahjong tile in one third and a kanji in another, without either getting in the way.</p>
+<h2 id="the-deal-carries-a-real-mahjong-rule-inside-it">The deal carries a real mahjong rule inside it</h2>
+<p>The deal animation goes in batches, and what decides how many tiles each batch holds is 0x4E59: if the dealt counter is already 12, the next batch is <b>one</b>; otherwise it is <b>four</b>. Four, four, four and one: thirteen, which is exactly how a hand is dealt in Japanese mahjong.</p>
+<p>It is not a drawing detail. The loop does not end until the counter reaches thirteen.</p>
+<h2 id="the-opponent-s-demo-hand-is-written-into-the-cartridge">The opponent&#x27;s demo hand is written into the cartridge</h2>
+<p>In a real game the machine&#x27;s hand is built tile by tile. In the demo it is not: 0x78DD copies fourteen bytes from 0x7AEA and that is the whole deal on that side.</p>
+<p>And that hand is a joke for anyone who knows how to look at it. The fourteen bytes are <code>32 39 08 08 17 17 25 25 33 33 13 13 21 21</code>: <b>six pairs, a lone 南 and a gap</b>, that is, seven pairs one 南 short —a chiitoitsu one tile away—. By the time the scoring comes up, the opponent&#x27;s memory has it sorted and it is still the same: <code>08 08 13 13 17 17 21 21 25 25 32 33 33 39</code>.</p>
+<p>It never completes it. The script is written so that the other side wins.</p>
+<h2 id="sound-number-0-cannot-be-asked-for">Sound number 0 cannot be asked for</h2>
+<p>The sound pointer table starts at 0x9CA3, but the code indexes it from <b>0x9CA1</b>, two bytes earlier, so that sound 1 lands on the first real entry. That leaves entry 0 sitting on the end of the routine just above: 0x9CA1 is the displacement of a <code>djnz</code> and 0x9CA2 the <code>ret</code> that follows it, so the &quot;pointer&quot; for sound 0 is the bytes 0xE8 and 0xC9. Asking for it would mean jumping to 0xC9E8, outside the cartridge.</p>
+<p>It never happens, because nobody asks for it. And at the other end of the table, sounds 31, 32 and 33 all point to the same place.</p>
+<h2 id="a-lone-ret-that-three-places-call">A lone <code>ret</code> that three places call</h2>
+<p>At 0x9EA2, inside the sound player, there is a single byte: a <code>ret</code>. Three different places in the driver call it. Whatever used to be there was taken out at some point and the calls stayed behind.</p>
+<h2 id="a-compressed-block-with-its-header-missing">A compressed block with its header missing</h2>
+<p>The compressed-drawing interpreter starts by reading two bytes with the VRAM destination. The call menu&#x27;s patterns do not carry them: 0x4B5B puts the destination into DE by hand and enters the interpreter <b>three bytes further in</b>, skipping precisely the two instructions that would read it.</p>
+<p>And right behind it is the counterpart: instead of compressing the colours of those 208 bytes as well, the same stretch of the colour table is filled with a fixed byte, repeated 208 times. Same size, same place, one byte of data instead of a block.</p>
+<footer><p><em>Konami's Mahjong</em> was published by Konami for the MSX; its catalogue number is RC-707 and it is 32 KB. The cartridge signs <b>&copy; Konami 1984</b> in its own font, under the kanji title, and there are no credits and no initials anywhere else in the binary. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

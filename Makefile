@@ -110,7 +110,34 @@ parche: $(ROM) $(SRC)/mahjong.asm src/parche_en/parche.txt
 juega_en: $(ROM_EN)
 	"C:/Program Files/openMSX/openmsx.exe" -machine Philips_VG_8020 -cart $(ROM_EN)
 
+# ---------------------------------------------------------------------------
+# LAS IMAGENES Y LA WEB
+# ---------------------------------------------------------------------------
+# Aqui las imagenes NO se pueden reconstruir fuera del emulador: cada ficha se
+# dibuja con seis tiles repartidos entre dos tercios de pantalla, asi que lo que
+# saldria son trozos. Lo que si se hace es que la captura sea repetible:
+# capturas_web.py arranca el cartucho en openMSX con `renderer none`, vuelca la
+# VRAM en unos instantes fijos y monta el PNG desde el volcado. La pasada del
+# demo no pulsa una sola tecla.
+#
+# pantalla.py necesita Pillow, que puede no estar en el mismo interprete que el
+# resto: PY_IMG se puede apuntar a otro.
+PY_IMG   = python
+OPENMSX ?= C:/Program Files/openMSX/openmsx.exe
+
+capturas: $(ROM)
+	@mkdir -p docs/imagenes
+	OPENMSX="$(OPENMSX)" $(PY_IMG) tools/capturas_web.py $(ROM) docs/imagenes
+
+web:
+	python3 tools/md2html.py docs en
+	python3 tools/md2html.py docs/es es
+	python3 tools/make_web.py docs/imagenes docs/index.html en
+	python3 tools/make_web.py docs/imagenes docs/es/index.html es
+	@touch docs/.nojekyll
+	@python3 tools/check_enlaces.py docs
+
 clean:
 	rm -rf $(WORK)/mahjong.trace.json $(WORK)/mahjong.map $(WORK)/png
 
-.PHONY: all comprueba trace listado notas verify sanity test densidad parche juega_en clean
+.PHONY: all comprueba trace listado notas verify sanity test densidad parche juega_en capturas web clean
