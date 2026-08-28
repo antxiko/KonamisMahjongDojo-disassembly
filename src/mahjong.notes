@@ -378,7 +378,7 @@ C 0x41ba el reparto
 C 0x41c6 LA SEMILLA DEL AZAR: el registro R del refresco de la memoria
 C 0x41c8 si R sale cero se usa el contador de fotogramas en su lugar
 C 0x41d0 el segundo byte de la semilla, siempre el contador de fotogramas
-C 0x41da bit 0 de 0xE1A8: hay mano repartida
+C 0x41da bit 0 de 0xE1A8: empieza el reparto; 0x4F25 lo baja cuando termina
 C 0x41ec el sexto envite cierra la partida
 
 L 0x41F4 espera_32_y_avanza_de_estado
@@ -996,7 +996,7 @@ C 0x4f5e 34: de ahi para arriba no hay tipo de ficha, se tira y otra vez
 
 L 0x4F64 reparte_una_ficha
 B 0x4F64 De donde sale la ficha siguiente. Con mano ya repartida (bit 0 de 0xE1A8) o con partida en marcha, se SORTEA; si no, se roba de la tira fija por 0x498F, que es lo que hace el demo. Al sortear comprueba la tabla de copias de 0xE186: de cada tipo hay cuatro fichas y ni una mas, asi que si el sorteo saca un tipo agotado se resiembra la semilla y se vuelve a tirar.
-C 0x4f67 bit 0 de 0xE1A8: ya hay mano repartida
+C 0x4f67 bit 0 de 0xE1A8: reparto en curso
 C 0x4f6d y bit 6 de 0xE002: hay partida
 C 0x4f71 ni una cosa ni la otra: se roba de la tira fija
 C 0x4f77 la tabla de copias repartidas por tipo
@@ -3603,3 +3603,230 @@ C 0x5079 0x40: gano el 1; se va a destapar la mano de la maquina
 C 0x5083 con diez o mas se destapa tal cual
 C 0x5086 con menos, se sortea una ficha
 C 0x5097 que pisa el penultimo hueco de la mano de la maquina antes de destaparla
+
+# --- tanda 23 (2026-08-28): las auxiliares de VRAM, el furiten de riichi y los bucles interiores ---
+L 0x4472 carga_las_fuentes_del_menu
+B 0x4472 Lo que el estado 8 pinta antes del texto (0x4425): la fuente grande de 0x83B1 a los patrones 0x2600 (tiles 0xC0-0xEF) con colores 0x70; la misma fuente en blanco en los tiles 0x10-0x3F y replicada en los tres tercios (0x4674); los patrones de 0x85D5 a 0x2500 (tiles 0xA0-0xF5); y por ultimo 752 bytes de color 0xC0 desde 0x0500, los tiles 0xA0-0xFD, que pisan el 0x70 de antes: en el menu la fuente grande sale con el color 0xC0.
+C 0x4472 la fuente grande, 384 bytes
+C 0x4475 a los patrones 0x2600: tiles 0xC0-0xEF
+C 0x447e sus colores, 0x0600
+C 0x4484 0x70
+C 0x4489 y la misma fuente en blanco en los tiles 0x10-0x3F, replicada
+C 0x448c los patrones del titulo, a 0x2500
+C 0x4492 colores desde 0x0500: tiles 0xA0-0xFD
+C 0x4495 752 bytes
+C 0x4498 0xC0
+C 0x449a byte a byte, 240 y luego dos vueltas de 256
+L 0x44A4 borra_el_marcador_y_las_variables
+B 0x44A4 Pone a cero 622 bytes desde 0xE047: el marcador del 1 y todas las variables de la partida que vienen detras, hasta 0xE2B4. El del 2 (0xE044) no entra, pero su byte bajo siempre vale cero porque los puntos van de cien en cien. Lo llaman 0x4168 (arranca el demo) y 0x4405 (sale la pantalla de dificultad).
+C 0x44a7 622 bytes
+C 0x44ad a cero
+L 0x459C pinta_la_cifra_baja_o_blanco
+B 0x459C La cifra baja de (HL) como tile 0x10-0x19, salvo el cero, que va en blanco (tile 0x01). Es la cifra de las centenas de los fu (0x735C): no se pinta el cero de delante.
+C 0x459d la cifra baja
+C 0x459f tile 0x10 + cifra
+C 0x45a1 el cero
+C 0x45a5 en blanco
+L 0x45AA suelta_el_texto_de_golpe
+B 0x45AA Las dieciocho lineas del texto (0x45B4) de una vez, no una por cuadro: repite mientras vuelva con acarreo. Al llegar a la linea 18, 0x45DA pinta ademas los rotulos del menu de 0x8531 y sigue devolviendo acarreo hasta la vuelta 52, que son 34 vueltas vacias. Lo llama 0x4428, la pantalla de dificultad.
+C 0x45ab la linea, a cero
+C 0x45b1 mientras queden
+C 0x45da de la 18 en adelante
+C 0x45de justo en la 18, los rotulos del menu
+C 0x45e2 acarreo hasta la 52: vueltas vacias
+C 0x45e9 sin acarreo D no cambia
+C 0x4600 BC bytes
+L 0x460B copia_a_la_vram
+B 0x460B BC bytes desde HL a la VRAM que apunta DE, por el puerto de datos que 0x470F dejo en C'. Es la copia de bloques del cartucho: sprites, fuentes, atributos.
+C 0x460c arma la direccion y deja el puerto en C'
+C 0x4611 el byte, al puerto
+C 0x4617 hasta que BC se agote
+L 0x461C copia_de_la_vram
+B 0x461C Al reves que 0x460B: BC bytes de la VRAM DE a HL. El push/pop de HL entre lecturas es la espera que pide el VDP. Lo usa 0x7066 para traerse los seis tiles de una ficha.
+C 0x4621 el byte, del puerto
+C 0x4629 push/pop: la espera entre lecturas
+L 0x462F copia_de_la_vram_sin_fondo_transparente
+B 0x462F Como 0x461C pero para colores: cada byte cuyo nibble bajo -el fondo- sea cero se cambia a 1, negro. Lo usa 0x707E para traerse los colores de una ficha sin que el fondo se vea a traves.
+C 0x4637 el fondo, nibble bajo
+C 0x463b transparente: a negro
+C 0x4643 push/pop: la espera entre lecturas
+L 0x4648 copia_dentro_de_la_vram
+B 0x4648 BC bytes de la VRAM DE a la VRAM HL, byte a byte, leyendo y escribiendo con las dos rutinas de 0x405A y 0x4051.
+C 0x4648 lee uno
+C 0x464c y lo escribe
+L 0x4658 replica_los_patrones_en_los_tercios
+B 0x4658 Copia los 2 KB de patrones del primer tercio (0x2000) al segundo (0x2800) y del segundo al tercero (0x3000).
+C 0x465e 2 KB
+C 0x4664 y otros 2 KB al tercio siguiente
+L 0x4669 replica_patrones_y_colores_en_los_tercios
+B 0x4669 Los patrones por 0x4658 y luego los colores: 0x0000 a 0x0800 y a 0x1000. Lo llaman 0x43B3, 0x468C y 0x4B72.
+C 0x466c ahora los colores
+L 0x4674 carga_la_fuente_grande_en_los_tiles_10_3f
+B 0x4674 La fuente grande de 0x83B1 en los tiles 0x10-0x3F: sus 384 bytes de color a 0x0080 con el byte A (0xF0 desde aqui, blanco sobre transparente; 0xF1 desde 0x4C51, blanco sobre negro) y sus patrones a 0x2080, y luego replica los tres tercios. Es la fuente con la que se escriben los marcadores y los contadores.
+C 0x4674 0xF0: blanco sobre transparente
+C 0x4676 colores desde 0x0080, tiles 0x10-0x3F
+C 0x467f la fuente
+C 0x4682 a 0x2080: los mismos tiles, patrones
+C 0x468c y a los tres tercios
+L 0x47FB furiten_tras_el_riichi
+B 0x47FB EL FURITEN DE RIICHI: cruza las esperas del 1 (0xE1F5) contra los descartes de la maquina POSTERIORES al riichi del 1. El primero es el numero 0xE1CC (el descarte con el que declaro), uno mas si reparte el 2; la cuenta es lo que la maquina ha descartado desde entonces, y en una mano sin ganador (bit 2 de 0xE302) uno mas. Si no hay ninguno, nada. Si hay coincidencia, 0x4865 vuelve aqui: bit 5 de 0xE1CD y 0xE1AC = 1, el castigo; si no la hay, 0x486B se come el retorno y sale directo al que llamo. El `ld hl,0xE233` del principio no se usa: 0x481E lo pisa. Lo llaman 0x76CC (fin de mano) y, con las dificultades 2 y 3, el furiten del turno.
+C 0x47fb no se usa: 0x481E pisa HL
+C 0x47fe el rio de la maquina
+C 0x4801 desde el descarte del riichi
+C 0x4808 reparte el 2: uno mas
+C 0x480d el primer descarte posterior
+C 0x4813 cuantos lleva desde entonces
+C 0x4814 ninguno: nada que cruzar
+C 0x4819 bit 2 de 0xE302: sin ganador, uno mas
+C 0x481e las esperas del 1
+C 0x4821 contra esa parte del rio
+C 0x4825 el cruce: si no encuentra nada, sale dos niveles arriba
+C 0x482b bit 5 de 0xE1CD: FURITEN DE RIICHI
+C 0x4830 0xE1AC = 1: el castigo
+L 0x4D58 reparte_y_pinta_las_manos
+B 0x4D58 EL SUBMODO 1 DEL ESTADO 11, cada cuadro: una fase del reparto (0x4D91) y las dos manos pintadas. Mientras el bit 0 de 0xE1A8 siga puesto -reparto en curso- se vuelve; al bajar, la mano de la maquina pasa de 0xE21C, donde la armo 0x78CE, a 0xE14C, su sitio de juego.
+C 0x4d58 una fase del reparto
+C 0x4d64 bit 0 de 0xE1A8: reparto en curso
+C 0x4d66 terminado: la mano de la maquina, de 0xE21C a 0xE14C
+C 0x5925 el rio entero
+C 0x5927 el bit 0, para el primer contador
+C 0x592f cinco contadores
+C 0x5c31 la de en medio es la que cierra?
+C 0x5c34 cuatro bytes por escalera
+C 0x5e44 lo mismo que arriba: quien cobra
+C 0x5e47 bit 2: sin ganador, el tenpai
+C 0x5e4d sin el bit 1 cobra el 1
+C 0x5e54 con castigo cobra el 2
+C 0x5e5b bit 0 de 0xE1AD: el 1 en tenpai, cobra el
+C 0x5f27 cien
+C 0x5f2e diez veces
+C 0x5f34 cien
+C 0x5f3b diez veces
+C 0x839f el byte bajo
+C 0x83a5 el medio, con el acarreo
+C 0x83ab sin acarreo el alto no cambia
+C 0x405e el byte, del puerto que 0x470F dejo en C'
+C 0x4061 ei: 0x470F entro con di
+
+# --- tanda 24 (2026-08-28): EL DRIVER DE SONIDO, 0x9C4A-0x9FD9. No es el de Athletic Land: solo comparten la tabla de semitonos ---
+L 0x9C4A pide_un_sonido
+B 0x9C4A LA PUERTA DEL SONIDO: A = el numero de sonido. Con las interrupciones cerradas y los registros a salvo, 0x9C5A lo arranca con D = 0, que es "respetar la prioridad". Lo llaman 31 sitios del cartucho: 0x01 el tecleo del recuento, 0x02 el tintineo de los puntos, 0x05 el cursor, 0x06 el descarte, 0x07 el robo, 0x08 el aviso del reloj, 0x90 la maquina canta, 0x96 el tenpai, 0x9C empezar partida, 0x9F silencio.
+C 0x9c4f D = 0: con prioridad
+C 0x9c51 arranca
+L 0x9C5A arranca_el_sonido
+B 0x9C5A Elige canal y prioridad. Los numeros por debajo de 0x8D son EFECTOS y van a un solo canal, el tercero (0xE026, con su numero en 0xE028), recortados a seis bits; de 0x8D en adelante son MUSICA a tres canales desde el primero (0xE010). Con D = 0 solo entra si su numero es MAYOR que el que suena en ese canal (0xE012 o 0xE028): el numero es la prioridad. De 0xCD en adelante se le quita el bit 7. Luego 0x9C7F busca sus punteros en la tabla de 0x9CA1, dos bytes por sonido, y 0x9C8A carga los canales.
+C 0x9c5b B = 2, y sube o baja segun
+C 0x9c5d el numero que suena en el canal 1
+C 0x9c60 por debajo de 0x8D: efecto
+C 0x9c64 aqui nunca hay acarreo: sobra
+C 0x9c68 musica: tres canales
+C 0x9c6b el efecto, a seis bits
+C 0x9c6d un solo canal
+C 0x9c6e el tercero
+C 0x9c71 D = 1: sin mirar la prioridad
+C 0x9c75 el que suena en ese canal
+C 0x9c76 uno mayor: se ignora
+C 0x9c77 el mismo: tambien
+C 0x9c78 de 0xCD en adelante, sin el bit 7
+C 0x9c7f seis bits, por dos: la tabla de punteros
+C 0x9c82 0x9CA1, dos bytes por sonido
+C 0x9c88 al principio del canal
+L 0x9C8A carga_los_canales
+B 0x9C8A Por cada canal (B): el contador y la duracion a 1 para que la primera orden se lea ya en el cuadro siguiente, el numero del sonido, el puntero de la tabla, y la unidad de duracion (+10) a cero. Once bytes por canal: +0 contador, +1 duracion, +2 numero (bit 7: musica), +3/+4 puntero, +5 octava, +6 volumen de la nota, +7 volumen que va bajando, +8 contador del volumen, +9 repeticiones, +10 unidad.
+C 0x9c8a contador a 1
+C 0x9c8d duracion a 1
+C 0x9c90 el numero
+C 0x9c92 el puntero, byte bajo
+C 0x9c96 y alto
+C 0x9c98 +10: la unidad, a cero
+C 0x9c9e y al canal siguiente, con el puntero siguiente
+L 0x9E86 repite_el_sonido
+B 0x9E86 La orden 0xFE n: repetir. Lleva la cuenta en +9; cuando llega a n, 0x9F2E apaga el canal. Si no, vuelve a arrancar el mismo sonido (+2) por 0x9C5A con D = 1, sin mirar la prioridad, y guarda la cuenta.
+C 0x9e87 las veces que va
+C 0x9e8b ya son las que pide: se acaba
+C 0x9e93 el mismo sonido
+C 0x9e97 D = 1: sin prioridad
+C 0x9e9e la cuenta, guardada
+L 0x9EA2 no_hace_nada
+B 0x9EA2 Un `ret` suelto al que llaman 0x9EC3, 0x9F04 y 0x9F34: lo que hubiera aqui se quito y quedaron las llamadas.
+L 0x9EA3 mueve_el_sonido
+B 0x9EA3 EL DRIVER, un paso por cuadro desde la interrupcion (0x4075): recorre los tres canales de once bytes desde 0xE010 (IX) con C = 1, 3, 5 -el registro de tono de cada canal- y mueve los que tengan sonido (+2 distinto de cero).
+C 0x9ea3 C = 1: el registro de tono del canal 1
+C 0x9ea5 el primer canal
+C 0x9eaa tres canales
+C 0x9eac de once bytes
+C 0x9eb3 sin sonido, nada
+C 0x9eb8 C + 2: el registro del canal siguiente
+L 0x9EBF mueve_un_canal
+B 0x9EBF Un canal: con el bit 7 del numero -musica- la nota en curso va por 0x9F3E, con su volumen bajando; si no, baja el contador y, al llegar a cero, 0x9ED1 lee la orden siguiente.
+C 0x9ec3 no hace nada (0x9EA2)
+C 0x9eca bit 7: musica, la nota sigue por 0x9F3E
+C 0x9ecd el contador
+C 0x9ed0 aun no
+L 0x9ED1 lee_la_orden_siguiente
+B 0x9ED1 La orden siguiente del sonido (+3/+4): 0xFE es repetir (0x9E86), 0xFF es el final (0x9F2E); con musica (bit 7) la nota se lee en 0x9F67. Un efecto: 0x2n fija la duracion n, 0x1n manda el ruido n al registro 6 del PSG, y luego 0x9F09 lee el volumen y el periodo.
+C 0x9ed1 el puntero
+C 0x9ed8 0xFE: repetir
+C 0x9edc 0xFF: se acabo
+C 0x9ee2 musica: la nota, por 0x9F67
+C 0x9ee7 0x2n: la duracion
+C 0x9eec n
+C 0x9ef5 0x1n: ruido
+C 0x9efa n, al registro 6 del PSG
+C 0x9f04 no hace nada (0x9EA2)
+L 0x9F09 lee_un_efecto
+B 0x9F09 El efecto: nibble alto el VOLUMEN, nibble bajo y el byte siguiente el PERIODO (doce bits), y el puntero avanza dos. 0x9FCE escribe el periodo en el PSG y 0x9F20 arma los contadores y escribe el volumen.
+C 0x9f0b el volumen, en B
+C 0x9f0d el periodo, byte alto
+C 0x9f0f y bajo
+C 0x9f11 el puntero, avanzado
+C 0x9f18 el periodo al PSG
+C 0x9f1c el volumen, a los cuatro bits bajos
+L 0x9F20 arma_los_contadores
+B 0x9F20 Con H = volumen: el contador (+0) a la duracion (+1), el contador del volumen (+8) a dos mas, y el volumen al PSG por 0x9F5F.
+C 0x9f21 la duracion
+C 0x9f27 dos mas para el contador del volumen
+L 0x9F2E apaga_el_canal
+B 0x9F2E Fin del sonido: repeticiones a cero, numero a cero (canal libre) y volumen cero al PSG.
+C 0x9f2f repeticiones a cero
+C 0x9f34 no hace nada (0x9EA2)
+C 0x9f38 canal libre
+C 0x9f3b volumen cero
+L 0x9F3E sigue_la_nota
+B 0x9F3E La nota de musica en curso: baja el contador y al llegar a cero lee la siguiente. Mientras, el contador del volumen (+8) baja mas deprisa que el de la nota y cuando lo alcanza -o baja de dos- 0x9F56 resta uno al volumen (+7) y lo escribe: es la caida del volumen de cada nota.
+C 0x9f41 se acabo la nota: la siguiente
+C 0x9f49 el contador del volumen alcanza al de la nota
+C 0x9f4e por debajo de dos, baja el volumen
+C 0x9f53 y si no, baja otro paso
+C 0x9f59 un paso menos de volumen
+C 0x9f5a ya en cero: nada
+L 0x9F5F escribe_el_volumen
+B 0x9F5F H al registro de volumen del canal: 8, 9 o 10, que sale de C (1, 3, 5) por 0x88 + C/2.
+C 0x9f61 0x88 + C/2: el registro 8, 9 o 10
+L 0x9F67 lee_una_nota_de_musica
+B 0x9F67 Una nota de musica, con hasta tres prefijos: 0xDn fija la unidad de duracion (+10), 0xFn el volumen de la nota (+6), 0xEn la octava (+5). Luego el byte de la nota: nibble bajo n, duracion (n + 1) por la unidad; nibble alto la nota, 0 a 11 en la tabla de semitonos de 0x9FD9, y 12 es SILENCIO (volumen cero). El periodo de la tabla se dobla tantas veces como diga la octava (0x9FCB) y va al PSG por 0x9FCE.
+C 0x9f69 0xDn: la unidad de duracion
+C 0x9f70 n
+C 0x9f75 0xFn: el volumen de la nota
+C 0x9f7b n
+C 0x9f80 0xEn: la octava
+C 0x9f86 n
+C 0x9f8b la duracion: (n + 1) por la unidad
+C 0x9f91 n = 0: la unidad sola
+C 0x9f93 n unidades mas
+C 0x9f98 la duracion de la nota
+C 0x9f9d el puntero, avanzado
+C 0x9fa3 la nota, nibble alto
+C 0x9faa 12: silencio
+C 0x9fac volumen cero
+C 0x9fb1 si no, el volumen de la nota
+C 0x9fb7 contadores y volumen
+C 0x9fbb el semitono, de la tabla de 0x9FD9
+C 0x9fc7 sin octava, tal cual
+C 0x9fcb doblado por cada octava
+L 0x9FCE escribe_el_periodo
+B 0x9FCE HL al par de registros de tono del canal: C (1, 3 o 5) el byte alto y C - 1 el bajo.
+C 0x9fd0 el byte alto del periodo
+C 0x9fd6 y el bajo, al registro anterior
+C 0x463d el byte, ya corregido, a la RAM
+C 0x4641 hasta que BC se agote

@@ -82,9 +82,9 @@ escribe_en_vram:
 lee_de_vram:
 	call prepara_lectura_vram		;405a
 	exx			;405d
-	in a,(c)		;405e
+	in a,(c)		;405e   ; el byte, del puerto que 0x470F dejo en C'
 	exx			;4060
-	ei			;4061
+	ei			;4061   ; ei: 0x470F entro con di
 	ret			;4062
 
 ; ----------------------------------------------------------------------
@@ -127,7 +127,7 @@ DATA_relleno_hasta_la_interrupcion:
 interrupcion:
 	di			;4071
 	call 0013eh		;4072   ; BIOS RDVDP - Reads VDP status register | RDVDP: leer el registro de estado es lo que reconoce la interrupcion
-	call L_9EA3		;4075   ; el sonido va SIEMPRE, aunque el fotograma anterior no haya terminado
+	call mueve_el_sonido		;4075   ; el sonido va SIEMPRE, aunque el fotograma anterior no haya terminado
 	ld hl,0e005h		;4078   ; el semaforo de reentrada
 	bit 0,(hl)		;407b   ; si ya hay un fotograma dentro, no se entra
 	jr nz,L_408C		;407d
@@ -313,7 +313,7 @@ DATA_tabla_de_submodos_7:
 ; SUBMODO 0 DEL ESTADO 7: AQUI ARRANCA EL DEMO. Borra el marcador, engancha el guion de teclas grabado y apaga el bit 6 de 0xE002 para que 0x4A27 lea del guion y no del teclado.
 ; ----------------------------------------------------------------------
 L_4168:
-	call L_44A4		;4168   ; pone a cero el marcador y las 622 variables que le siguen
+	call borra_el_marcador_y_las_variables		;4168   ; pone a cero el marcador y las 622 variables que le siguen
 	ld hl,04ae8h		;416b   ; engancha el guion del demo (0x4AE8) como fuente de pulsaciones
 	ld (0e066h),hl		;416e
 	ld hl,049a6h		;4171   ; y las dos rutinas que lo atienden
@@ -383,7 +383,7 @@ L_41CE:
 	ld (hl),a			;41d3
 	call prepara_el_reparto		;41d4
 	ld hl,0e1a8h		;41d7
-	set 0,(hl)		;41da   ; bit 0 de 0xE1A8: hay mano repartida
+	set 0,(hl)		;41da   ; bit 0 de 0xE1A8: empieza el reparto; 0x4F25 lo baja cuando termina
 	ld a,(0e04ch)		;41dc
 	or a			;41df
 	jr z,L_41E8		;41e0
@@ -465,10 +465,10 @@ submodo_0_del_estado_11:
 	dec (hl)			;4232
 	ret nz			;4233
 	ld a,09fh		;4234   ; 0x9F: silencio
-	call L_9C4A		;4236
+	call pide_un_sonido		;4236
 	jr $-39		;4239   ; y al submodo 1
 submodo_1_del_estado_11:
-	call L_4D58		;423b   ; SUBMODO 1 DEL ESTADO 11: reparte y espera a que termine el reparto
+	call reparte_y_pinta_las_manos		;423b   ; SUBMODO 1 DEL ESTADO 11: reparte y espera a que termine el reparto
 	ld hl,0e1a8h		;423e
 	bit 0,(hl)		;4241   ; bit 0 de 0xE1A8: mientras haya reparto en curso, aqui se sigue
 	ret nz			;4243
@@ -502,7 +502,7 @@ submodo_2_del_estado_11:
 	ld a,(0e1cdh)		;4270
 	rra			;4273
 	jr nc,L_4279		;4274
-	call L_47FB		;4276   ; bit 0 de 0xE1CD
+	call furiten_tras_el_riichi		;4276   ; bit 0 de 0xE1CD
 L_4279:
 	ld a,(0e1cdh)		;4279
 	and 060h		;427c   ; los bits 5 y 6 de 0xE1CD son los que llevan a cantar jugada
@@ -543,7 +543,7 @@ submodo_3_del_estado_11:
 	bit 1,a		;42b8
 	jr nz,L_42C1		;42ba
 	ld a,093h		;42bc   ; sonido 0x93
-	call L_9C4A		;42be
+	call pide_un_sonido		;42be
 L_42C1:
 	ld hl,0382fh		;42c1   ; 0x382F, donde empieza a escribirse el nombre de la jugada
 	ld (0e317h),hl		;42c4
@@ -688,7 +688,7 @@ L_4394:
 	call pinta_lista_formato_b		;43aa
 	ld hl,08799h		;43ad
 	call pinta_lista_formato_b		;43b0
-	call L_4669		;43b3
+	call replica_patrones_y_colores_en_los_tercios		;43b3
 	ld hl,087b4h		;43b6
 	call pinta_lista_formato_b		;43b9
 	ld hl,0e128h		;43bc
@@ -709,7 +709,7 @@ L_43CE:
 	jp L_41FC		;43d8
 L_43DB:
 	ld a,099h		;43db   ; ESTADO 13: el rotulo del final
-	call L_9C4A		;43dd   ; sonido 0x99
+	call pide_un_sonido		;43dd   ; sonido 0x99
 	ld hl,08598h		;43e0
 	call L_409D		;43e3   ; pinta el rotulo
 	ld a,070h		;43e6   ; 112 fotogramas
@@ -734,7 +734,7 @@ L_43EB:
 cierra_la_pantalla_de_dificultad:
 	ld a,050h		;4400   ; 0x50: bit 6 puesto, y los bits 5-4 fijos pase lo que pase
 	ld (0e002h),a		;4402
-	call L_44A4		;4405   ; borra el marcador y las 622 variables de detras
+	call borra_el_marcador_y_las_variables		;4405   ; borra el marcador y las 622 variables de detras
 	jp espera_32_y_avanza_de_estado		;4408
 
 ; ----------------------------------------------------------------------
@@ -752,12 +752,12 @@ estado_8_elige_dificultad:
 	call limpia_la_pantalla_entera		;441e   ; limpia la pantalla
 	xor a			;4421
 	call L_4A22		;4422
-	call L_4472		;4425   ; pinta la mesa
-	call L_45AA		;4428   ; y el texto de las tres dificultades
+	call carga_las_fuentes_del_menu		;4425   ; pinta la mesa
+	call suelta_el_texto_de_golpe		;4428   ; y el texto de las tres dificultades
 	ld a,050h		;442b
 	ld (0e004h),a		;442d   ; 80 fotogramas de parpadeo
 	ld a,09ch		;4430   ; sonido 0x9C, el de empezar partida
-	call L_9C4A		;4432
+	call pide_un_sonido		;4432
 	jp avanza_de_submodo		;4435
 L_4438:
 	ld hl,0e004h		;4438   ; cada fotograma mientras dure el parpadeo
@@ -765,7 +765,7 @@ L_4438:
 	jr z,cierra_la_pantalla_de_dificultad		;443c   ; agotado: por 0x4400 al estado 9
 	ld a,(hl)			;443e
 	and 008h		;443f   ; bit 3 del reloj: ocho fotogramas si y ocho no
-	jp nz,L_45AA		;4441   ; en los "si", el texto entero repintado
+	jp nz,suelta_el_texto_de_golpe		;4441   ; en los "si", el texto entero repintado
 	ld a,(0e002h)		;4444   ; y en los "no", se borra la linea de la elegida
 	rra			;4447
 	rra			;4448
@@ -804,35 +804,43 @@ DATA_desplazamientos_de_borrado:
 
 L_446F:
 	call monta_el_rotulo_que_baja		;446f
-L_4472:
-	ld hl,083b1h		;4472
-	ld de,06600h		;4475
+
+; ----------------------------------------------------------------------
+; Lo que el estado 8 pinta antes del texto (0x4425): la fuente grande de 0x83B1 a los patrones 0x2600 (tiles 0xC0-0xEF) con colores 0x70; la misma fuente en blanco en los tiles 0x10-0x3F y replicada en los tres tercios (0x4674); los patrones de 0x85D5 a 0x2500 (tiles 0xA0-0xF5); y por ultimo 752 bytes de color 0xC0 desde 0x0500, los tiles 0xA0-0xFD, que pisan el 0x70 de antes: en el menu la fuente grande sale con el color 0xC0.
+; ----------------------------------------------------------------------
+carga_las_fuentes_del_menu:
+	ld hl,083b1h		;4472   ; la fuente grande, 384 bytes
+	ld de,06600h		;4475   ; a los patrones 0x2600: tiles 0xC0-0xEF
 	ld bc,00180h		;4478
-	call L_460B		;447b
-	ld de,l4600h		;447e
+	call copia_a_la_vram		;447b
+	ld de,l4600h		;447e   ; sus colores, 0x0600
 	ld bc,00180h		;4481
-	ld a,070h		;4484
+	ld a,070h		;4484   ; 0x70
 	call rellena_la_vram		;4486
-	call L_4674		;4489
-	ld hl,085d5h		;448c
+	call carga_la_fuente_grande_en_los_tiles_10_3f		;4489   ; y la misma fuente en blanco en los tiles 0x10-0x3F, replicada
+	ld hl,085d5h		;448c   ; los patrones del titulo, a 0x2500
 	call pinta_lista_formato_b		;448f
-	ld de,04500h		;4492
-	ld bc,002f0h		;4495
-	ld a,0c0h		;4498
+	ld de,04500h		;4492   ; colores desde 0x0500: tiles 0xA0-0xFD
+	ld bc,002f0h		;4495   ; 752 bytes
+	ld a,0c0h		;4498   ; 0xC0
 L_449A:
-	call escribe_en_vram		;449a
+	call escribe_en_vram		;449a   ; byte a byte, 240 y luego dos vueltas de 256
 	inc de			;449d
 	dec c			;449e
 	jr nz,L_449A		;449f
 	djnz L_449A		;44a1
 	ret			;44a3
-L_44A4:
+
+; ----------------------------------------------------------------------
+; Pone a cero 622 bytes desde 0xE047: el marcador del 1 y todas las variables de la partida que vienen detras, hasta 0xE2B4. El del 2 (0xE044) no entra, pero su byte bajo siempre vale cero porque los puntos van de cien en cien. Lo llaman 0x4168 (arranca el demo) y 0x4405 (sale la pantalla de dificultad).
+; ----------------------------------------------------------------------
+borra_el_marcador_y_las_variables:
 	ld hl,0e047h		;44a4
-	ld bc,0026eh		;44a7
+	ld bc,0026eh		;44a7   ; 622 bytes
 	ld d,h			;44aa
 	ld e,l			;44ab
 	inc e			;44ac
-	ld (hl),000h		;44ad
+	ld (hl),000h		;44ad   ; a cero
 	ldir		;44af
 	ret			;44b1
 
@@ -1012,21 +1020,29 @@ L_4594:
 	inc de			;4597
 	ld a,c			;4598
 	jp escribe_en_vram		;4599
-L_459C:
+
+; ----------------------------------------------------------------------
+; La cifra baja de (HL) como tile 0x10-0x19, salvo el cero, que va en blanco (tile 0x01). Es la cifra de las centenas de los fu (0x735C): no se pinta el cero de delante.
+; ----------------------------------------------------------------------
+pinta_la_cifra_baja_o_blanco:
 	ld a,(hl)			;459c
-	and 00fh		;459d
-	or 010h		;459f
-	cp 010h		;45a1
+	and 00fh		;459d   ; la cifra baja
+	or 010h		;459f   ; tile 0x10 + cifra
+	cp 010h		;45a1   ; el cero
 	jr nz,L_45A7		;45a3
-	ld a,001h		;45a5
+	ld a,001h		;45a5   ; en blanco
 L_45A7:
 	jp escribe_en_vram		;45a7
-L_45AA:
+
+; ----------------------------------------------------------------------
+; Las dieciocho lineas del texto (0x45B4) de una vez, no una por cuadro: repite mientras vuelva con acarreo. Al llegar a la linea 18, 0x45DA pinta ademas los rotulos del menu de 0x8531 y sigue devolviendo acarreo hasta la vuelta 52, que son 34 vueltas vacias. Lo llama 0x4428, la pantalla de dificultad.
+; ----------------------------------------------------------------------
+suelta_el_texto_de_golpe:
 	xor a			;45aa
-	ld (0e00ah),a		;45ab
+	ld (0e00ah),a		;45ab   ; la linea, a cero
 L_45AE:
 	call suelta_una_linea_de_texto		;45ae
-	jr c,L_45AE		;45b1
+	jr c,L_45AE		;45b1   ; mientras queden
 	ret			;45b3
 
 ; ----------------------------------------------------------------------
@@ -1059,11 +1075,11 @@ L_45CC:
 	scf			;45d8   ; acarreo puesto: aun quedan lineas
 	ret			;45d9
 L_45DA:
-	push af			;45da
+	push af			;45da   ; de la 18 en adelante
 	ld hl,08531h		;45db
-	call z,L_409D		;45de
+	call z,L_409D		;45de   ; justo en la 18, los rotulos del menu
 	pop af			;45e1
-	cp 034h		;45e2
+	cp 034h		;45e2   ; acarreo hasta la 52: vueltas vacias
 	ret			;45e4
 
 ; ----------------------------------------------------------------------
@@ -1074,7 +1090,7 @@ resta_a_de_de:
 	ld a,e			;45e6
 	sub b			;45e7
 	ld e,a			;45e8
-	ret nc			;45e9
+	ret nc			;45e9   ; sin acarreo D no cambia
 	dec d			;45ea
 	ret			;45eb
 
@@ -1101,7 +1117,7 @@ L_45FA:
 	exx			;45fe
 	ex af,af'			;45ff
 L_4600:
-	dec bc			;4600
+	dec bc			;4600   ; BC bytes
 	ld a,b			;4601
 	or c			;4602
 	jr nz,L_45FA		;4603
@@ -1111,98 +1127,126 @@ L_4607:
 	ld a,(hl)			;4607
 	inc hl			;4608
 	jr L_45F9		;4609
-L_460B:
+
+; ----------------------------------------------------------------------
+; BC bytes desde HL a la VRAM que apunta DE, por el puerto de datos que 0x470F dejo en C'. Es la copia de bloques del cartucho: sprites, fuentes, atributos.
+; ----------------------------------------------------------------------
+copia_a_la_vram:
 	di			;460b
-	call prepara_escritura_vram		;460c
+	call prepara_escritura_vram		;460c   ; arma la direccion y deja el puerto en C'
 L_460F:
 	ld a,(hl)			;460f
 	exx			;4610
-	out (c),a		;4611
+	out (c),a		;4611   ; el byte, al puerto
 	exx			;4613
 	inc hl			;4614
 	dec bc			;4615
 	ld a,b			;4616
-	or c			;4617
+	or c			;4617   ; hasta que BC se agote
 	jr nz,L_460F		;4618
 	ei			;461a
 	ret			;461b
-L_461C:
+
+; ----------------------------------------------------------------------
+; Al reves que 0x460B: BC bytes de la VRAM DE a HL. El push/pop de HL entre lecturas es la espera que pide el VDP. Lo usa 0x7066 para traerse los seis tiles de una ficha.
+; ----------------------------------------------------------------------
+copia_de_la_vram:
 	di			;461c
 	call prepara_lectura_vram		;461d
 L_4620:
 	exx			;4620
-	in a,(c)		;4621
+	in a,(c)		;4621   ; el byte, del puerto
 	exx			;4623
 	ld (hl),a			;4624
 	inc hl			;4625
 	dec bc			;4626
 	ld a,b			;4627
 	or c			;4628
-	push hl			;4629
+	push hl			;4629   ; push/pop: la espera entre lecturas
 	pop hl			;462a
 	jr nz,L_4620		;462b
 	ei			;462d
 	ret			;462e
-L_462F:
+
+; ----------------------------------------------------------------------
+; Como 0x461C pero para colores: cada byte cuyo nibble bajo -el fondo- sea cero se cambia a 1, negro. Lo usa 0x707E para traerse los colores de una ficha sin que el fondo se vea a traves.
+; ----------------------------------------------------------------------
+copia_de_la_vram_sin_fondo_transparente:
 	call prepara_lectura_vram		;462f
 L_4632:
 	exx			;4632
 	in a,(c)		;4633
 	exx			;4635
 	ld d,a			;4636
-	and 00fh		;4637
+	and 00fh		;4637   ; el fondo, nibble bajo
 	jr nz,L_463C		;4639
-	inc d			;463b
+	inc d			;463b   ; transparente: a negro
 L_463C:
 	ld a,d			;463c
-	ld (hl),a			;463d
+	ld (hl),a			;463d   ; el byte, ya corregido, a la RAM
 	inc hl			;463e
 	dec bc			;463f
 	ld a,b			;4640
-	or c			;4641
+	or c			;4641   ; hasta que BC se agote
 	push hl			;4642
-	pop hl			;4643
+	pop hl			;4643   ; push/pop: la espera entre lecturas
 	jr nz,L_4632		;4644
 	ei			;4646
 	ret			;4647
-L_4648:
-	call lee_de_vram		;4648
+
+; ----------------------------------------------------------------------
+; BC bytes de la VRAM DE a la VRAM HL, byte a byte, leyendo y escribiendo con las dos rutinas de 0x405A y 0x4051.
+; ----------------------------------------------------------------------
+copia_dentro_de_la_vram:
+	call lee_de_vram		;4648   ; lee uno
 	ex de,hl			;464b
-	call escribe_en_vram		;464c
+	call escribe_en_vram		;464c   ; y lo escribe
 	ex de,hl			;464f
 	inc hl			;4650
 	inc de			;4651
 	dec bc			;4652
 	ld a,c			;4653
 	or b			;4654
-	jr nz,L_4648		;4655
+	jr nz,copia_dentro_de_la_vram		;4655
 	ret			;4657
-L_4658:
+
+; ----------------------------------------------------------------------
+; Copia los 2 KB de patrones del primer tercio (0x2000) al segundo (0x2800) y del segundo al tercero (0x3000).
+; ----------------------------------------------------------------------
+replica_los_patrones_en_los_tercios:
 	ld de,02000h		;4658
 	ld hl,02800h		;465b
 L_465E:
-	ld bc,00800h		;465e
-	call L_4648		;4661
-	ld bc,00800h		;4664
-	jr L_4648		;4667
-L_4669:
-	call L_4658		;4669
-	ld de,00000h		;466c
+	ld bc,00800h		;465e   ; 2 KB
+	call copia_dentro_de_la_vram		;4661
+	ld bc,00800h		;4664   ; y otros 2 KB al tercio siguiente
+	jr copia_dentro_de_la_vram		;4667
+
+; ----------------------------------------------------------------------
+; Los patrones por 0x4658 y luego los colores: 0x0000 a 0x0800 y a 0x1000. Lo llaman 0x43B3, 0x468C y 0x4B72.
+; ----------------------------------------------------------------------
+replica_patrones_y_colores_en_los_tercios:
+	call replica_los_patrones_en_los_tercios		;4669
+	ld de,00000h		;466c   ; ahora los colores
 	ld hl,00800h		;466f
 	jr L_465E		;4672
-L_4674:
-	ld a,0f0h		;4674
+
+; ----------------------------------------------------------------------
+; La fuente grande de 0x83B1 en los tiles 0x10-0x3F: sus 384 bytes de color a 0x0080 con el byte A (0xF0 desde aqui, blanco sobre transparente; 0xF1 desde 0x4C51, blanco sobre negro) y sus patrones a 0x2080, y luego replica los tres tercios. Es la fuente con la que se escriben los marcadores y los contadores.
+; ----------------------------------------------------------------------
+carga_la_fuente_grande_en_los_tiles_10_3f:
+	ld a,0f0h		;4674   ; 0xF0: blanco sobre transparente
 L_4676:
-	ld de,00080h		;4676
+	ld de,00080h		;4676   ; colores desde 0x0080, tiles 0x10-0x3F
 	ld bc,00180h		;4679
 	call rellena_la_vram		;467c
-	ld hl,083b1h		;467f
-	ld a,020h		;4682
+	ld hl,083b1h		;467f   ; la fuente
+	ld a,020h		;4682   ; a 0x2080: los mismos tiles, patrones
 	add a,d			;4684
 	ld d,a			;4685
 	ld bc,00180h		;4686
-	call L_460B		;4689
-	jp L_4669		;468c
+	call copia_a_la_vram		;4689
+	jp replica_patrones_y_colores_en_los_tercios		;468c   ; y a los tres tercios
 
 ; ----------------------------------------------------------------------
 ; El interprete de FORMATO B, el que gasta casi todos los dibujos del cartucho. Lee dos bytes de destino en la VRAM y luego ordenes, cada una un byte: los siete bits bajos son la CUENTA y el bit 7 elige que hacer con ella, 0x4607 o 0x460F. Una orden con la cuenta a cero termina: si el bit 7 esta puesto (byte 0x80) vuelve arriba a leer otro destino, y si el byte es 0x00 del todo, se acabo la lista. La entrada de 0x4693 se salta la lectura del destino, para las listas que lo traen ya puesto en DE desde fuera.
@@ -1407,7 +1451,7 @@ pinta_uno_de_los_tres_dibujos:
 	cp 002h		;4782
 	jr z,L_478B		;4784
 	ld a,08dh		;4786   ; sonido 0x8D
-	call L_9C4A		;4788
+	call pide_un_sonido		;4788
 L_478B:
 	pop af			;478b
 	push af			;478c
@@ -1483,34 +1527,38 @@ DATA_dibujo_2:
 ; ======================================================================
 
 
-L_47FB:
-	ld hl,0e233h		;47fb
-	ld de,0e172h		;47fe
-	ld a,(0e1cch)		;4801
+
+; ----------------------------------------------------------------------
+; EL FURITEN DE RIICHI: cruza las esperas del 1 (0xE1F5) contra los descartes de la maquina POSTERIORES al riichi del 1. El primero es el numero 0xE1CC (el descarte con el que declaro), uno mas si reparte el 2; la cuenta es lo que la maquina ha descartado desde entonces, y en una mano sin ganador (bit 2 de 0xE302) uno mas. Si no hay ninguno, nada. Si hay coincidencia, 0x4865 vuelve aqui: bit 5 de 0xE1CD y 0xE1AC = 1, el castigo; si no la hay, 0x486B se come el retorno y sale directo al que llamo. El `ld hl,0xE233` del principio no se usa: 0x481E lo pisa. Lo llaman 0x76CC (fin de mano) y, con las dificultades 2 y 3, el furiten del turno.
+; ----------------------------------------------------------------------
+furiten_tras_el_riichi:
+	ld hl,0e233h		;47fb   ; no se usa: 0x481E pisa HL
+	ld de,0e172h		;47fe   ; el rio de la maquina
+	ld a,(0e1cch)		;4801   ; desde el descarte del riichi
 	ld c,a			;4804
 	ld a,(0e04dh)		;4805
-	rra			;4808
+	rra			;4808   ; reparte el 2: uno mas
 	jr nc,L_480C		;4809
 	inc c			;480b
 L_480C:
 	ld a,c			;480c
-	call suma_a_a_de		;480d
+	call suma_a_a_de		;480d   ; el primer descarte posterior
 	ld a,(0e1bfh)		;4810
-	sub c			;4813
-	ret z			;4814
+	sub c			;4813   ; cuantos lleva desde entonces
+	ret z			;4814   ; ninguno: nada que cruzar
 	ld c,a			;4815
 	ld a,(0e302h)		;4816
-	bit 2,a		;4819
+	bit 2,a		;4819   ; bit 2 de 0xE302: sin ganador, uno mas
 	jr z,L_481E		;481b
 	inc c			;481d
 L_481E:
-	ld hl,0e1f5h		;481e
-	ld (0e203h),de		;4821
-	call L_4865		;4825
+	ld hl,0e1f5h		;481e   ; las esperas del 1
+	ld (0e203h),de		;4821   ; contra esa parte del rio
+	call L_4865		;4825   ; el cruce: si no encuentra nada, sale dos niveles arriba
 	ld hl,0e1cdh		;4828
-	set 5,(hl)		;482b
+	set 5,(hl)		;482b   ; bit 5 de 0xE1CD: FURITEN DE RIICHI
 	ld hl,0e1ach		;482d
-	ld (hl),001h		;4830
+	ld (hl),001h		;4830   ; 0xE1AC = 1: el castigo
 	ret			;4832
 
 ; ----------------------------------------------------------------------
@@ -1620,7 +1668,7 @@ L_48BC:
 	ld hl,0e128h		;48bc
 	call pinta_una_ficha		;48bf
 	ld a,001h		;48c2
-	call L_9C4A		;48c4   ; sonido 1 en cada paso: el tecleo del recuento
+	call pide_un_sonido		;48c4   ; sonido 1 en cada paso: el tecleo del recuento
 	ret			;48c7
 
 ; ----------------------------------------------------------------------
@@ -1856,7 +1904,7 @@ arranca_el_hardware:
 	ld e,0b8h		;49ea
 	call 00093h		;49ec   ; BIOS WRTPSG - Writes data to PSG-register
 	ld a,09fh		;49ef   ; 0x9F para el sonido que estuviera sonando
-	call L_9C4A		;49f1
+	call pide_un_sonido		;49f1
 	ld de,00000h		;49f4   ; borra la VRAM entera, 0x0000 a 0x3FFF, con ceros
 	ld bc,04000h		;49f7
 	xor a			;49fa
@@ -2030,7 +2078,7 @@ arranca_la_partida:
 	ld hl,00008h		;4ad4   ; estado 8 y submodo 0 de una tacada, que son bytes contiguos
 	ld (0e000h),hl		;4ad7
 	ld a,09fh		;4ada   ; y calla el sonido del demo
-	call L_9C4A		;4adc
+	call pide_un_sonido		;4adc
 	ret			;4adf
 
 ; ----------------------------------------------------------------------
@@ -2091,8 +2139,8 @@ monta_el_rotulo_que_baja:
 	ld bc,000d0h		;4b67
 	ld a,0f0h		;4b6a
 	call rellena_la_vram		;4b6c
-	call L_4658		;4b6f
-	jp L_4669		;4b72
+	call replica_los_patrones_en_los_tercios		;4b6f
+	jp replica_patrones_y_colores_en_los_tercios		;4b72
 
 ; ----------------------------------------------------------------------
 ; Baja el rotulo una fila: sube 0x20 la altura de 0xE00E, la resta de 0x3AAA para saber donde toca pintar -o sea que cuanto mas ha bajado, mas arriba empieza- y suelta tres tiras de tiles consecutivos con 0x4BA1. Detras borra lo que dejo la fila anterior. Devuelve el paso que queda en 0xE00A, y el estado 1 lo mira para saber cuando parar.
@@ -2217,7 +2265,7 @@ L_4C9A:
 	jr nc,L_4CA8		;4ca4
 	ld a,00ch		;4ca6   ; y sonido 12 para el otro
 L_4CA8:
-	call L_9C4A		;4ca8
+	call pide_un_sonido		;4ca8
 	xor a			;4cab
 	ld (0e127h),a		;4cac   ; la marca se gasta al sonar
 L_4CAF:
@@ -2305,14 +2353,18 @@ DATA_marca_c:
 ; ======================================================================
 
 
-L_4D58:
-	call despacha_el_reparto		;4d58
+
+; ----------------------------------------------------------------------
+; EL SUBMODO 1 DEL ESTADO 11, cada cuadro: una fase del reparto (0x4D91) y las dos manos pintadas. Mientras el bit 0 de 0xE1A8 siga puesto -reparto en curso- se vuelve; al bajar, la mano de la maquina pasa de 0xE21C, donde la armo 0x78CE, a 0xE14C, su sitio de juego.
+; ----------------------------------------------------------------------
+reparte_y_pinta_las_manos:
+	call despacha_el_reparto		;4d58   ; una fase del reparto
 	call pinta_la_mano_del_jugador_1		;4d5b
 	call pinta_la_mano_del_jugador_2		;4d5e
 	ld a,(0e1a8h)		;4d61
-	rra			;4d64
+	rra			;4d64   ; bit 0 de 0xE1A8: reparto en curso
 	ret c			;4d65
-	ld hl,0e21ch		;4d66
+	ld hl,0e21ch		;4d66   ; terminado: la mano de la maquina, de 0xE21C a 0xE14C
 	ld de,0e14ch		;4d69
 	ld bc,0000eh		;4d6c
 	ldir		;4d6f
@@ -2399,7 +2451,7 @@ reparte_una_tanda:
 	and 01fh		;4df9   ; una tanda cada 32 fotogramas
 	ret nz			;4dfb
 	ld a,007h		;4dfc
-	call L_9C4A		;4dfe   ; sonido 7: el golpe de la ficha en la mesa
+	call pide_un_sonido		;4dfe   ; sonido 7: el golpe de la ficha en la mesa
 	ld hl,0e1b7h		;4e01
 	inc (hl)			;4e04   ; le toca al otro
 	ld a,(hl)			;4e05
@@ -2484,7 +2536,7 @@ ensena_la_mano_ficha_a_ficha:
 	and 003h		;4e7f   ; cada cuatro fotogramas, una ficha
 	ret nz			;4e81
 	ld a,001h		;4e82
-	call L_9C4A		;4e84   ; sonido 1: la ficha colocandose
+	call pide_un_sonido		;4e84   ; sonido 1: la ficha colocandose
 	ld a,(0e04dh)		;4e87
 	rra			;4e8a
 	jr nc,L_4E92		;4e8b
@@ -2624,7 +2676,7 @@ L_4F5E:
 ; ----------------------------------------------------------------------
 reparte_una_ficha:
 	ld a,(0e1a8h)		;4f64
-	rra			;4f67   ; bit 0 de 0xE1A8: ya hay mano repartida
+	rra			;4f67   ; bit 0 de 0xE1A8: reparto en curso
 	jr c,L_4F74		;4f68
 	ld hl,0e002h		;4f6a
 	bit 6,(hl)		;4f6d   ; y bit 6 de 0xE002: hay partida
@@ -2911,7 +2963,7 @@ prepara_la_mesa_de_la_mano:
 	ld hl,05204h		;5162   ; los sprites 4 a 21 escondidos en Y = 0xE0, a 0x3B10
 	ld de,03b10h		;5165
 	ld bc,00048h		;5168
-	call L_460B		;516b
+	call copia_a_la_vram		;516b
 	ld hl,00000h		;516e   ; el reloj de la fase, a cero
 	ld (0e052h),hl		;5171
 	ld hl,0e1aah		;5174
@@ -3038,7 +3090,7 @@ fase_1_elige_el_descarte:
 	call resta_el_reloj_a_hl		;529c
 	jr nc,L_52AD		;529f   ; aun no
 	ld a,008h		;52a1
-	call L_9C4A		;52a3   ; sonido 8: el aviso
+	call pide_un_sonido		;52a3   ; sonido 8: el aviso
 	ld hl,00258h		;52a6   ; 600 cuadros: el descarte sale solo
 	sbc hl,de		;52a9
 	jr c,L_52B3		;52ab
@@ -3079,7 +3131,7 @@ L_52E6:
 	bit 2,(hl)		;52e9   ; bit 2 de 0xE009: un hueco hacia abajo
 	jr z,L_5305		;52eb
 	ld a,005h		;52ed
-	call L_9C4A		;52ef   ; sonido 5
+	call pide_un_sonido		;52ef   ; sonido 5
 	ld a,(0e1c2h)		;52f2
 	dec a			;52f5   ; cursor - 1
 	ld (0e1c2h),a		;52f6
@@ -3093,7 +3145,7 @@ L_5305:
 	bit 3,(hl)		;5308   ; bit 3 de 0xE009: un hueco hacia arriba
 	jr z,L_5324		;530a
 	ld a,005h		;530c
-	call L_9C4A		;530e
+	call pide_un_sonido		;530e
 	ld a,(0e1c2h)		;5311
 	inc a			;5314   ; cursor + 1
 	ld hl,0e1c3h		;5315
@@ -3120,7 +3172,7 @@ L_5334:
 	ld hl,0e0a8h		;5344
 	ld de,03b00h		;5347   ; y los atributos de los cuatro primeros, a 0x3B00
 	ld bc,00008h		;534a
-	jp L_460B		;534d
+	jp copia_a_la_vram		;534d
 
 ; ----------------------------------------------------------------------
 ; DATOS multiplos_de_dieciseis: Los catorce multiplos de 0x10, de 0x10 a 0xE0,
@@ -3216,7 +3268,7 @@ L_53EB:
 	ld hl,0e0d8h		;53f6
 	ld de,03b30h		;53f9   ; el sprite 12, a 0x3B30
 	ld bc,00004h		;53fc
-	call L_460B		;53ff
+	call copia_a_la_vram		;53ff
 L_5402:
 	xor a			;5402
 	ld (0e1cfh),a		;5403   ; 0xE1CF a cero: la marca del rinshan
@@ -3257,7 +3309,7 @@ fase_4_el_descarte_al_rio:
 	ld hl,0e1d1h		;543c
 	res 0,(hl)		;543f   ; el 1 descarta: bit 0 de 0xE1D1 a cero, ya no tiene ficha robada; si ahora gana es RON
 	ld a,006h		;5441
-	call L_9C4A		;5443   ; sonido 6
+	call pide_un_sonido		;5443   ; sonido 6
 	ld hl,0e1beh		;5446
 	inc (hl)			;5449   ; un descarte mas
 	ld a,(0e1beh)		;544a
@@ -3432,7 +3484,7 @@ el_descarte_de_la_maquina_al_rio:
 	xor a			;557a
 	ld (0e22ah),a		;557b   ; el 2 descarta: 0xE22A a cero
 	ld a,006h		;557e
-	call L_9C4A		;5580   ; sonido 6
+	call pide_un_sonido		;5580   ; sonido 6
 	ld hl,0e1bfh		;5583
 	inc (hl)			;5586   ; un descarte mas del 2
 	ld a,(0e1bfh)		;5587
@@ -3503,7 +3555,7 @@ roba_el_jugador_1:
 	ld hl,00000h		;5603
 	ld (0e052h),hl		;5606   ; el reloj a cero
 	ld a,007h		;5609
-	call L_9C4A		;560b   ; sonido 7
+	call pide_un_sonido		;560b   ; sonido 7
 	ld hl,0e1d1h		;560e
 	set 0,(hl)		;5611   ; el 1 va a robar: bit 0 de 0xE1D1 puesto; si gana con esa ficha es TSUMO
 	call reparte_una_ficha		;5613   ; la ficha
@@ -3639,7 +3691,7 @@ limpia_la_lista_de_jugadas:
 	ret			;56e2
 la_maquina_canta:
 	ld a,090h		;56e3
-	call L_9C4A		;56e5   ; sonido 0x90: la maquina canta
+	call pide_un_sonido		;56e5   ; sonido 0x90: la maquina canta
 	call limpia_la_lista_de_jugadas		;56e8
 	ld a,(0e22ah)		;56eb
 	ld (0e1d1h),a		;56ee   ; la marca de tsumo de la maquina, en 0xE1D1, que es lo que lee el evaluador
@@ -3786,7 +3838,7 @@ L_57C7:
 	ld hl,0e0dch		;57e0
 	ld de,03b34h		;57e3   ; el sprite 13, a 0x3B34
 	ld bc,00004h		;57e6
-	call L_460B		;57e9
+	call copia_a_la_vram		;57e9
 	jp la_maquina_usa_el_menu		;57ec   ; y por el menu
 L_57EF:
 	ld a,(0e058h)		;57ef
@@ -3969,11 +4021,11 @@ L_5920:
 	inc (hl)			;5923   ; un terminal mas
 L_5924:
 	inc de			;5924
-	djnz L_58EA		;5925
-	ld c,001h		;5927
+	djnz L_58EA		;5925   ; el rio entero
+	ld c,001h		;5927   ; el bit 0, para el primer contador
 	ld hl,0e341h		;5929
 	ld de,0e346h		;592c
-	ld b,005h		;592f
+	ld b,005h		;592f   ; cinco contadores
 L_5931:
 	ld a,(hl)			;5931
 	cp 002h		;5932   ; menos de dos: bit puesto
@@ -4443,9 +4495,9 @@ espera_kanchan:
 	ld de,0e2b8h		;5c2d   ; la ficha de en medio de cada escalera
 L_5C30:
 	ld a,(de)			;5c30
-	cp c			;5c31
+	cp c			;5c31   ; la de en medio es la que cierra?
 	jr z,L_5C3C		;5c32
-	ld a,004h		;5c34
+	ld a,004h		;5c34   ; cuatro bytes por escalera
 	call suma_a_a_de		;5c36
 	djnz L_5C30		;5c39
 	ret			;5c3b
@@ -4756,22 +4808,22 @@ L_5E2E:
 	and 003h		;5e38   ; uno de cada cuatro fotogramas
 	jr nz,L_5E41		;5e3a
 	ld a,002h		;5e3c
-	call L_9C4A		;5e3e   ; sonido 2: el tintineo de las fichas de puntos
+	call pide_un_sonido		;5e3e   ; sonido 2: el tintineo de las fichas de puntos
 L_5E41:
 	ld de,00100h		;5e41
-	ld a,(0e302h)		;5e44
-	bit 2,a		;5e47
+	ld a,(0e302h)		;5e44   ; lo mismo que arriba: quien cobra
+	bit 2,a		;5e47   ; bit 2: sin ganador, el tenpai
 	jr nz,L_5E51		;5e49
 	rra			;5e4b
 	rra			;5e4c
-	jr nc,L_5E5E		;5e4d
+	jr nc,L_5E5E		;5e4d   ; sin el bit 1 cobra el 1
 	jr L_5E63		;5e4f
 L_5E51:
 	ld a,(0e1ach)		;5e51
-	and 0c0h		;5e54
+	and 0c0h		;5e54   ; con castigo cobra el 2
 	jr nz,L_5E63		;5e56
 	ld a,(0e1adh)		;5e58
-	rra			;5e5b
+	rra			;5e5b   ; bit 0 de 0xE1AD: el 1 en tenpai, cobra el
 	jr nc,L_5E63		;5e5c
 L_5E5E:
 	call suma_al_marcador_de_e047		;5e5e   ; y cobra el jugador 1, el de 0xE047
@@ -4821,7 +4873,7 @@ L_5EAA:
 	ld (hl),a			;5eae
 	call pinta_el_contador_de_e04a		;5eaf   ; y el contador repintado
 	ld a,002h		;5eb2
-	call L_9C4A		;5eb4   ; sonido 2
+	call pide_un_sonido		;5eb4   ; sonido 2
 	ld b,00ah		;5eb7   ; diez veces cien: los mil puntos del palo
 L_5EB9:
 	push bc			;5eb9
@@ -4899,10 +4951,10 @@ cobra_mil_el_de_e047:
 	ld b,00ah		;5f24
 L_5F26:
 	push bc			;5f26
-	ld de,00100h		;5f27
+	ld de,00100h		;5f27   ; cien
 	call resta_del_marcador_de_e047		;5f2a
 	pop bc			;5f2d
-	djnz L_5F26		;5f2e
+	djnz L_5F26		;5f2e   ; diez veces
 	ret			;5f30
 
 ; ----------------------------------------------------------------------
@@ -4912,10 +4964,10 @@ cobra_mil_el_de_e044:
 	ld b,00ah		;5f31
 L_5F33:
 	push bc			;5f33
-	ld de,00100h		;5f34
+	ld de,00100h		;5f34   ; cien
 	call resta_del_marcador_de_e044		;5f37
 	pop bc			;5f3a
-	djnz L_5F33		;5f3b
+	djnz L_5F33		;5f3b   ; diez veces
 	ret			;5f3d
 
 ; ----------------------------------------------------------------------
@@ -5927,7 +5979,7 @@ mueve_el_cursor_del_menu:
 	ret z			;65ca
 	ld b,a			;65cb
 	ld a,004h		;65cc   ; sonido 4
-	call L_9C4A		;65ce
+	call pide_un_sonido		;65ce
 	ld hl,(0e1c5h)		;65d1   ; donde esta el cursor
 	ld d,h			;65d4
 	ld e,l			;65d5
@@ -6059,7 +6111,7 @@ L_66AB:
 	ld (0e1cch),a		;66b5
 L_66B8:
 	ld a,00ah		;66b8
-	call L_9C4A		;66ba   ; sonido 10
+	call pide_un_sonido		;66ba   ; sonido 10
 	ld hl,0e0b8h		;66bd
 	ld de,03b10h		;66c0   ; los atributos del sprite, a 0x3B10 o 0x3B20
 	ld a,(0e206h)		;66c3
@@ -6069,7 +6121,7 @@ L_66B8:
 	ld de,03b20h		;66cc
 L_66CF:
 	ld bc,00010h		;66cf
-	call L_460B		;66d2
+	call copia_a_la_vram		;66d2
 L_66D5:
 	xor a			;66d5
 	ld (0e1c7h),a		;66d6   ; la llamada queda atendida
@@ -6386,7 +6438,7 @@ cierra_la_llamada:
 	ld (0e1aah),a		;68e3   ; fase 1: toca descartar
 L_68E6:
 	ld a,00bh		;68e6
-	call L_9C4A		;68e8   ; sonido 11
+	call pide_un_sonido		;68e8   ; sonido 11
 	ld c,000h		;68eb   ; C = 0: hecha
 	jr L_68FC		;68ed
 rechaza_pon:
@@ -6555,7 +6607,7 @@ L_6A13:
 	jr nz,L_6A21		;6a15
 	set 0,(hl)		;6a17   ; el flanco del espacio, en 0xE1C4
 	ld a,006h		;6a19
-	call L_9C4A		;6a1b   ; sonido 6
+	call pide_un_sonido		;6a1b   ; sonido 6
 	jp ejecuta_el_chi		;6a1e   ; y se ejecuta la elegida
 L_6A21:
 	ld a,(0e003h)		;6a21
@@ -6565,7 +6617,7 @@ L_6A21:
 	bit 2,(hl)		;6a2a   ; bit 2: izquierda
 	jr z,L_6A46		;6a2c
 	ld a,005h		;6a2e
-	call L_9C4A		;6a30   ; sonido 5
+	call pide_un_sonido		;6a30   ; sonido 5
 	ld a,(0e1f0h)		;6a33
 	dec a			;6a36
 	ld (0e1f0h),a		;6a37
@@ -6579,7 +6631,7 @@ L_6A46:
 	bit 3,(hl)		;6a49   ; bit 3: derecha
 	jr z,L_6A65		;6a4b
 	ld a,005h		;6a4d
-	call L_9C4A		;6a4f
+	call pide_un_sonido		;6a4f
 	ld a,(0e1f0h)		;6a52
 	inc a			;6a55
 	ld hl,0e1efh		;6a56
@@ -6617,7 +6669,7 @@ L_6A65:
 	ld hl,0e0a8h		;6a96
 	ld de,03b00h		;6a99   ; los atributos de los sprites, a 0x3B00
 	ld bc,00010h		;6a9c
-	jp L_460B		;6a9f
+	jp copia_a_la_vram		;6a9f
 
 ; ----------------------------------------------------------------------
 ; Ejecuta la escalera elegida (0xE1F0): quita de la mano los dos huecos apuntados en 0xE1E9 y el descarte del rio del rival (0x39 en los tres), reordena, y pone la escalera entera -tres seguidas desde la ficha de 0xE1F1- detras de la parte cerrada (0xE20B baja cuatro). La apunta en 0xE2B7 con marca 1 (0xE2C7++, 0xE2B6++), marca la ficha robada con un sprite (0xE0E0 para el 1, 0xE0F0 para el 2) y cierra por 0x6BA7 igual que el pon.
@@ -6744,7 +6796,7 @@ L_6B7D:
 	ld hl,0e0e0h		;6b7d
 	ld de,03b38h		;6b80   ; los atributos, a 0x3B38
 	ld bc,00020h		;6b83
-	call L_460B		;6b86
+	call copia_a_la_vram		;6b86
 	pop de			;6b89
 	call apunta_una_escalera		;6b8a   ; la escalera, a la lista
 	inc (hl)			;6b8d   ; con marca 1: ABIERTA
@@ -6772,7 +6824,7 @@ cierra_el_chi:
 	ld (0e1aah),a		;6bba   ; fase 1: toca descartar
 L_6BBD:
 	ld a,00bh		;6bbd
-	call L_9C4A		;6bbf   ; sonido 11
+	call pide_un_sonido		;6bbf   ; sonido 11
 	ld c,000h		;6bc2
 	jr cancela_la_eleccion		;6bc4
 rechaza_chi:
@@ -7146,7 +7198,7 @@ L_6E31:
 	ld a,0ffh		;6e39
 	ld (0e1aah),a		;6e3b   ; fase 0xFF: hay que robar la ficha de reposicion
 	ld a,00bh		;6e3e
-	call L_9C4A		;6e40   ; sonido 11
+	call pide_un_sonido		;6e40   ; sonido 11
 	ld a,001h		;6e43
 	ld (0e1cfh),a		;6e45   ; 0xE1CF = 1: la ficha siguiente es la de reposicion, el rinshan
 	call para_un_momento		;6e48   ; y una pausa a pelo
@@ -7424,7 +7476,7 @@ pinta_el_tablero:
 	ld hl,08a9fh		;6fcd
 	ld de,02818h		;6fd0   ; 56 bytes sin comprimir a 0x2818
 	ld bc,00038h		;6fd3
-	call L_460B		;6fd6
+	call copia_a_la_vram		;6fd6
 	ld hl,090cfh		;6fd9
 	jp pinta_lista_formato_b		;6fdc
 
@@ -7443,7 +7495,7 @@ pinta_las_dos_manos_del_tablero:
 	ld hl,092e3h		;6ff7
 	ld de,03020h		;6ffa
 	ld bc,00060h		;6ffd
-	call L_460B		;7000
+	call copia_a_la_vram		;7000
 	ld hl,09343h		;7003
 	call pinta_lista_formato_b		;7006
 	ld hl,099f4h		;7009
@@ -7496,7 +7548,7 @@ L_7053:
 	ex de,hl			;705f
 	ld bc,00030h		;7060   ; 48 bytes: seis tiles de ocho
 	ld hl,0e2b6h		;7063
-	call L_461C		;7066
+	call copia_de_la_vram		;7066
 	jr L_7081		;7069
 L_706B:
 	push de			;706b
@@ -7511,12 +7563,12 @@ L_706B:
 	ex de,hl			;7077
 	ld bc,00030h		;7078
 	ld hl,0e2b6h		;707b
-	call L_462F		;707e   ; 48 bytes de colores, por 0x462F
+	call copia_de_la_vram_sin_fondo_transparente		;707e   ; 48 bytes de colores, por 0x462F
 L_7081:
 	pop de			;7081
 	ld hl,0e2b6h		;7082
 	ld bc,00030h		;7085
-	jp L_460B		;7088
+	jp copia_a_la_vram		;7088
 
 ; ----------------------------------------------------------------------
 ; Los dos bloques de 0x8832 y 0x8A78: los patrones de la fuente katakana (tiles 0x30-0x7F, a 0x2180) y sus colores (0x0180). Lo llama 0x5A46 al montar el recuento, que es donde se escriben los nombres de las jugadas.
@@ -7666,7 +7718,7 @@ pinta_una_figura_y_sus_fu:
 	and 03fh		;7179   ; una figura cada 64 fotogramas
 	ret nz			;717b
 	ld a,009h		;717c   ; sonido 9
-	call L_9C4A		;717e
+	call pide_un_sonido		;717e
 	ld hl,0e1d8h		;7181
 	dec (hl)			;7184   ; una fila menos
 	ld a,(hl)			;7185
@@ -7954,7 +8006,7 @@ L_7353:
 escribe_el_total_de_fu:
 	ld hl,0e1e2h		;7356
 	ld de,0382bh		;7359   ; el byte alto, en 0x382B
-	call L_459C		;735c
+	call pinta_la_cifra_baja_o_blanco		;735c
 	ld hl,0e1e1h		;735f
 	ld a,(hl)			;7362
 	and 00fh		;7363   ; las unidades
@@ -8172,7 +8224,7 @@ cierra_la_mano_sin_ganador:
 	ld a,(0e1cdh)		;76c6
 	rra			;76c9   ; y solo si el 1 estaba en riichi
 	jr nc,mira_quien_esta_en_tenpai		;76ca
-	call L_47FB		;76cc   ; furiten tras el riichi
+	call furiten_tras_el_riichi		;76cc   ; furiten tras el riichi
 	call busca_en_las_dos_listas		;76cf   ; y furiten sobre el propio rio
 	ld a,(0e1cdh)		;76d2
 	and 060h		;76d5   ; bits 5 y 6 de 0xE1CD: hay furiten
@@ -8207,7 +8259,7 @@ L_76ED:
 	ld hl,0785bh		;7705   ; y el rotulo de la fila 12
 	call L_409D		;7708
 	ld a,090h		;770b
-	call L_9C4A		;770d   ; sonido 0x90
+	call pide_un_sonido		;770d   ; sonido 0x90
 	jp paga_el_tenpai_y_pasa_la_mano		;7710
 
 ; ----------------------------------------------------------------------
@@ -8215,7 +8267,7 @@ L_76ED:
 ; ----------------------------------------------------------------------
 mira_quien_esta_en_tenpai:
 	ld a,096h		;7713   ; sonido 0x96
-	call L_9C4A		;7715
+	call pide_un_sonido		;7715
 	ld a,(0e04bh)		;7718
 	cp 005h		;771b   ; menos de 5 honba: basta con tener esperas
 	jr c,L_7756		;771d
@@ -10344,19 +10396,19 @@ suma_bcd_de_3_bytes:
 ; ----------------------------------------------------------------------
 resta_bcd_de_3_bytes:
 	ld a,(hl)			;839e
-	sub e			;839f
+	sub e			;839f   ; el byte bajo
 	daa			;83a0   ; daa: la resta tambien es DECIMAL
 	ld (hl),a			;83a1
 	ld e,a			;83a2
 	inc hl			;83a3
 	ld a,(hl)			;83a4
-	sbc a,d			;83a5
+	sbc a,d			;83a5   ; el medio, con el acarreo
 	daa			;83a6
 	ld (hl),a			;83a7
 	ld d,a			;83a8
 	inc hl			;83a9
 	ld a,(hl)			;83aa
-	ret nc			;83ab
+	ret nc			;83ab   ; sin acarreo el alto no cambia
 	sub 001h		;83ac
 	daa			;83ae
 	ld (hl),a			;83af
@@ -10933,72 +10985,84 @@ DATA_colores_del_tercio_de_abajo:
 ; ======================================================================
 
 
-L_9C4A:
+
+; ----------------------------------------------------------------------
+; LA PUERTA DEL SONIDO: A = el numero de sonido. Con las interrupciones cerradas y los registros a salvo, 0x9C5A lo arranca con D = 0, que es "respetar la prioridad". Lo llaman 31 sitios del cartucho: 0x01 el tecleo del recuento, 0x02 el tintineo de los puntos, 0x05 el cursor, 0x06 el descarte, 0x07 el robo, 0x08 el aviso del reloj, 0x90 la maquina canta, 0x96 el tenpai, 0x9C empezar partida, 0x9F silencio.
+; ----------------------------------------------------------------------
+pide_un_sonido:
 	di			;9c4a
 	push hl			;9c4b
 	push de			;9c4c
 	push bc			;9c4d
 	push af			;9c4e
-	ld d,000h		;9c4f
-	call L_9C5A		;9c51
+	ld d,000h		;9c4f   ; D = 0: con prioridad
+	call arranca_el_sonido		;9c51   ; arranca
 	pop af			;9c54
 	pop bc			;9c55
 	pop de			;9c56
 	pop hl			;9c57
 	ei			;9c58
 	ret			;9c59
-L_9C5A:
+
+; ----------------------------------------------------------------------
+; Elige canal y prioridad. Los numeros por debajo de 0x8D son EFECTOS y van a un solo canal, el tercero (0xE026, con su numero en 0xE028), recortados a seis bits; de 0x8D en adelante son MUSICA a tres canales desde el primero (0xE010). Con D = 0 solo entra si su numero es MAYOR que el que suena en ese canal (0xE012 o 0xE028): el numero es la prioridad. De 0xCD en adelante se le quita el bit 7. Luego 0x9C7F busca sus punteros en la tabla de 0x9CA1, dos bytes por sonido, y 0x9C8A carga los canales.
+; ----------------------------------------------------------------------
+arranca_el_sonido:
 	ld c,a			;9c5a
-	ld b,002h		;9c5b
-	ld hl,0e012h		;9c5d
-	cp 08dh		;9c60
+	ld b,002h		;9c5b   ; B = 2, y sube o baja segun
+	ld hl,0e012h		;9c5d   ; el numero que suena en el canal 1
+	cp 08dh		;9c60   ; por debajo de 0x8D: efecto
 	jr c,L_9C6B		;9c62
-	cp 08dh		;9c64
+	cp 08dh		;9c64   ; aqui nunca hay acarreo: sobra
 	jr c,L_9C71		;9c66
-	inc b			;9c68
+	inc b			;9c68   ; musica: tres canales
 	jr L_9C71		;9c69
 L_9C6B:
-	and 03fh		;9c6b
-	dec b			;9c6d
-	ld hl,0e028h		;9c6e
+	and 03fh		;9c6b   ; el efecto, a seis bits
+	dec b			;9c6d   ; un solo canal
+	ld hl,0e028h		;9c6e   ; el tercero
 L_9C71:
-	dec d			;9c71
+	dec d			;9c71   ; D = 1: sin mirar la prioridad
 	jr z,L_9C7F		;9c72
 	ld a,c			;9c74
-	cp (hl)			;9c75
-	ret c			;9c76
-	ret z			;9c77
-	cp 0cdh		;9c78
+	cp (hl)			;9c75   ; el que suena en ese canal
+	ret c			;9c76   ; uno mayor: se ignora
+	ret z			;9c77   ; el mismo: tambien
+	cp 0cdh		;9c78   ; de 0xCD en adelante, sin el bit 7
 	jr c,L_9C7F		;9c7a
 	and 07fh		;9c7c
 	ld c,a			;9c7e
 L_9C7F:
-	and 03fh		;9c7f
+	and 03fh		;9c7f   ; seis bits, por dos: la tabla de punteros
 	add a,a			;9c81
-	ld de,09ca1h		;9c82
+	ld de,09ca1h		;9c82   ; 0x9CA1, dos bytes por sonido
 	call suma_a_a_de		;9c85
-	dec hl			;9c88
+	dec hl			;9c88   ; al principio del canal
 	dec hl			;9c89
-L_9C8A:
-	ld (hl),001h		;9c8a
+
+; ----------------------------------------------------------------------
+; Por cada canal (B): el contador y la duracion a 1 para que la primera orden se lea ya en el cuadro siguiente, el numero del sonido, el puntero de la tabla, y la unidad de duracion (+10) a cero. Once bytes por canal: +0 contador, +1 duracion, +2 numero (bit 7: musica), +3/+4 puntero, +5 octava, +6 volumen de la nota, +7 volumen que va bajando, +8 contador del volumen, +9 repeticiones, +10 unidad.
+; ----------------------------------------------------------------------
+carga_los_canales:
+	ld (hl),001h		;9c8a   ; contador a 1
 	inc hl			;9c8c
-	ld (hl),001h		;9c8d
+	ld (hl),001h		;9c8d   ; duracion a 1
 	inc hl			;9c8f
-	ld (hl),c			;9c90
+	ld (hl),c			;9c90   ; el numero
 	inc hl			;9c91
-	ld a,(de)			;9c92
+	ld a,(de)			;9c92   ; el puntero, byte bajo
 	ld (hl),a			;9c93
 	inc hl			;9c94
 	inc de			;9c95
-	ld a,(de)			;9c96
+	ld a,(de)			;9c96   ; y alto
 	ld (hl),a			;9c97
-	ld a,006h		;9c98
+	ld a,006h		;9c98   ; +10: la unidad, a cero
 	add a,l			;9c9a
 	ld l,a			;9c9b
 	ld (hl),000h		;9c9c
-	inc hl			;9c9e
+	inc hl			;9c9e   ; y al canal siguiente, con el puntero siguiente
 	inc de			;9c9f
-	djnz L_9C8A		;9ca0
+	djnz carga_los_canales		;9ca0
 	ret			;9ca2
 
 ; ----------------------------------------------------------------------
@@ -11083,209 +11147,257 @@ DATA_datos_de_sonido:
 ; ======================================================================
 
 
-L_9E86:
+
+; ----------------------------------------------------------------------
+; La orden 0xFE n: repetir. Lleva la cuenta en +9; cuando llega a n, 0x9F2E apaga el canal. Si no, vuelve a arrancar el mismo sonido (+2) por 0x9C5A con D = 1, sin mirar la prioridad, y guarda la cuenta.
+; ----------------------------------------------------------------------
+repite_el_sonido:
 	inc hl			;9e86
-	ld a,(ix+009h)		;9e87
+	ld a,(ix+009h)		;9e87   ; las veces que va
 	inc a			;9e8a
-	cp (hl)			;9e8b
-	jp z,L_9F2E		;9e8c
+	cp (hl)			;9e8b   ; ya son las que pide: se acaba
+	jp z,apaga_el_canal		;9e8c
 	jr c,L_9E92		;9e8f
 	dec a			;9e91
 L_9E92:
 	ex af,af'			;9e92
-	ld a,(ix+002h)		;9e93
+	ld a,(ix+002h)		;9e93   ; el mismo sonido
 	push bc			;9e96
-	ld d,001h		;9e97
-	call L_9C5A		;9e99
+	ld d,001h		;9e97   ; D = 1: sin prioridad
+	call arranca_el_sonido		;9e99
 	pop bc			;9e9c
 	ex af,af'			;9e9d
-	ld (ix+009h),a		;9e9e
+	ld (ix+009h),a		;9e9e   ; la cuenta, guardada
 	ret			;9ea1
-L_9EA2:
+
+; ----------------------------------------------------------------------
+; Un `ret` suelto al que llaman 0x9EC3, 0x9F04 y 0x9F34: lo que hubiera aqui se quito y quedaron las llamadas.
+; ----------------------------------------------------------------------
+no_hace_nada:
 	ret			;9ea2
-L_9EA3:
-	ld c,001h		;9ea3
-	ld ix,0e010h		;9ea5
+
+; ----------------------------------------------------------------------
+; EL DRIVER, un paso por cuadro desde la interrupcion (0x4075): recorre los tres canales de once bytes desde 0xE010 (IX) con C = 1, 3, 5 -el registro de tono de cada canal- y mueve los que tengan sonido (+2 distinto de cero).
+; ----------------------------------------------------------------------
+mueve_el_sonido:
+	ld c,001h		;9ea3   ; C = 1: el registro de tono del canal 1
+	ld ix,0e010h		;9ea5   ; el primer canal
 	exx			;9ea9
-	ld b,003h		;9eaa
-	ld de,0000bh		;9eac
+	ld b,003h		;9eaa   ; tres canales
+	ld de,0000bh		;9eac   ; de once bytes
 L_9EAF:
 	exx			;9eaf
 	ld a,(ix+002h)		;9eb0
-	or a			;9eb3
-	call nz,L_9EBF		;9eb4
+	or a			;9eb3   ; sin sonido, nada
+	call nz,mueve_un_canal		;9eb4
 	inc c			;9eb7
-	inc c			;9eb8
+	inc c			;9eb8   ; C + 2: el registro del canal siguiente
 	exx			;9eb9
 	add ix,de		;9eba
 	djnz L_9EAF		;9ebc
 	ret			;9ebe
-L_9EBF:
+
+; ----------------------------------------------------------------------
+; Un canal: con el bit 7 del numero -musica- la nota en curso va por 0x9F3E, con su volumen bajando; si no, baja el contador y, al llegar a cero, 0x9ED1 lee la orden siguiente.
+; ----------------------------------------------------------------------
+mueve_un_canal:
 	bit 6,a		;9ebf
 	ld d,001h		;9ec1
-	call z,L_9EA2		;9ec3
+	call z,no_hace_nada		;9ec3   ; no hace nada (0x9EA2)
 	ld a,(ix+002h)		;9ec6
 	or a			;9ec9
-	jp m,L_9F3E		;9eca
-	dec (ix+000h)		;9ecd
-	ret nz			;9ed0
-L_9ED1:
-	ld l,(ix+003h)		;9ed1
+	jp m,sigue_la_nota		;9eca   ; bit 7: musica, la nota sigue por 0x9F3E
+	dec (ix+000h)		;9ecd   ; el contador
+	ret nz			;9ed0   ; aun no
+
+; ----------------------------------------------------------------------
+; La orden siguiente del sonido (+3/+4): 0xFE es repetir (0x9E86), 0xFF es el final (0x9F2E); con musica (bit 7) la nota se lee en 0x9F67. Un efecto: 0x2n fija la duracion n, 0x1n manda el ruido n al registro 6 del PSG, y luego 0x9F09 lee el volumen y el periodo.
+; ----------------------------------------------------------------------
+lee_la_orden_siguiente:
+	ld l,(ix+003h)		;9ed1   ; el puntero
 	ld h,(ix+004h)		;9ed4
 	ld a,(hl)			;9ed7
-	cp 0feh		;9ed8
-	jr z,L_9E86		;9eda
-	jr nc,L_9F2E		;9edc
+	cp 0feh		;9ed8   ; 0xFE: repetir
+	jr z,repite_el_sonido		;9eda
+	jr nc,apaga_el_canal		;9edc   ; 0xFF: se acabo
 	bit 7,(ix+002h)		;9ede
-	jp nz,L_9F67		;9ee2
+	jp nz,lee_una_nota_de_musica		;9ee2   ; musica: la nota, por 0x9F67
 	and 0f0h		;9ee5
-	cp 020h		;9ee7
+	cp 020h		;9ee7   ; 0x2n: la duracion
 	jr nz,L_9EF2		;9ee9
 	ld a,(hl)			;9eeb
-	and 00fh		;9eec
+	and 00fh		;9eec   ; n
 	ld (ix+001h),a		;9eee
 	inc hl			;9ef1
 L_9EF2:
 	ld a,(hl)			;9ef2
 	and 0f0h		;9ef3
-	cp 010h		;9ef5
-	jr nz,L_9F09		;9ef7
+	cp 010h		;9ef5   ; 0x1n: ruido
+	jr nz,lee_un_efecto		;9ef7
 	ld a,(hl)			;9ef9
-	and 01fh		;9efa
+	and 01fh		;9efa   ; n, al registro 6 del PSG
 	ld e,a			;9efc
 	ld a,006h		;9efd
 	call 00093h		;9eff   ; BIOS WRTPSG - Writes data to PSG-register
 	ld d,000h		;9f02
-	call L_9EA2		;9f04
+	call no_hace_nada		;9f04   ; no hace nada (0x9EA2)
 	inc hl			;9f07
 	ld a,(hl)			;9f08
-L_9F09:
+
+; ----------------------------------------------------------------------
+; El efecto: nibble alto el VOLUMEN, nibble bajo y el byte siguiente el PERIODO (doce bits), y el puntero avanza dos. 0x9FCE escribe el periodo en el PSG y 0x9F20 arma los contadores y escribe el volumen.
+; ----------------------------------------------------------------------
+lee_un_efecto:
 	and 0f0h		;9f09
-	ld b,a			;9f0b
+	ld b,a			;9f0b   ; el volumen, en B
 	xor (hl)			;9f0c
-	ld d,a			;9f0d
+	ld d,a			;9f0d   ; el periodo, byte alto
 	inc hl			;9f0e
-	ld e,(hl)			;9f0f
+	ld e,(hl)			;9f0f   ; y bajo
 	inc hl			;9f10
-	ld (ix+003h),l		;9f11
+	ld (ix+003h),l		;9f11   ; el puntero, avanzado
 	ld (ix+004h),h		;9f14
 	ex de,hl			;9f17
-	call L_9FCE		;9f18
+	call escribe_el_periodo		;9f18   ; el periodo al PSG
 	ld a,b			;9f1b
-	rrca			;9f1c
+	rrca			;9f1c   ; el volumen, a los cuatro bits bajos
 	rrca			;9f1d
 	rrca			;9f1e
 	rrca			;9f1f
-L_9F20:
+
+; ----------------------------------------------------------------------
+; Con H = volumen: el contador (+0) a la duracion (+1), el contador del volumen (+8) a dos mas, y el volumen al PSG por 0x9F5F.
+; ----------------------------------------------------------------------
+arma_los_contadores:
 	ld h,a			;9f20
-	ld a,(ix+001h)		;9f21
+	ld a,(ix+001h)		;9f21   ; la duracion
 	ld (ix+000h),a		;9f24
-	add a,002h		;9f27
+	add a,002h		;9f27   ; dos mas para el contador del volumen
 	ld (ix+008h),a		;9f29
-	jr L_9F5F		;9f2c
-L_9F2E:
+	jr escribe_el_volumen		;9f2c
+
+; ----------------------------------------------------------------------
+; Fin del sonido: repeticiones a cero, numero a cero (canal libre) y volumen cero al PSG.
+; ----------------------------------------------------------------------
+apaga_el_canal:
 	xor a			;9f2e
-	ld (ix+009h),a		;9f2f
+	ld (ix+009h),a		;9f2f   ; repeticiones a cero
 	ld d,001h		;9f32
-	call L_9EA2		;9f34
+	call no_hace_nada		;9f34   ; no hace nada (0x9EA2)
 	xor a			;9f37
-	ld (ix+002h),a		;9f38
-	ld h,a			;9f3b
-	jr L_9F5F		;9f3c
-L_9F3E:
+	ld (ix+002h),a		;9f38   ; canal libre
+	ld h,a			;9f3b   ; volumen cero
+	jr escribe_el_volumen		;9f3c
+
+; ----------------------------------------------------------------------
+; La nota de musica en curso: baja el contador y al llegar a cero lee la siguiente. Mientras, el contador del volumen (+8) baja mas deprisa que el de la nota y cuando lo alcanza -o baja de dos- 0x9F56 resta uno al volumen (+7) y lo escribe: es la caida del volumen de cada nota.
+; ----------------------------------------------------------------------
+sigue_la_nota:
 	dec (ix+000h)		;9f3e
-	jr z,L_9ED1		;9f41
+	jr z,lee_la_orden_siguiente		;9f41   ; se acabo la nota: la siguiente
 	dec (ix+008h)		;9f43
 	ld a,(ix+008h)		;9f46
-	cp (ix+000h)		;9f49
+	cp (ix+000h)		;9f49   ; el contador del volumen alcanza al de la nota
 	jr nz,L_9F53		;9f4c
-	cp 002h		;9f4e
+	cp 002h		;9f4e   ; por debajo de dos, baja el volumen
 	jr c,L_9F56		;9f50
 	ret			;9f52
 L_9F53:
-	dec (ix+008h)		;9f53
+	dec (ix+008h)		;9f53   ; y si no, baja otro paso
 L_9F56:
 	ld a,(ix+007h)		;9f56
-	dec a			;9f59
-	ret m			;9f5a
+	dec a			;9f59   ; un paso menos de volumen
+	ret m			;9f5a   ; ya en cero: nada
 	ld (ix+007h),a		;9f5b
 	ld h,a			;9f5e
-L_9F5F:
+
+; ----------------------------------------------------------------------
+; H al registro de volumen del canal: 8, 9 o 10, que sale de C (1, 3, 5) por 0x88 + C/2.
+; ----------------------------------------------------------------------
+escribe_el_volumen:
 	ld a,c			;9f5f
 	rrca			;9f60
-	add a,088h		;9f61
+	add a,088h		;9f61   ; 0x88 + C/2: el registro 8, 9 o 10
 	ld e,h			;9f63
 	jp 00093h		;9f64   ; BIOS WRTPSG - Writes data to PSG-register
-L_9F67:
+
+; ----------------------------------------------------------------------
+; Una nota de musica, con hasta tres prefijos: 0xDn fija la unidad de duracion (+10), 0xFn el volumen de la nota (+6), 0xEn la octava (+5). Luego el byte de la nota: nibble bajo n, duracion (n + 1) por la unidad; nibble alto la nota, 0 a 11 en la tabla de semitonos de 0x9FD9, y 12 es SILENCIO (volumen cero). El periodo de la tabla se dobla tantas veces como diga la octava (0x9FCB) y va al PSG por 0x9FCE.
+; ----------------------------------------------------------------------
+lee_una_nota_de_musica:
 	and 0f0h		;9f67
-	cp 0d0h		;9f69
+	cp 0d0h		;9f69   ; 0xDn: la unidad de duracion
 	ld a,(hl)			;9f6b
 	jr nz,L_9F75		;9f6c
 	and 00fh		;9f6e
-	ld (ix+00ah),a		;9f70
+	ld (ix+00ah),a		;9f70   ; n
 	inc hl			;9f73
 	ld a,(hl)			;9f74
 L_9F75:
-	cp 0f0h		;9f75
+	cp 0f0h		;9f75   ; 0xFn: el volumen de la nota
 	jr c,L_9F80		;9f77
 	and 00fh		;9f79
-	ld (ix+006h),a		;9f7b
+	ld (ix+006h),a		;9f7b   ; n
 	inc hl			;9f7e
 	ld a,(hl)			;9f7f
 L_9F80:
-	cp 0e0h		;9f80
+	cp 0e0h		;9f80   ; 0xEn: la octava
 	jr c,L_9F8B		;9f82
 	and 00fh		;9f84
-	ld (ix+005h),a		;9f86
+	ld (ix+005h),a		;9f86   ; n
 	inc hl			;9f89
 	ld a,(hl)			;9f8a
 L_9F8B:
-	and 00fh		;9f8b
+	and 00fh		;9f8b   ; la duracion: (n + 1) por la unidad
 	ld b,a			;9f8d
 	ld a,(ix+00ah)		;9f8e
-	jr z,L_9F98		;9f91
+	jr z,L_9F98		;9f91   ; n = 0: la unidad sola
 L_9F93:
-	add a,(ix+00ah)		;9f93
+	add a,(ix+00ah)		;9f93   ; n unidades mas
 	djnz L_9F93		;9f96
 L_9F98:
-	ld (ix+001h),a		;9f98
+	ld (ix+001h),a		;9f98   ; la duracion de la nota
 	ld a,(hl)			;9f9b
 	inc hl			;9f9c
-	ld (ix+003h),l		;9f9d
+	ld (ix+003h),l		;9f9d   ; el puntero, avanzado
 	ld (ix+004h),h		;9fa0
-	and 0f0h		;9fa3
+	and 0f0h		;9fa3   ; la nota, nibble alto
 	rrca			;9fa5
 	rrca			;9fa6
 	rrca			;9fa7
 	rrca			;9fa8
 	ld b,a			;9fa9
-	sub 00ch		;9faa
-	ld (ix+007h),a		;9fac
+	sub 00ch		;9faa   ; 12: silencio
+	ld (ix+007h),a		;9fac   ; volumen cero
 	jr z,L_9FB7		;9faf
-	ld a,(ix+006h)		;9fb1
+	ld a,(ix+006h)		;9fb1   ; si no, el volumen de la nota
 	ld (ix+007h),a		;9fb4
 L_9FB7:
-	call L_9F20		;9fb7
+	call arma_los_contadores		;9fb7   ; contadores y volumen
 	ld a,b			;9fba
-	ld hl,09fd9h		;9fbb
+	ld hl,09fd9h		;9fbb   ; el semitono, de la tabla de 0x9FD9
 	call suma_a_a_hl		;9fbe
 	ld l,(hl)			;9fc1
 	ld h,000h		;9fc2
 	ld a,(ix+005h)		;9fc4
-	or a			;9fc7
-	jr z,L_9FCE		;9fc8
+	or a			;9fc7   ; sin octava, tal cual
+	jr z,escribe_el_periodo		;9fc8
 	ld b,a			;9fca
 L_9FCB:
-	add hl,hl			;9fcb
+	add hl,hl			;9fcb   ; doblado por cada octava
 	djnz L_9FCB		;9fcc
-L_9FCE:
+
+; ----------------------------------------------------------------------
+; HL al par de registros de tono del canal: C (1, 3 o 5) el byte alto y C - 1 el bajo.
+; ----------------------------------------------------------------------
+escribe_el_periodo:
 	ld a,c			;9fce
 	ld e,h			;9fcf
-	call 00093h		;9fd0   ; BIOS WRTPSG - Writes data to PSG-register
+	call 00093h		;9fd0   ; BIOS WRTPSG - Writes data to PSG-register | el byte alto del periodo
 	ld a,c			;9fd3
 	dec a			;9fd4
 	ld e,l			;9fd5
-	jp 00093h		;9fd6   ; BIOS WRTPSG - Writes data to PSG-register
+	jp 00093h		;9fd6   ; BIOS WRTPSG - Writes data to PSG-register | y el bajo, al registro anterior
 
 ; ----------------------------------------------------------------------
 ; DATOS periodos_de_los_doce_semitonos: Los doce divisores de un semitono:

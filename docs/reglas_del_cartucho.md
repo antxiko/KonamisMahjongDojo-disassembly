@@ -185,4 +185,10 @@ doble yakuman. Con un yakuman en la lista no se escriben las demás jugadas
   a cero y el palo de riichi que se queda en la mesa (el pago del tsumo ya está
   medido en el demo, volcados 040-042).
 - El "sexto envite" de 0x41EC y cómo casa con el cierre de 0x5F00.
-- Quién cobra los 1.000 del riichi del jugador (0x53B8, en la zona de la IA).
+- ~~Quién cobra los 1.000 del riichi del jugador (0x53B8).~~ LEÍDO: los paga el
+  jugador (0x5F24 le quita mil) y suben a la mesa (0xE04A), como los de la
+  máquina.
+- Leer 0x684A: el pon de la máquina se intenta con 14 fichas en mano (la
+  robada ya en 0xE208); si eso es lo que explica las "tres copias".
+- Qué diferencia hay entre los planes de 0xE058 (bits 1, 2, 5: pon; 1, 2: chi;
+  0xF8: no defenderse) más allá de lo que gatean: 0x78F5 los decide.
