@@ -1,11 +1,39 @@
-# El parche de traduccion al ingles de Konami's Mahjong, en formato legible.
-# Lo lee tools/construye_parche_en.py (ahi esta la sintaxis) y saca los
-# fragmentos que tools/parchea.py empalma en el listado.
+# EL PARCHE DE TRADUCCION AL INGLES de Konami's Mahjong (RC-707).
+#
+# Lo lee tools/construye_parche_en.py -que tiene la sintaxis entera en su
+# docstring- y saca los fragmentos que tools/parchea.py empalma en el listado.
+# Nada de esto toca src/mahjong.asm: el desensamblado sigue siendo fiel al
+# cartucho y el parche se construye aparte.
+#
+# El orden importa: [libre] tiene que venir antes que cualquier cosa que se
+# reubique, y los tiles `estrecho` antes de los textos que los usan.
 
-# ---------------------------------------------------------------- el titulo
-# Las tres dificultades. AMACHUA es "amateur" transcrito al romaji; las otras
-# dos ya estaban en ingles. Los tiles {EC ED} son el "key" pequeno del
-# cartucho, y el rotulo del ano y el logotipo (fila 8) se copian tal cual.
+
+# =========================================================================
+# LA ZONA LIBRE
+# =========================================================================
+# Los 8.219 bytes de 0xFF del final del cartucho (0x9FE5-0xBFFF). Aqui van
+# los bloques que en ingles ocupan mas que en japones: el ingles necesita mas
+# celdas que el katakana para decir lo mismo.
+#
+# OJO con lo que esto promete: que el chip original tuviera esos 8 KB
+# grabables es una SUPOSICION (ver .forja/mission.md). En emulador y en
+# flashcart -que es como se juega- funciona seguro.
+
+[libre DATA_relleno_del_final org=0x9FE5 fin=0xC000]
+
+
+# =========================================================================
+# EL TITULO
+# =========================================================================
+# Ya estaba casi todo en ingles: solo AMACHUA es japones (la transcripcion en
+# romaji de "amateur"). El logotipo en kanji se queda: es la portada del
+# juego, no un texto que haya que leer para jugar.
+#
+# Las letras de las filas 18-22 van en la copia ALTA de la fuente grande
+# (tiles 0xC0-0xEF) y las de arriba en la baja (0x10-0x3F); {EC ED} son los
+# dos tiles del "key" pequeno del propio cartucho.
+
 [formatoA DATA_rotulos_del_menu charset=bajo0]
 f13 c9   "KEYBOARD ONLY"
 f16 c10  "PLAY SELECT"
@@ -13,3 +41,151 @@ f18 c6   alto0 "1-" {EC ED} " AMATEUR"
 f20 c6   alto0 "2-" {EC ED} " SEMIPROFESSIONAL"
 f22 c6   alto0 "3-" {EC ED} " PROFESSIONAL"
 f8  c10  {1A 1B 1C 1D 1E 1F 00} "1984"
+
+
+# =========================================================================
+# FASE 1: LA PANTALLA DE RECUENTO
+# =========================================================================
+# Es la pantalla que mas texto japones tiene y la que hay que leer para saber
+# por que has ganado o perdido: los nombres de las jugadas, sus han y sus fu.
+#
+# El tercio de arriba carga en los tiles 0x30-0x7F la fuente katakana del
+# cartucho (bloque de 0x8832, que pisa a la fuente grande a partir del 0x30).
+# Ahi es donde va el alfabeto latino: las letras heredan el color de los tiles
+# que sustituyen (0xF1, blanco sobre negro), asi que no hay que tocar la
+# tabla de colores.
+
+[patrones DATA_fuente_katakana destino=0x6180 tiles=0x30-0x7F]
+30 A@latina_del_cartucho
+31 B@latina_del_cartucho
+32 C@latina_del_cartucho
+33 D@latina_del_cartucho
+34 E@latina_del_cartucho
+35 F@latina_del_cartucho
+36 G@latina_del_cartucho
+37 H@latina_del_cartucho
+38 I@latina_del_cartucho
+39 J@latina_del_cartucho
+3A K@latina_del_cartucho
+3B L@latina_del_cartucho
+3C M@latina_del_cartucho
+3D N@latina_del_cartucho
+3E O@latina_del_cartucho
+3F P@latina_del_cartucho
+40 Q@latina_del_cartucho
+41 R@latina_del_cartucho
+42 S@latina_del_cartucho
+43 T@latina_del_cartucho
+44 U@latina_del_cartucho
+45 V@latina_del_cartucho
+46 W@latina_del_cartucho
+47 X@latina_del_cartucho
+48 Y@latina_del_cartucho
+49 Z@latina_del_cartucho
+4A -@latina_del_cartucho
+4B /@extra
+4C .@extra
+4D +@extra
+# Lo que queda de la katakana ya no hace falta. Los 0x67-0x6F NO se tocan:
+# son las lineas de las cajas de la cabecera, y ademas son INVISIBLES (su
+# color es 0x10, negro sobre transparente), asi que el juego dibuja una
+# rejilla que nunca se ve. Los 0x70-0x7F eran los dos kanji de 24x24 de
+# oya/ko, que aqui pasan a ser texto.
+4E-66 vacio@extra
+70-7F vacio@extra
+
+
+# La cabecera: los rotulos fijos y el borrado de la zona donde luego se
+# escriben las jugadas. Cambia respecto al original que el campo del nombre
+# pasa de 10 celdas a 13 (c15-c27), porque en ingles los nombres son mas
+# largos; el han se corre a c29-c30 y su cajetin a c29-c31.
+#
+#   フ      -> FU      (el numero de fu sigue en c8-c13)
+#   ファン  -> HAN     (el total de han, en c12-c13)
+#   ハライ  -> PAYS    (lo que paga el perdedor, en c8-c13)
+#   トクテン-> SCORE   (lo que cobra el ganador, en c8-c13)
+#   ヤク    -> YAKU    (el titulo de la lista de jugadas)
+#   ファン  -> HAN     (el titulo de la columna del han)
+#
+# Los 67/68 son las lineas invisibles y los DF de la fila 8 el remate de abajo.
+
+[formatoB DATA_dibujo_de_la_cabecera charset=recuento reubica=monta_la_cabecera_del_recuento]
+f0 c8  {67 67 67 67 67 67 00} "     YAKU     HAN"
+f1 c8  "FU    " {00} "                 "
+f2 c8  {68 68 68 68 68 68 00} "                 "
+f3 c8  "HAN   " {00} "                 "
+f4 c3  {67 67 67 67 67 68 68 68 68 68 68 00} "                 "
+f5 c2  "PAYS        " {00} "                 "
+f6 c3  {68 68 68 68 68 68 68 68 68 68 68 00} "                 "
+f7 c2  "SCORE       " {00} "                 "
+f8 c3  {DF DF DF DF DF DF DF DF DF DF DF 00 DF DF DF DF DF DF DF DF DF DF DF DF DF DF DF DF DF}
+
+
+# Quien gana la mano, en las tres filas de arriba a la izquierda. El cartucho
+# pone ahi un kanji de 24x24 -親 (oya, el que reparte) o 子 (ko, el otro)-,
+# hecho con nueve tiles. En ingles caben las palabras enteras.
+
+[formatoA DATA_kanji_del_que_reparte charset=recuento]
+f2 c1  "DEALER"
+
+[formatoA DATA_kanji_del_que_no_reparte charset=recuento]
+f1 c1  "NON"
+f2 c1  "DEALER"
+
+
+# El han de cada jugada se escribe a mano detras de su nombre (0x7143), a
+# tantas celdas del principio. Con el campo de 13 celdas hay que correrlo.
+
+[codigo L_7143]
+ld a,00bh => ld a,00eh
+once celdas a la derecha del nombre => catorce celdas: el campo del nombre son trece
+
+
+# LOS 39 NOMBRES DE JUGADA, en romaji. Se quedan en romaji a proposito: son
+# los nombres con los que se juega al mahjong en cualquier idioma, y
+# traducirlos ("all simples", "half flush") los alejaria de lo que el jugador
+# va a leer en cualquier manual. El han de cada uno se copia del registro
+# original, que es donde el cartucho lo lleva escrito.
+#
+# El indice es el que usa 0x82E6 al apuntar la jugada. Los once primeros son
+# los yakuman (mano limite) y no llevan han.
+
+[nombres DATA_nombres_de_las_jugadas DATA_tabla_de_punteros_de_jugadas charset=recuento relleno=13]
+1  "TENHOU"
+2  "CHIIHOU"
+3  "KOKUSHIMUSOU"
+4  "TSUUIISOU"
+5  "DAISUUSHII"
+6  "DAISANGEN"
+7  "CHUURENPOUTOU"
+8  "CHINROUTOU"
+9  "RYUUIISOU"
+10 "SUUANKOU"
+11 "SUUKANTSU"
+12 "DOUBLE RIICHI"
+13 "RIICHI"
+14 "RIICHI IPPATS"
+15 "DOUBLE+IPPATS"
+16 "MENZEN TSUMO"
+17 "CHINITSU"
+18 "RYANPEIKOU"
+19 "SANSHOKU DOKO"
+20 "CHIITOITSU"
+21 "HONITSU"
+22 "TOITOI"
+23 "JUNCHAN"
+24 "SANANKOU"
+25 "SANKANTSU"
+26 "SHOUSANGEN"
+27 "HONROUTOU"
+28 "PINFU"
+29 "TANYAO"
+30 "IIPEIKOU"
+31 "ITTSUU"
+32 "SANSHOKU"
+33 "CHANTA"
+34 "YAKUHAI"
+35 "HAITEI TSUMO"
+36 "HOUTEI RON"
+37 "RINSHAN"
+38 "DORA+URA DORA"

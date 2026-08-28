@@ -10642,8 +10642,14 @@ DATA_fuente_katakana:
 
 ; ----------------------------------------------------------------------
 ; DATOS colores_de_la_fuente_katakana: Formato B desde 0x7094: 640 bytes a los
-;   colores 0x0180, todos 0xF1, blanco sobre negro, para los tiles 0x30-0x7F.
-;   Es lo que habia en work/fuente_katakana.bin, tomado por la fuente.
+;   colores 0x0180, para los tiles 0x30-0x7F. NO son todos iguales, y ahi hay
+;   un hallazgo: 0x30-0x66 y 0x70-0x7F van a 0xF1 (blanco sobre negro),
+;   0x6A-0x6E a 0xF1 con la ultima fila a 0x00, y los tiles 0x67, 0x68, 0x69 y
+;   0x6F -las lineas con las que 0x7376 dibuja la rejilla de cajas de la
+;   cabecera del recuento- van a 0x10, que es NEGRO SOBRE TRANSPARENTE: LA
+;   REJILLA SE PINTA Y NO SE VE. Medido descomprimiendo el bloque y contra la
+;   VRAM del recuento (tools/pantalla.py sobre los volcados). Es lo que habia
+;   en work/fuente_katakana.bin, tomado por la fuente.
 ;   0x8a78..0x8a9f  (39 bytes)
 DATA_colores_de_la_fuente_katakana:
 	defb 080h,041h,078h,0f1h,078h,0f1h,078h,0f1h,050h,0f1h,018h,010h,007h,0f1h,081h,000h	; 8a78  .Ax.x.x.P.......

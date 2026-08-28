@@ -23,6 +23,10 @@ definen en una seccion [patrones] y se usan despues.
       fFILA cCOL [charset] token token ...
       Igual, pero sale comprimido en formato B (0x468F), como los avisos.
 
+  Las dos admiten `reubica=RUTINA`: el bloque no cabe en su hueco, asi que se
+  aparca en la zona libre del final y el `ld hl,0XXXXh` de RUTINA se reapunta.
+  El hueco original queda a 0xFF.
+
   [cuerpos BLOQUE charset=NOMBRE]
       0xDIRECCION token token ...
       Cuerpos de formato A SIN destino (los lee 0x40A3 con DE ya puesto),
@@ -104,9 +108,10 @@ CHARSETS = {
     "bajo0": _mapa(0x21, 0x10, 0x00, {"-": 0x20, '"': 0x3B}),
     # y con el blanco de la mesa (tile 1) de espacio
     "bajo1": _mapa(0x21, 0x10, 0x01, {"-": 0x20}),
-    # la fuente nueva del recuento (tercio de arriba, en el sitio de la katakana)
-    "recuento": _mapa(0x30, 0x10, 0x01, {"-": 0x4A, "/": 0x4B, ".": 0x4C, "+": 0x4D,
-                                        "'": 0x4E, "&": 0x4F, "!": 0x50, "?": 0x51}),
+    # La fuente nueva del RECUENTO, en el sitio de la katakana (tiles 0x30-0x7F
+    # del tercio de arriba). Los digitos NO son suyos: son los de la fuente
+    # grande, que ya esta cargada en 0x10-0x19 y la katakana no llega a pisar.
+    "recuento": _mapa(0x30, 0x10, 0x01, {"-": 0x4A, "/": 0x4B, ".": 0x4C, "+": 0x4D}),
 }
 DIGRAFOS = {}          # "AB" -> tile, lo llenan las lineas `estrecho`
 
@@ -313,6 +318,16 @@ def relleno(n):
     return [TAB + "defs %d,0ffh" % n] if n > 0 else []
 
 
+def mete_en_la_zona_libre(libre, bloque, datos):
+    """Aparca `datos` en la zona libre del final y devuelve su direccion."""
+    if libre is None:
+        raise SystemExit("%s: hace falta una seccion [libre] ANTES para reubicar" % bloque)
+    org = libre[1] + sum(len(d) for _, d in libre[3])
+    nombre = bloque[5:] if bloque.startswith("DATA_") else bloque
+    libre[3].append((nombre + "_en_ingles", datos))
+    return org
+
+
 def escribe_fragmento(dir_salida, n, bloque, lineas, hasta=None):
     ruta = os.path.join(dir_salida, "%02d_%s.asm" % (n, bloque))
     cab = ["; @bloque %s" % bloque]
@@ -393,8 +408,23 @@ def main():
             for lista in listas:
                 entradas = lineas_de_texto(lista, cs)
                 datos += formato_a(entradas) if tipo == "formatoA" else formato_b.comprime(entradas)
+            if "reubica" in args:
+                # No cabe en su hueco (o no queremos que quepa): el bloque se va
+                # a la zona libre del final y la instruccion que lo carga se
+                # reapunta. El hueco original queda a 0xFF.
+                nuevo = mete_en_la_zona_libre(libre, bloque, bytes(datos))
+                rutina = args["reubica"]
+                escribe_fragmento(dir_salida, n, rutina,
+                                  sustituye(lineas_del_bloque(listado, rutina),
+                                            [("0%04xh" % ini, "0%04xh" % nuevo)], rutina))
+                escribe_fragmento(dir_salida, n, bloque,
+                                  ["; reubicado en 0x%04X: no cabia en sus %d bytes" % (nuevo, tam)]
+                                  + relleno(tam))
+                informe.append("%-38s %-8s %4d bytes -> 0x%04X (su hueco eran %d)"
+                               % (bloque, tipo, len(datos), nuevo, tam))
+                continue
             if len(datos) > tam:
-                raise SystemExit("%s: %d bytes y solo caben %d" % (bloque, len(datos), tam))
+                raise SystemExit("%s: %d bytes y solo caben %d (usa reubica=RUTINA)" % (bloque, len(datos), tam))
             lineas = defb(datos, "%s: %d de %d bytes" % (tipo, len(datos), tam)) + relleno(tam - len(datos))
             escribe_fragmento(dir_salida, n, bloque, lineas)
             informe.append("%-38s %-8s %4d/%4d bytes" % (bloque, tipo, len(datos), tam))
@@ -549,11 +579,15 @@ def main():
                 raise SystemExit("nombres: hace falta una seccion [libre] antes")
             ini, fin, tam = tamano(bloque)
             ini_p, fin_p, tam_p = tamano(punteros)
-            # los registros originales: FF, luego cada nombre terminado en FF
-            crudo = rom[ini - ORG:fin - ORG]
-            registros = crudo[1:].split(b"\xFF")[:-1]
-            if len(registros) != 38:
-                raise SystemExit("nombres: el cartucho tiene %d registros y no 38" % len(registros))
+            # LOS REGISTROS NO ESTAN EN ORDEN DE INDICE: los ordena la tabla de
+            # punteros. Para copiar el han de cada jugada hay que ir por ella.
+            tabla_orig = rom[ini_p - ORG:fin_p - ORG]
+            registros = {}
+            for idx in range(39):
+                d = tabla_orig[idx * 2] | (tabla_orig[idx * 2 + 1] << 8)
+                if not ini <= d < fin:
+                    raise SystemExit("nombres: el puntero %d (0x%04X) no cae en el bloque" % (idx, d))
+                registros[idx] = bytes(rom[d - ORG:rom.index(0xFF, d - ORG)])
             nombres = {}
             for ln in cuerpo:
                 m = re.match(r'^(\d+)\s+"([^"]*)"', ln)
@@ -566,22 +600,23 @@ def main():
             blanco = CHARSETS[cs][" "]
             datos = bytearray([0xFF])
             desplaz = {0: 0}
+            con_han = 0
             for idx in range(1, 39):
-                reg = registros[idx - 1]
-                # el han viene como ultimo byte tras `00 01` en los registros normales
-                han = reg[-1] if len(reg) == 13 and reg[10] == 0x00 else None
+                reg = registros[idx]
+                # Los registros normales acaban en `00 01 han` (el 0x00 separa,
+                # el 0x01 son las decenas en blanco). Los once yakuman no llevan
+                # han: su nombre acaba y ya. Ningun tile de nombre es 0x00, asi
+                # que el patron distingue los dos casos sin ambiguedad.
+                han = reg[-1] if len(reg) >= 3 and reg[-3] == 0x00 else None
                 cod = codifica(nombres[idx], cs)
                 if len(cod) > campo:
                     raise SystemExit("nombres: %r mide %d celdas y el campo es de %d" % (nombres[idx], len(cod), campo))
                 desplaz[idx] = len(datos)
                 if han is not None:
-                    # nombre, blancos hasta el campo, un blanco (las decenas del
-                    # han, que el codigo pisa) y el han: la misma celda relativa
-                    # que en el original desplazada al campo nuevo
-                    cod = cod + bytes([blanco]) * (campo - len(cod)) + bytes([0x01, han])
+                    con_han += 1
+                    cod = cod + bytes([blanco]) * (campo - len(cod)) + bytes([0x00, 0x01, han])
                 datos += cod + b"\xFF"
-            org_nombres = libre[1] + sum(len(d) for _, d in libre[3])
-            libre[3].append(("nombres_de_las_jugadas_en", bytes(datos)))
+            org_nombres = mete_en_la_zona_libre(libre, bloque, bytes(datos))
             tabla = bytearray()
             for idx in range(39):
                 d = org_nombres + desplaz[idx]
@@ -592,8 +627,8 @@ def main():
             escribe_fragmento(dir_salida, n, bloque,
                               ["; los nombres en katakana ya no se usan: los ingleses estan en 0x%04X" % org_nombres]
                               + relleno(tam))
-            informe.append("%-38s nombres: %d bytes en 0x%04X (los originales, %d en su sitio)"
-                           % (bloque, len(datos), org_nombres, tam))
+            informe.append("%-38s nombres: 38 (%d con han) en %d bytes desde 0x%04X (antes %d)"
+                           % (bloque, con_han, len(datos), org_nombres, tam))
             continue
 
         raise SystemExit("seccion desconocida: %s" % tipo)

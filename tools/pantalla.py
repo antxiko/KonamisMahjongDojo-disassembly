@@ -16,6 +16,7 @@ colores, 16 por fila, para saber que glifo es cada numero.
 Uso:
   pantalla.py <volcado.vram> [--png salida.png] [--mapa salida.txt]
               [--hoja 0|1|2 --png hoja.png] [--escala N] [--sin-sprites]
+              [--recorte f0,c0,f1,c1 --png trozo.png]
 
 Las bases de las tablas se leen del .vdp que va al lado del .vram si existe;
 si no, las de este cartucho (nombres 0x3800, patrones 0x2000, colores 0x0000,
@@ -81,12 +82,20 @@ def pantalla(vram, b, escala, sprites=True):
                        b["patrones"] + tercio * 0x800 + t * 8,
                        b["colores"] + tercio * 0x800 + t * 8, escala)
     if sprites:
-        alto = 16 if b["spr16"] else 8
-        for i in range(31, -1, -1):          # los de menor numero, encima
+        # La lista de sprites TERMINA en el primero con y=208, y hay que
+        # contarlos hacia delante: los atributos que vienen detras son basura
+        # sin inicializar. (Costo una tarde: dibujados al reves con un `break`
+        # dentro, salian 31 sprites fantasma encima de la pantalla, y parecian
+        # parte del juego.) Luego se pintan de mayor a menor indice, para que
+        # el de numero mas bajo quede encima, como hace el VDP.
+        validos = 32
+        for i in range(32):
+            if vram[b["spr_atr"] + i * 4] == 208:
+                validos = i
+                break
+        for i in range(validos - 1, -1, -1):
             a = b["spr_atr"] + i * 4
             y, x, n, c = vram[a], vram[a + 1], vram[a + 2], vram[a + 3]
-            if y == 208:
-                break
             if c & 0x80:
                 x -= 32
             c &= 0x0F
@@ -150,6 +159,12 @@ def main():
         tercio = int(args[args.index("--hoja") + 1])
         im = hoja(vram, b, tercio, max(escala, 3))
         im.save(png or os.path.splitext(ruta)[0] + "_hoja%d.png" % tercio)
+        return 0
+    if "--recorte" in args:
+        f0, c0, f1, c1 = (int(x) for x in args[args.index("--recorte") + 1].split(","))
+        im = pantalla(vram, b, escala, "--sin-sprites" not in args)
+        im = im.crop((c0 * 8 * escala, f0 * 8 * escala, (c1 + 1) * 8 * escala, (f1 + 1) * 8 * escala))
+        im.save(png or os.path.splitext(ruta)[0] + "_recorte.png")
         return 0
     filas = mapa(vram, b)
     texto = ["      " + " ".join("%2d" % c for c in range(32))]
