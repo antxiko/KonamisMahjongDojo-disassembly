@@ -725,20 +725,40 @@ f12 c11  {01 14 15 01 1A 1B 01 20 21 01}
 # puerta del teclado sigue viva porque el estado 14 ya ha apagado el bit 6 de
 # 0xE002 antes de llamarnos.
 #
-# CON QUE SE PINTA, medido sobre el volcado del estado 14 (work/vram_final,
-# tools/dibuja_las_fichas.py) y no supuesto:
-#   - los tres tercios llevan los MISMOS patrones y los MISMOS colores, que
+# CON QUE SE PINTA, medido sobre el volcado del estado 14 (work/vram_attract,
+# tools/dibuja_las_fichas.py y tools/pantalla.py --hoja) y no supuesto:
+#   - los tres tercios llegan IDENTICOS byte a byte, patrones y colores, que
 #     los iguala `replica_patrones_y_colores_en_los_tercios`. Se puede pintar
 #     en las 24 filas con el mismo juego de tiles, y una hilera de fichas
 #     puede cruzar de un tercio al siguiente sin partirse.
 #   - el alfabeto latino del parche esta en 0x30-0x49 (charset `recuento`),
 #     blanco sobre negro, y el tile 0x01 es el negro.
-#   - estan enteras las nueve fichas de CARACTERES y las nueve de BAMBUES,
-#     mas el dorso y el hueco; de los circulos solo el 1 y el 2.
-#   - NO hay honores: sus tiles (0x2E-0x57) son justo los que ocupa el
-#     alfabeto. Dibujarlos da las letras WXYZ / QRST / KLMN, no los vientos.
+#   - de las 34 fichas solo llegan enteras las nueve de CARACTERES, las nueve
+#     de BAMBUES, los circulos 1 y 2, el dorso y el hueco. FALTAN los siete
+#     honores y los circulos del 3 al 9: dieciseis fichas de treinta y cuatro.
 #   - los DIGITOS no valen aqui: 0x10-0x19 son los trozos del rotulo END.
 #     Por eso las diapositivas no llevan ni una cifra.
+#
+# LAS DIECISEIS FICHAS QUE FALTAN, Y COMO SE METEN. Un tutorial de mahjong que
+# nombra los vientos y los dragones sin ensenarlos no ensena nada, asi que hay
+# que cargarlos. El sitio de siempre no sirve -los honores viven en los tiles
+# 0x2E-0x57 y ahi esta el alfabeto del parche; los circulos 3-9 en 0x58-0x81 y
+# ahi no hay patron ninguno-, pero los numeros de tile no tienen nada de
+# sagrado: el dibujo se puede cargar en CUALQUIER hueco y pedirlo por su numero
+# nuevo. Contando los tiles que el attract no dibuja jamas quedan libres
+# 0x02-0x2D (el rotulo END, que ya no se vuelve a pintar) y 0x4E-0x81, y con
+# eso caben las dieciseis:
+#     honores 0x2E-0x57 -> 0x4E-0x77      circulos 3-9 0x58-0x81 -> 0x02-0x2B
+#     dorso   0x28-0x2D -> 0x78-0x7D      (lo echan los circulos de su sitio)
+# Los patrones y los colores salen de los bloques de la ROM ORIGINAL (0x9343 y
+# 0x99F9, el par del tercio de abajo), NO del bloque ya parcheado: el charset
+# `cajas` mete letras en los tiles 0x49, 0x4F, 0x54 y 0x55, que caen dentro del
+# rango de los honores.
+#
+# Y SE CARGAN EN UN SOLO TERCIO. Escribir los tres cuesta el triple; como la
+# pantalla del final trae los tres identicos -medido-, basta con dejarlos en el
+# primero y llamar a `replica_patrones_y_colores_en_los_tercios`, la misma
+# rutina que usa el cartucho en 0x43B3, tambien desde la interrupcion.
 #
 # LA LETRA A HAY QUE CARGARLA, y esto costo una medida: en esta pantalla el
 # tile 0x30 no es la A sino el VERDE del interior de la caja del final
@@ -748,7 +768,7 @@ f12 c11  {01 14 15 01 1A 1B 01 20 21 01}
 # "SECOND ONE / AND BACK" con dos cuadrados verdes donde iban las aes.
 # No se puede arreglar en el bloque del final -ese verde SI se ve, durante los
 # 64 fotogramas que tarda el muro de fichas en taparlo-, asi que el attract se
-# carga su propia A en los tres tercios antes de la primera diapositiva.
+# carga su propia A antes de la primera diapositiva.
 
 [asmlibre attract]
 ; ----------------------------------------------------------------------
@@ -761,16 +781,15 @@ attract:
 	cp attract_cuantas
 	jr nc,attract_termina	; vistas todas: el ciclo del demo sigue su camino
 	inc (hl)
-	or a			; en la primera hay que cargar los tiles que faltan
-	jr nz,attract_pinta
-	push af
-	ld hl,attract_la_letra_a
-	call L_409D
-	pop af
-attract_pinta:
 	push af
 	call attract_limpia	; la pantalla, a negro: viene con el rotulo END
 	pop af
+	or a			; en la primera hay que cargar los tiles que faltan
+	jr nz,attract_pinta
+	push af
+	call attract_carga_los_tiles	; y se cargan con la pantalla YA en negro:
+	pop af				; tardan 1,24 s medidos, y ese rato se veria
+attract_pinta:				; el rotulo END con los tiles ya pisados
 	add a,a			; dos bytes por entrada
 	ld hl,attract_tabla
 	call suma_a_a_hl
@@ -784,6 +803,23 @@ attract_pinta:
 	ret			; y a seguir en el estado 14, que volvera a llamarnos
 attract_termina:
 	jp vuelve_al_estado_0
+
+; ----------------------------------------------------------------------
+; Las dieciseis fichas que a esta pantalla le faltan, mas la letra A. Todo al
+; PRIMER tercio, y luego la rutina del cartucho lo reparte a los otros dos: la
+; pantalla del final llega con los tres identicos, asi que replicar el tercio
+; entero no pisa nada y sale por la tercera parte de los bytes.
+; ----------------------------------------------------------------------
+attract_carga_los_tiles:
+	ld hl,attract_los_honores	; vientos y dragones, a los tiles 0x4E-0x77
+	call pinta_lista_formato_b
+	ld hl,attract_los_circulos	; los circulos 3-9, a 0x02-0x2B
+	call pinta_lista_formato_b
+	ld hl,attract_el_dorso		; y el dorso, que se queda sin su sitio
+	call pinta_lista_formato_b
+	ld hl,attract_la_letra_a
+	call L_409D
+	jp replica_patrones_y_colores_en_los_tercios
 
 ; ----------------------------------------------------------------------
 ; Pone toda la tabla de nombres al tile negro. Con formato A costaria los 768
@@ -821,136 +857,192 @@ attract_tabla:
 	defw attract_11
 	defw attract_12
 	defw attract_13
-attract_cuantas: equ 13
+	defw attract_14
+attract_cuantas: equ 14
 
 
-# La A que falta, en los tres tercios: ocho bytes de patron a 0x2180/0x2980/
-# 0x3180 y su color -0xF1, blanco sobre negro, el mismo que el resto del
-# alfabeto- a 0x0180/0x0980/0x1180. Es una lista de formato A como las demas:
-# el interprete escribe donde se le diga, tambien fuera de la tabla de nombres.
+# Los tiles que faltan, sacados de la ROM ORIGINAL y reubicados. A partir de
+# aqui las diapositivas piden HON1..HON7, PIN3..PIN9 y DORSO por su nombre de
+# siempre y salen los numeros nuevos: los reescribe el generador.
+
+[tilesnuevos attract_los_honores patrones=0x9343 colores=0x99F9 a=0x4E]
+HON1 HON2 HON3 HON4 HON5 HON6 HON7
+
+[tilesnuevos attract_los_circulos patrones=0x9343 colores=0x99F9 a=0x02]
+PIN3 PIN4 PIN5 PIN6 PIN7 PIN8 PIN9
+
+[tilesnuevos attract_el_dorso patrones=0x9343 colores=0x99F9 a=0x78]
+DORSO
+
+
+# La A que falta: ocho bytes de patron a 0x2180 y su color -0xF1, blanco sobre
+# negro, el mismo que el resto del alfabeto- a 0x0180. Solo el primer tercio,
+# que de repartirlo ya se encarga la rutina del cartucho. Es una lista de
+# formato A como las demas: el interprete escribe donde se le diga, tambien
+# fuera de la tabla de nombres.
 
 [diapositiva attract_la_letra_a]
 @0x2180 <A@latina_del_cartucho>
-@0x2980 <A@latina_del_cartucho>
-@0x3180 <A@latina_del_cartucho>
 @0x0180 {F1 F1 F1 F1 F1 F1 F1 F1}
-@0x0980 {F1 F1 F1 F1 F1 F1 F1 F1}
-@0x1180 {F1 F1 F1 F1 F1 F1 F1 F1}
 
 
-# EL TUTORIAL, trece pantallas. El contenido sale de docs/reglas_del_cartucho.md
+# EL TUTORIAL, catorce pantallas. El contenido sale de docs/reglas_del_cartucho.md
 # -el manual del paso 5, con cada regla anclada a la rutina que la decide-, asi
 # que lo que se ensena aqui es lo que hace ESTE cartucho y no el mahjong de un
 # libro: dos jugadores, treinta mil puntos cada uno, y el furiten de la casa.
 #
-# Sin una sola cifra: los digitos no estan cargados en esta pantalla (0x10-0x19
-# son los trozos del rotulo END), asi que los numeros van escritos con letras.
+# Y se ensena CON FICHAS: las treinta y cuatro estan dibujadas en alguna de las
+# catorce pantallas, y cada regla lleva al lado el ejemplo de lo que dice. Sin
+# una sola cifra: los digitos no estan cargados en esta pantalla (0x10-0x19 son
+# los trozos del rotulo END), asi que los numeros van escritos con letras.
 
 [diapositiva attract_1 charset=recuento]
-centro f6  "HOW TO PLAY"
-centro f8  "MAHJONG DOJO"
-centro f13 "A GAME FOR TWO PLAYERS"
-centro f15 "YOU AND THE COMPUTER"
+centro f2  "HOW TO PLAY"
+centro f4  "MAHJONG DOJO"
+fichas centro f8  DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO
+centro f14 "A GAME FOR TWO PLAYERS"
+centro f16 "YOU AND THE COMPUTER"
+centro f20 "WATCH AND LEARN"
 
 [diapositiva attract_2 charset=recuento]
-centro f2  "THE TILES"
-fichas centro f6  MAN1 MAN5 MAN9 SOU1 SOU5 SOU9 PIN1
-centro f12 "THREE SUITS NUMBERED"
-centro f14 "ONE TO NINE"
-centro f17 "PLUS WINDS AND DRAGONS"
-centro f19 "FOUR COPIES OF EACH"
+centro f0  "THE TILES"
+centro f2  "THREE SUITS ONE TO NINE"
+fichas centro f4   MAN1 MAN2 MAN3 MAN4 MAN5 MAN6 MAN7 MAN8 MAN9
+fichas centro f9   PIN1 PIN2 PIN3 PIN4 PIN5 PIN6 PIN7 PIN8 PIN9
+fichas centro f14  SOU1 SOU2 SOU3 SOU4 SOU5 SOU6 SOU7 SOU8 SOU9
+centro f19 "FOUR COPIES OF EACH TILE"
+centro f21 "AND SEVEN MORE TO COME"
 
 [diapositiva attract_3 charset=recuento]
-centro f2  "YOUR HAND"
-fichas centro f6  MAN1 MAN2 MAN3 SOU4 SOU5 SOU6 MAN7 MAN7 MAN7 SOU9 SOU9 SOU9 PIN1
-centro f12 "YOU HOLD THIRTEEN TILES"
-centro f15 "EACH TURN YOU DRAW ONE"
-centro f17 "AND THROW ONE AWAY"
+centro f1  "WINDS AND DRAGONS"
+fichas f4 c4   HON1
+f5  c8   "EAST"
+fichas f4 c17  HON2
+f5  c21  "SOUTH"
+fichas f9 c4   HON3
+f10 c8   "WEST"
+fichas f9 c17  HON4
+f10 c21  "NORTH"
+fichas f14 c4  HON5
+f15 c8   "WHITE"
+fichas f14 c17 HON6
+f15 c21  "GREEN"
+fichas f19 c4  HON7
+f20 c8   "RED"
+f20 c16  "NEVER IN A RUN"
 
 [diapositiva attract_4 charset=recuento]
-centro f2  "THE GOAL"
-fichas centro f6  MAN1 MAN2 MAN3 HUECO SOU4 SOU5 SOU6
-fichas centro f11  MAN7 MAN7 MAN7 HUECO SOU9 SOU9 SOU9 HUECO PIN1 PIN1
-centro f17 "FOUR SETS AND ONE PAIR"
-centro f19 "FOURTEEN TILES IN ALL"
+centro f1  "YOUR HAND"
+fichas centro f4  MAN1 MAN2 MAN3 SOU4 SOU5 SOU6 MAN7 MAN7 MAN7 SOU9 SOU9 SOU9 PIN1
+centro f9  "THIRTEEN TILES"
+centro f12 "EACH TURN YOU DRAW ONE"
+fichas centro f15  PIN5
+centro f20 "AND THROW ONE AWAY"
 
 [diapositiva attract_5 charset=recuento]
-centro f2  "A RUN"
-fichas centro f6  SOU3 SOU4 SOU5
-centro f12 "THREE TILES IN ORDER"
-centro f14 "ALL OF THE SAME SUIT"
-centro f17 "WINDS AND DRAGONS"
-centro f19 "CANNOT MAKE RUNS"
+centro f1  "THE GOAL"
+centro f3  "FOUR SETS AND ONE PAIR"
+fichas centro f6   MAN1 MAN2 MAN3 HUECO SOU4 SOU5 SOU6
+fichas centro f11  MAN7 MAN7 MAN7 HUECO PIN2 PIN2 PIN2
+fichas centro f16  SOU9 SOU9
+centro f21 "FOURTEEN TILES IN ALL"
 
 [diapositiva attract_6 charset=recuento]
-centro f2  "A TRIPLET"
-fichas centro f6  MAN7 MAN7 MAN7
-centro f12 "THREE TILES THE SAME"
-centro f15 "ANY TILE CAN MAKE ONE"
+centro f1  "A RUN"
+centro f3  "THREE IN ORDER SAME SUIT"
+fichas centro f6   SOU3 SOU4 SOU5
+fichas centro f11  PIN6 PIN7 PIN8
+centro f16 "BUT NEVER LIKE THIS"
+fichas centro f18  HON1 HON2 HON3
 
 [diapositiva attract_7 charset=recuento]
-centro f2  "THE PAIR"
-fichas centro f6  PIN1 PIN1
-centro f12 "TWO TILES THE SAME"
-centro f15 "EVERY HAND NEEDS ONE"
+centro f1  "A TRIPLET"
+centro f3  "THREE TILES THE SAME"
+fichas centro f6   MAN7 MAN7 MAN7
+centro f11 "ANY TILE CAN MAKE ONE"
+fichas centro f14  HON6 HON6 HON6
+centro f19 "EVEN A WIND OR A DRAGON"
 
 [diapositiva attract_8 charset=recuento]
-centro f2  "CALLING"
-centro f6  "WHEN YOUR RIVAL THROWS"
-centro f8  "A TILE THAT YOU NEED"
-f12 c3   "PON"
-f12 c9   "TAKE IT FOR A TRIPLET"
-f14 c3   "CHI"
-f14 c9   "TAKE IT FOR A RUN"
-f16 c3   "KAN"
-f16 c9   "TAKE A FOURTH COPY"
-centro f20 "BUT YOUR HAND OPENS UP"
+centro f1  "THE PAIR"
+centro f3  "TWO TILES THE SAME"
+fichas centro f6   PIN1 PIN1
+centro f11 "EVERY HAND NEEDS ONE"
+centro f13 "AND ONLY ONE"
+fichas centro f16  HON5 HON5
+centro f21 "THE WHITE DRAGON IS BLANK"
 
 [diapositiva attract_9 charset=recuento]
-centro f2  "RIICHI"
-centro f6  "ONE TILE AWAY FROM"
-centro f8  "WINNING AND YOUR HAND"
-centro f10 "STILL CLOSED"
-centro f14 "DECLARE RIICHI"
-centro f17 "IT COSTS ONE THOUSAND"
-centro f19 "AND YOUR HAND IS FROZEN"
+centro f0  "CALLING"
+centro f2  "WHEN YOUR RIVAL THROWS"
+f6  c1   "PON"
+fichas f5 c6    SOU5 SOU5
+fichas f5 c12   SOU5
+f6  c16  "A TRIPLET"
+f11 c1   "CHI"
+fichas f10 c6   MAN3 MAN4
+fichas f10 c12  MAN5
+f11 c16  "A RUN"
+f16 c1   "KAN"
+fichas f15 c6   HON1 HON1 HON1
+fichas f15 c13  HON1
+f16 c17  "FOUR"
+centro f21 "BUT YOUR HAND OPENS UP"
 
 [diapositiva attract_10 charset=recuento]
-centro f2  "TO WIN"
-f7  c5   "TSUMO"
-f7  c13  "YOU DRAW IT"
-f10 c5   "RON"
-f10 c13  "HE THROWS IT"
-centro f14 "THEN CALL AGARI"
-centro f18 "HAN AND FU MAKE"
-centro f20 "THE HAND WORTH MORE"
+centro f0  "RIICHI"
+fichas centro f2  MAN1 MAN2 MAN3 SOU4 SOU5 SOU6 MAN7 MAN7 MAN7 SOU9 SOU9 PIN1 PIN1
+centro f7  "ONE TILE AWAY AND CLOSED"
+centro f9  "YOU ARE WAITING FOR"
+fichas centro f11  SOU9
+centro f16 "DECLARE RIICHI"
+centro f18 "IT COSTS ONE THOUSAND"
+centro f20 "AND YOUR HAND IS FROZEN"
 
 [diapositiva attract_11 charset=recuento]
-centro f2  "BE CAREFUL"
-centro f6  "IF YOU HAVE ALREADY"
-centro f8  "THROWN A TILE THAT"
-centro f10 "COMPLETES YOUR HAND"
-centro f12 "YOU CANNOT CALL RON"
-centro f16 "CALLING WITH NO HAND"
-centro f18 "IS A PENALTY"
+centro f0  "TO WIN"
+f4  c2   "TSUMO"
+fichas f3 c11  PIN1
+f4  c15  "YOU DRAW IT"
+f9  c2   "RON"
+fichas f8 c11  PIN1
+f9  c15  "HE THROWS IT"
+centro f14 "THEN CALL AGARI"
+centro f17 "HAN AND FU MAKE"
+centro f19 "THE HAND WORTH MORE"
+centro f21 "AND DORA COUNTS TOO"
 
 [diapositiva attract_12 charset=recuento]
-centro f2  "THE SCORE"
-centro f6  "BOTH START WITH"
-centro f8  "THIRTY THOUSAND POINTS"
-centro f12 "THE DORA TILES"
-centro f14 "ARE WORTH MORE"
-centro f18 "TWO ROUNDS EAST AND SOUTH"
+centro f0  "BE CAREFUL"
+centro f2  "IF YOU ALREADY THREW AWAY"
+fichas centro f4  PIN2 SOU7 MAN4 PIN1 SOU2
+centro f9  "A TILE THAT COMPLETES"
+centro f11 "YOUR HAND"
+fichas centro f13  PIN1
+centro f18 "YOU CANNOT CALL RON"
+centro f20 "AND CALLING WITH NO HAND"
+centro f22 "IS A PENALTY"
 
 [diapositiva attract_13 charset=recuento]
-centro f4  "PRESS ONE TWO OR THREE"
-centro f6  "TO START"
-f11 c6   "ONE"
-f11 c14  "AMATEUR"
+centro f0  "THE SCORE"
+centro f2  "BOTH START WITH"
+centro f4  "THIRTY THOUSAND POINTS"
+centro f7  "ONE TILE IS TURNED UP"
+fichas centro f9   DORSO DORSO SOU4 DORSO DORSO
+centro f14 "AND THE NEXT ONE IS DORA"
+fichas centro f16  SOU5
+centro f21 "TWO ROUNDS EAST AND SOUTH"
+
+[diapositiva attract_14 charset=recuento]
+centro f3  "PRESS ONE TWO OR THREE"
+centro f5  "TO START"
+f10 c6   "ONE"
+f10 c14  "AMATEUR"
 f13 c6   "TWO"
 f13 c14  "SEMIPROFESSIONAL"
-f15 c6   "THREE"
-f15 c14  "PROFESSIONAL"
+f16 c6   "THREE"
+f16 c14  "PROFESSIONAL"
+centro f21 "GOOD LUCK"
 
 
 # El enganche, un solo `jp`: en vez de cerrar el ciclo, pasa por el attract.

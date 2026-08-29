@@ -11,9 +11,12 @@
 # a la diapositiva siguiente. Otro watchpoint sobre 0xE000 avisa de la vuelta
 # al estado 0, que es la prueba de que el ciclo no se ha roto.
 #
-# La foto se toma un poco DESPUES de la escritura: el attract incrementa el
-# contador antes de pintar, asi que en el instante del watchpoint la pantalla
-# todavia esta en negro.
+# La foto se toma DOS SEGUNDOS despues de la escritura: el attract incrementa
+# el contador antes de pintar, asi que en el instante del watchpoint la pantalla
+# todavia esta en negro. Dos segundos porque la PRIMERA diapositiva llega tarde:
+# antes de pintarla hay que cargar los tiles que a esta pantalla le faltan, y eso
+# son 1,24 s medidos (tools/omsx_mide_la_carga.tcl). Cada diapositiva dura 6,4 s,
+# asi que dos segundos caen dentro de todas.
 #
 # Salida: work/vram_attract/<n>_diapo<k>.{vram,vdp,ram} y el log
 # work/omsx_mira_el_attract.log.
@@ -65,7 +68,7 @@ proc mira_el_submodo {} {
     if {[debug read memory 0xE000] != 14} { return }
     set k [debug read memory 0xE001]
     say "attract: diapositiva $k"
-    after time 0.4 [list foto "diapo$k"]
+    after time 2.0 [list foto "diapo$k"]
 }
 
 # El estado 0 tambien se escribe al ARRANCAR el cartucho, asi que la vuelta
@@ -75,7 +78,11 @@ proc mira_el_estado {} {
     if {$e == 0 && $::NFOTO > 0} {
         incr ::VUELTAS
         say "vuelta al estado 0: el ciclo del demo sigue despues del attract"
-        after time 1.0 {
+        # Y una foto MAS TARDE, con el titulo ya montado: el attract carga sus
+        # tiles encima de los del rotulo END y no restaura ninguno, asi que la
+        # prueba de que no deja basura detras es ver la pantalla siguiente.
+        after time 6.0 {
+            foto "despues_del_attract"
             say "listo: el attract salio entero y el demo continuo"
             exit
         }

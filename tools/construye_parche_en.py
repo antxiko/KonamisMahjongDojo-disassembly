@@ -87,6 +87,17 @@ definen en una seccion [patrones] y se usan despues.
       de [asmlibre] la llama por ese nombre. Es lo que pinta cada pantalla del
       modo attract.
 
+  [tilesnuevos NOMBRE patrones=0xDIR colores=0xDIR a=0xTILE [tercio=N]]
+      MAN1 SOU5 HON1 ...
+      Carga en la VRAM los tiles de unas fichas que en esa pantalla NO estan,
+      REUBICADOS a partir del tile `a`: sus numeros de siempre los ocupa otra
+      cosa (en la pantalla del final, el alfabeto del parche pisa justo los
+      honores). Los patrones y los colores salen de dos bloques de formato B
+      de la ROM ORIGINAL, y el bloque nuevo sale comprimido tambien en formato
+      B, para el interprete de 0x468F. Las fichas nombradas tienen que ocupar
+      tiles SEGUIDOS. A partir de la seccion, las diapositivas las piden por su
+      nombre de siempre y salen los tiles nuevos.
+
   [asmlibre NOMBRE]
       lineas de ensamblador que se ensamblan AL FINAL de la zona libre, detras
       de los bloques reubicados. Para meter codigo NUEVO en el cartucho (el
@@ -199,6 +210,25 @@ def lee_las_fichas(rom, org=0x4000):
             PRIMER_TILE["%s%d" % (nombre, n)] = rom[base + alto + n]
     PRIMER_TILE["DORSO"] = rom[base + 0x38]
     PRIMER_TILE["HUECO"] = rom[base + 0x39]
+
+
+def tiles_de_la_rom(rom, dir_patrones, dir_colores, ini, fin):
+    """Los patrones y los colores de un rango de tiles, sacados de los bloques
+    de formato B del cartucho ORIGINAL.
+
+    Hay que ir a la ROM y no a un volcado del emulador ni al bloque ya
+    parcheado: el charset `cajas` mete letras en los tiles 0x49, 0x4F, 0x54 y
+    0x55, que caen justo dentro del rango de los honores."""
+    salida = []
+    for direccion in (dir_patrones, dir_colores):
+        tramos, _ = formato_b.descomprime(rom, direccion)
+        destino, datos = tramos[0]
+        base = (destino & 0x7FF) // 8          # el primer tile del tramo
+        if ini < base or (fin + 1 - base) * 8 > len(datos):
+            raise SystemExit("los tiles 0x%02X-0x%02X no caben en el bloque de 0x%04X"
+                             % (ini, fin, direccion))
+        salida.append(datos[(ini - base) * 8:(fin + 1 - base) * 8])
+    return salida
 
 
 def filas_de_fichas(fila, col, nombres):
@@ -591,6 +621,34 @@ def main():
                 datos += formato_a(lineas_de_texto(lista, cs))
             org = mete_en_la_zona_libre(libre, nombre, bytes(datos), tal_cual=True)
             informe.append("%-38s diapositiva, %4d bytes -> 0x%04X" % (nombre, len(datos), org))
+            continue
+
+        if tipo == "tilesnuevos":
+            # Fichas que en ESTA pantalla no se pueden dibujar porque sus tiles
+            # de siempre estan ocupados: se cargan en un hueco libre y a partir
+            # de aqui las diapositivas las piden por su nombre de siempre.
+            nombre = pos[0]
+            fichas = " ".join(cuerpo).split()
+            for f in fichas:
+                if f not in PRIMER_TILE:
+                    raise SystemExit("%s: no existe la ficha %s" % (nombre, f))
+            primeros = [PRIMER_TILE[f] for f in fichas]
+            ini, fin = min(primeros), max(primeros) + 5
+            if fin - ini + 1 != 6 * len(fichas):
+                raise SystemExit("%s: los tiles de %s no van seguidos en la ROM"
+                                 % (nombre, " ".join(fichas)))
+            patrones, colores = tiles_de_la_rom(
+                rom, int(args["patrones"], 0), int(args["colores"], 0), ini, fin)
+            a, tercio = int(args["a"], 0), int(args.get("tercio", "0"), 0)
+            if a + (fin - ini) > 0xFF:
+                raise SystemExit("%s: los tiles no caben a partir de 0x%02X" % (nombre, a))
+            datos = formato_b.comprime([(0x6000 + tercio * 0x800 + a * 8, patrones),
+                                        (0x4000 + tercio * 0x800 + a * 8, colores)])
+            org = mete_en_la_zona_libre(libre, nombre, datos, tal_cual=True)
+            for f, primero in zip(fichas, primeros):
+                PRIMER_TILE[f] = primero - ini + a
+            informe.append("%-38s %d fichas, tiles 0x%02X-0x%02X -> 0x%02X, %4d bytes -> 0x%04X"
+                           % (nombre, len(fichas), ini, fin, a, len(datos), org))
             continue
 
         if tipo in ("formatoA", "formatoB"):
