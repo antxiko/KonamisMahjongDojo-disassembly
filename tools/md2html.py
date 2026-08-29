@@ -93,14 +93,20 @@ def ruta(href):
     if href.startswith(("http", "#", "mailto:")):
         return href
     h = href.replace("docs/", "")
-    if h.startswith("../") and not h.startswith("../src") and not h.startswith("../tools"):
-        return h if h.endswith((".html", ".png", ".txt")) else h.replace("../", "")
-    h = h.replace("../", "")
-    # Codigo fuente, herramientas y ficheros de la raiz: no estan bajo docs/
-    if h.startswith(("src/", "tools/")) or h in (
+    # Lo que no vive bajo docs/ no existe para el navegador: el codigo fuente,
+    # las herramientas, las medidas y los ficheros de la raiz se mandan al
+    # repositorio. Se mira ANTES de tocar el "../", porque desde docs/ es como
+    # se citan y quitarselo deja un enlace que la web no puede servir.
+    plano = h
+    while plano.startswith("../"):
+        plano = plano[3:]
+    if plano.startswith(("src/", "tools/", "medidas/")) or plano in (
             "README.md", "README.es.md", "LICENSE", "AVISO-LEGAL.md",
             "LEGAL-NOTICE.md", "Makefile"):
-        return f"{REPO}/blob/main/{h}"
+        return f"{REPO}/blob/main/{plano}"
+    if h.startswith("../"):
+        return h if h.endswith((".html", ".png", ".txt")) else plano
+    h = plano
     if h.endswith(".md"):
         h = h[:-3] + ".html"
     return h
