@@ -73,6 +73,26 @@ definen en una seccion [patrones] y se usan despues.
       La zona libre del cartucho donde se recolocan los bloques que no caben
       en su sitio. Se rellena con 0xFF hasta `fin`.
 
+  [diapositiva NOMBRE charset=NOMBRE]
+      fFILA cCOL [charset] token token ...
+      @0xDIRECCION      [charset] token token ...   destino CRUDO de la VRAM
+      token <glifo@fuente>: los ocho bytes del patron de un glifo de 8x8
+      fichas fFILA cCOL MAN1 SOU5 DORSO ...   una hilera de fichas del mahjong,
+          por su palo y numero (MAN/PIN/SOU/HON, mas DORSO y HUECO). Los tiles
+          salen de la tabla 0x4735 de la ROM: no se escriben a mano.
+      Como [formatoA], pero el bloque es NUEVO: no sustituye a nada del
+      cartucho, se aparca en la zona libre con la etiqueta NOMBRE y el codigo
+      de [asmlibre] la llama por ese nombre. Es lo que pinta cada pantalla del
+      modo attract.
+
+  [asmlibre NOMBRE]
+      lineas de ensamblador que se ensamblan AL FINAL de la zona libre, detras
+      de los bloques reubicados. Para meter codigo NUEVO en el cartucho (el
+      modo attract del paso 6). Las etiquetas las resuelve pasmo, asi que el
+      codigo puede llamar a rutinas del cartucho por su nombre y a los bloques
+      reubicados por el suyo (`X_en_ingles`). Si no cabe, el `defs` de cierre
+      sale negativo y pasmo se planta.
+
   [asm BLOQUE [hasta=BLOQUE2]]
       lineas de ensamblador tal cual
 
@@ -159,6 +179,41 @@ CHARSETS = {
     "dificultad": _letras("AMPROSE", "2A 2B 30 31 36 37 3C", 0x01),
 }
 DIGRAFOS = {}          # "AB" -> tile, lo llenan las lineas `estrecho`
+FUENTES = {}           # nombre -> glifos, para el token <glifo@fuente>
+PRIMER_TILE = {}       # "MAN1" -> primer tile del dibujo, de la tabla 0x4735
+
+# Los cuatro palos tal como los codifica el cartucho: el palo va en el nibble
+# alto y el numero en el bajo (0x01-0x09 caracteres, 0x11-0x19 circulos,
+# 0x21-0x29 bambues, 0x31-0x37 honores), y con ese codigo se indexa la tabla
+# de 0x4735, que devuelve el PRIMER TILE de los seis que dibujan la ficha.
+PALOS = [("MAN", 0x00, 9), ("PIN", 0x10, 9), ("SOU", 0x20, 9), ("HON", 0x30, 7)]
+
+
+def lee_las_fichas(rom, org=0x4000):
+    """Llena PRIMER_TILE leyendo la tabla 0x4735 de la ROM, no a mano."""
+    base = 0x4735 - org
+    for nombre, alto, cuantas in PALOS:
+        for n in range(1, cuantas + 1):
+            PRIMER_TILE["%s%d" % (nombre, n)] = rom[base + alto + n]
+    PRIMER_TILE["DORSO"] = rom[base + 0x38]
+    PRIMER_TILE["HUECO"] = rom[base + 0x39]
+
+
+def filas_de_fichas(fila, col, nombres):
+    """Una hilera de fichas -> las TRES entradas de formato A que la pintan.
+
+    Cada ficha son seis tiles seguidos, dos de ancho por tres de alto y por
+    filas (0x6F72), asi que la hilera se pinta en tres tiras horizontales."""
+    out = []
+    for k in range(3):
+        datos = bytearray()
+        for nombre in nombres:
+            if nombre not in PRIMER_TILE:
+                raise SystemExit("no existe la ficha %s" % nombre)
+            t = PRIMER_TILE[nombre]
+            datos += bytes([t + k * 2, t + k * 2 + 1])
+        out.append((vram(fila + k, col), bytes(datos)))
+    return out
 
 
 # ------------------------------------------------------------------ fuentes
@@ -229,13 +284,25 @@ def tile_estrecho(estrecha, texto):
 
 # ------------------------------------------------------------ codificacion
 def tokens(linea):
-    """'"texto" {A1 B2} "mas"' -> lista de ('t', texto) / ('b', bytes)."""
+    """'"texto" {A1 B2} <A@fuente>' -> lista de ('t', texto) / ('b', bytes).
+
+    El token <glifo@fuente> son los OCHO BYTES del patron de ese glifo: sirve
+    para escribir directamente en la tabla de patrones del VDP, que es como el
+    attract se carga los tiles que le faltan sin tocar nada del cartucho."""
     out = []
-    for m in re.finditer(r'"([^"]*)"|\{([^}]*)\}', linea):
+    for m in re.finditer(r'"([^"]*)"|\{([^}]*)\}|<([^>]*)>', linea):
         if m.group(1) is not None:
             out.append(("t", m.group(1)))
-        else:
+        elif m.group(2) is not None:
             out.append(("b", bytes(int(h, 16) for h in m.group(2).split())))
+        else:
+            glifo, _, fuente = m.group(3).partition("@")
+            if fuente not in FUENTES or glifo not in FUENTES[fuente]:
+                raise SystemExit("no existe el glifo %s@%s" % (glifo, fuente))
+            filas = FUENTES[fuente][glifo]
+            if len(filas) != 8 or len(filas[0]) != 8:
+                raise SystemExit("<%s> no es de 8x8: mide %dx%d" % (m.group(3), len(filas[0]), len(filas)))
+            out.append(("b", filas_a_bytes(filas)))
     return out
 
 
@@ -287,10 +354,28 @@ def cuerpo_de(resto, charset):
     return bytes(datos)
 
 
+RE_CRUDO = re.compile(r"^@(0x[0-9A-Fa-f]+)\s+(\w+)?\s*(.*)$")
+RE_FICHAS = re.compile(r"^fichas\s+f(\d+)\s+c(\d+)\s+(.*)$")
+
+
 def lineas_de_texto(lineas, charset_defecto):
-    """Las lineas 'fF cC [charset] tokens' -> [(vram, bytes)]."""
+    """Las lineas 'fF cC [charset] tokens' -> [(vram, bytes)].
+
+    Una linea puede dar el destino CRUDO como '@0xDIR' en vez de fila/columna:
+    hace falta para escribir fuera de la tabla de nombres -en las tablas de
+    patrones y de colores del VDP-, que es como el attract carga sus tiles."""
     out = []
     for ln in lineas:
+        f = RE_FICHAS.match(ln)
+        if f:
+            out += filas_de_fichas(int(f.group(1)), int(f.group(2)), f.group(3).split())
+            continue
+        c = RE_CRUDO.match(ln)
+        if c:
+            cs = c.group(2) if c.group(2) and es_charset(c.group(2)) else charset_defecto
+            resto = ln[c.end(2):] if (c.group(2) and es_charset(c.group(2))) else ln[c.end(1):]
+            out.append((int(c.group(1), 16), cuerpo_de(resto, cs)))
+            continue
         m = RE_POS.match(ln)
         if not m:
             raise SystemExit("linea de texto rara: %r" % ln)
@@ -363,13 +448,16 @@ def relleno(n):
     return [TAB + "defs %d,0ffh" % n] if n > 0 else []
 
 
-def mete_en_la_zona_libre(libre, bloque, datos):
-    """Aparca `datos` en la zona libre del final y devuelve su direccion."""
+def mete_en_la_zona_libre(libre, bloque, datos, tal_cual=False):
+    """Aparca `datos` en la zona libre del final y devuelve su direccion.
+
+    Con tal_cual la etiqueta es el nombre pelado (lo quieren las diapositivas
+    del attract, que son bloques NUEVOS y no la version inglesa de nada)."""
     if libre is None:
         raise SystemExit("%s: hace falta una seccion [libre] ANTES para reubicar" % bloque)
     org = libre[1] + sum(len(d) for _, d in libre[3])
     nombre = bloque[5:] if bloque.startswith("DATA_") else bloque
-    libre[3].append((nombre + "_en_ingles", datos))
+    libre[3].append((nombre if tal_cual else nombre + "_en_ingles", datos))
     return org
 
 
@@ -431,6 +519,8 @@ def main():
     listado = open(ruta_listado, encoding="utf-8").read().split("\n")
     bloques = bloques_de_las_notas(ruta_notes)
     fuentes = lee_fuentes(dir_fuentes)
+    FUENTES.update(fuentes)
+    lee_las_fichas(rom)
     os.makedirs(dir_salida, exist_ok=True)
     for f in os.listdir(dir_salida):
         if f.endswith(".asm"):
@@ -444,7 +534,7 @@ def main():
         ini, fin = bloques[clave]
         return ini, fin, fin - ini
 
-    libre = None          # [bloque, org, fin, [(nombre, bytes)]]
+    libre = None          # [bloque, org, fin, [(nombre, bytes)], [lineas asm]]
     informe = []
     n = 0
 
@@ -452,7 +542,33 @@ def main():
         n += 1
 
         if tipo == "libre":
-            libre = [pos[0], int(args["org"], 0), int(args["fin"], 0), []]
+            libre = [pos[0], int(args["org"], 0), int(args["fin"], 0), [], []]
+            continue
+
+        if tipo == "asmlibre":
+            if libre is None:
+                raise SystemExit("asmlibre: hace falta una seccion [libre] ANTES")
+            libre[4] += ["", "; ---- %s ----" % pos[0]] + cuerpo
+            informe.append("%-38s asm en la zona libre, %d lineas" % (pos[0], len(cuerpo)))
+            continue
+
+        if tipo == "diapositiva":
+            # Una lista de formato A NUEVA, que no sustituye a ningun bloque del
+            # cartucho: se aparca en la zona libre con su nombre y el codigo del
+            # attract la llama por la etiqueta.
+            nombre = pos[0]
+            cs = args.get("charset")
+            datos = bytearray()
+            listas = [[]]
+            for ln in cuerpo:
+                if ln == "---":
+                    listas.append([])
+                else:
+                    listas[-1].append(ln)
+            for lista in listas:
+                datos += formato_a(lineas_de_texto(lista, cs))
+            org = mete_en_la_zona_libre(libre, nombre, bytes(datos), tal_cual=True)
+            informe.append("%-38s diapositiva, %4d bytes -> 0x%04X" % (nombre, len(datos), org))
             continue
 
         if tipo in ("formatoA", "formatoB"):
@@ -718,7 +834,7 @@ def main():
         raise SystemExit("seccion desconocida: %s" % tipo)
 
     if libre is not None:
-        bloque, org, fin, trozos = libre
+        bloque, org, fin, trozos, asmlin = libre
         lineas, cursor = [], org
         for nombre, datos in trozos:
             lineas.append("%s:%s; 0x%04X, %d bytes" % (nombre, TAB, cursor, len(datos)))
@@ -726,6 +842,10 @@ def main():
             cursor += len(datos)
         if cursor > fin:
             raise SystemExit("la zona libre se desborda: %d bytes de %d" % (cursor - org, fin - org))
+        # El codigo nuevo va DETRAS de los datos reubicados: asi no le mueve la
+        # direccion a nadie y es pasmo quien le resuelve las etiquetas. Si se
+        # pasa del final, el `defs` de abajo sale negativo y pasmo lo caza.
+        lineas += asmlin
         lineas.append(TAB + "defs 0x%04X-$,0ffh" % fin)
         escribe_fragmento(dir_salida, 99, bloque, lineas)
         informe.append("%-38s zona libre: %d de %d bytes usados" % (bloque, cursor - org, fin - org))

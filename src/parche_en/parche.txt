@@ -673,6 +673,13 @@ f22 c22  {01 01 01 09}
 # tiles de ancho por tres de alto: END entra exacto, y sobra sitio a los lados
 # para centrarlo en las diez celdas del rotulo.
 
+# OJO CON EL TILE 0x30, que el paso 6 tropezo con el: este bloque llega hasta
+# ahi -asi es el bloque original- y con base=rom RESTAURA en 0x30 el trozo de
+# ficha del cartucho, que pisa la letra A del alfabeto (0x30) que el recuento
+# acaba de cargar. Aqui tiene que seguir asi: ese tile ES el verde del interior
+# de la caja del final (0x87B4 pinta dieciocho por fila) y se ve durante los
+# 64 fotogramas que tarda el muro de fichas en taparlo. Quien necesite la A en
+# esta pantalla se la carga el, que es lo que hace el modo attract.
 [patrones DATA_patrones_del_final_080 base=rom destino=0x6080 tiles=0x10-0x30]
 10-15 E@final
 16-1B N@final
@@ -686,3 +693,188 @@ f22 c22  {01 01 01 09}
 f10 c11  {01 10 11 01 16 17 01 1C 1D 01}
 f11 c11  {01 12 13 01 18 19 01 1E 1F 01}
 f12 c11  {01 14 15 01 1A 1B 01 20 21 01}
+
+
+
+# =========================================================================
+# PASO 6: EL MODO ATTRACT
+# =========================================================================
+# Un pase de diapositivas que ensena a jugar, escrito en los bytes libres del
+# final del cartucho. NO usa el motor del juego: solo pinta y pasa de pantalla.
+#
+# DONDE SE ENGANCHA, y por que ahi: el estado 14 es la cuenta atras con el
+# rotulo END puesto, y al agotarse salta a `vuelve_al_estado_0` desde 0x43FD.
+# Es el UNICO salto del cartucho a esa rutina y justo el punto por donde el
+# demo cierra su ciclo, asi que el attract se cuela entre el final de una
+# vuelta y el principio de la siguiente, que es donde va un attract.
+#
+# EL RELOJ SALE GRATIS. El estado 14 hace `dec (0xE004)` uno de cada cuatro
+# fotogramas y llama a 0x43FD al llegar a cero. Recargando 0xE004 y haciendo
+# `ret`, el juego SIGUE en el estado 14 y vuelve a llamarnos: el temporizador
+# de las diapositivas es el que ya tenia el cartucho. Cero codigo de espera.
+#
+# EL CONTADOR DE DIAPOSITIVA ES 0xE001, el submodo, y tampoco cuesta nada:
+#   - al entrar en el estado 14 vale 0 SIEMPRE, porque el 13 sale por
+#     `avanza_de_estado` (0x41FF), que hace `ld (0xE001),0`. MEDIDO en el
+#     emulador: los volcados del final salen todos como e14_s00.
+#   - el estado 14 no lo toca en ningun momento;
+#   - y las dos salidas posibles lo dejan a cero solas: `vuelve_al_estado_0`
+#     al terminar el pase, y `arranca_la_partida` (0x4ABC) si alguien pulsa
+#     1, 2 o 3, que escribe 8 y 0 de una tacada en 0xE000/0xE001.
+# Por eso el attract se abandona limpiamente en cuanto el jugador pulsa: la
+# puerta del teclado sigue viva porque el estado 14 ya ha apagado el bit 6 de
+# 0xE002 antes de llamarnos.
+#
+# CON QUE SE PINTA, medido sobre el volcado del estado 14 (work/vram_final,
+# tools/dibuja_las_fichas.py) y no supuesto:
+#   - los tres tercios llevan los MISMOS patrones y los MISMOS colores, que
+#     los iguala `replica_patrones_y_colores_en_los_tercios`. Se puede pintar
+#     en las 24 filas con el mismo juego de tiles, y una hilera de fichas
+#     puede cruzar de un tercio al siguiente sin partirse.
+#   - el alfabeto latino del parche esta en 0x30-0x49 (charset `recuento`),
+#     blanco sobre negro, y el tile 0x01 es el negro.
+#   - estan enteras las nueve fichas de CARACTERES y las nueve de BAMBUES,
+#     mas el dorso y el hueco; de los circulos solo el 1 y el 2.
+#   - NO hay honores: sus tiles (0x2E-0x57) son justo los que ocupa el
+#     alfabeto. Dibujarlos da las letras WXYZ / QRST / KLMN, no los vientos.
+#   - los DIGITOS no valen aqui: 0x10-0x19 son los trozos del rotulo END.
+#     Por eso las diapositivas no llevan ni una cifra.
+#
+# LA LETRA A HAY QUE CARGARLA, y esto costo una medida: en esta pantalla el
+# tile 0x30 no es la A sino el VERDE del interior de la caja del final
+# (descomprimiendo 0x87B4 salen dieciocho 0x30 por fila), asi que el bloque de
+# patrones del rotulo END lo restaura desde la ROM y se lleva la A por delante.
+# En el cartucho original daba igual; aqui la primera prueba escribia
+# "SECOND ONE / AND BACK" con dos cuadrados verdes donde iban las aes.
+# No se puede arreglar en el bloque del final -ese verde SI se ve, durante los
+# 64 fotogramas que tarda el muro de fichas en taparlo-, asi que el attract se
+# carga su propia A en los tres tercios antes de la primera diapositiva.
+
+[asmlibre attract]
+; ----------------------------------------------------------------------
+; EL MODO ATTRACT. Entra desde el `jp` de 0x43FD, una vez por diapositiva.
+; Devuelve el mando al estado 14, que es quien cuenta, hasta que se acaban.
+; ----------------------------------------------------------------------
+attract:
+	ld hl,0e001h		; el submodo, que aqui cuenta diapositivas
+	ld a,(hl)
+	cp attract_cuantas
+	jr nc,attract_termina	; vistas todas: el ciclo del demo sigue su camino
+	inc (hl)
+	or a			; en la primera hay que cargar los tiles que faltan
+	jr nz,attract_pinta
+	push af
+	ld hl,attract_la_letra_a
+	call L_409D
+	pop af
+attract_pinta:
+	push af
+	call attract_limpia	; la pantalla, a negro: viene con el rotulo END
+	pop af
+	add a,a			; dos bytes por entrada
+	ld hl,attract_tabla
+	call suma_a_a_hl
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ex de,hl
+	call L_409D		; el interprete de formato A, por la puerta que PINTA
+	ld a,040h
+	ld (0e004h),a		; 64 x 4 fotogramas: algo mas de cinco segundos
+	ret			; y a seguir en el estado 14, que volvera a llamarnos
+attract_termina:
+	jp vuelve_al_estado_0
+
+; ----------------------------------------------------------------------
+; Pone toda la tabla de nombres al tile negro. Con formato A costaria los 768
+; bytes de la lista; asi son quince. El puerto de datos lo deja el propio
+; prepara_escritura_vram en C', y `exx` dos veces devuelve B y C intactos, que
+; es como vuelca el cartucho en 0x46C0.
+; ----------------------------------------------------------------------
+attract_limpia:
+	ld de,03800h
+	call prepara_escritura_vram
+	ld c,003h		; tres pasadas de 256 = las 768 celdas
+	ld b,000h
+attract_borra:
+	ld a,001h		; el tile negro de esta pantalla
+	exx
+	out (c),a
+	exx
+	djnz attract_borra
+	dec c
+	jr nz,attract_borra
+	ei
+	ret
+
+attract_tabla:
+	defw attract_1
+	defw attract_2
+	defw attract_3
+	defw attract_4
+	defw attract_5
+	defw attract_6
+	defw attract_7
+attract_cuantas: equ 7
+
+
+# La A que falta, en los tres tercios: ocho bytes de patron a 0x2180/0x2980/
+# 0x3180 y su color -0xF1, blanco sobre negro, el mismo que el resto del
+# alfabeto- a 0x0180/0x0980/0x1180. Es una lista de formato A como las demas:
+# el interprete escribe donde se le diga, tambien fuera de la tabla de nombres.
+
+[diapositiva attract_la_letra_a]
+@0x2180 <A@latina_del_cartucho>
+@0x2980 <A@latina_del_cartucho>
+@0x3180 <A@latina_del_cartucho>
+@0x0180 {F1 F1 F1 F1 F1 F1 F1 F1}
+@0x0980 {F1 F1 F1 F1 F1 F1 F1 F1}
+@0x1180 {F1 F1 F1 F1 F1 F1 F1 F1}
+
+
+[diapositiva attract_1 charset=recuento]
+f8  c10  "HOW TO PLAY"
+f12 c9   "MAHJONG DOJO"
+
+[diapositiva attract_2 charset=recuento]
+f2  c12  "THE HAND"
+fichas f6 c9  MAN1 MAN2 MAN3 HUECO SOU4 SOU5 SOU6
+fichas f11 c6  MAN7 MAN7 MAN7 HUECO SOU9 SOU9 SOU9 HUECO PIN1 PIN1
+f17 c5   "FOUR SETS AND ONE PAIR"
+
+[diapositiva attract_3 charset=recuento]
+f2  c13  "A RUN"
+fichas f7 c13  SOU3 SOU4 SOU5
+f14 c9   "THREE IN A ROW"
+f16 c11  "SAME SUIT"
+
+[diapositiva attract_4 charset=recuento]
+f2  c11  "A TRIPLET"
+fichas f7 c13  MAN7 MAN7 MAN7
+f14 c8   "THREE OF A KIND"
+
+[diapositiva attract_5 charset=recuento]
+f2  c12  "THE PAIR"
+fichas f7 c14  PIN1 PIN1
+f14 c9   "TWO THE SAME"
+f16 c6   "EVERY HAND NEEDS ONE"
+
+[diapositiva attract_6 charset=recuento]
+f2  c13  "TO WIN"
+f8  c4   "TSUMO"
+f8  c12  "YOU DRAW IT"
+f12 c4   "RON"
+f12 c12  "HE DISCARDS IT"
+f18 c7   "AND CALL THE HAND"
+
+[diapositiva attract_7 charset=recuento]
+f8  c5   "PRESS ONE TWO OR THREE"
+f12 c11  "TO START"
+
+
+# El enganche, un solo `jp`: en vez de cerrar el ciclo, pasa por el attract.
+# Es el unico salto del cartucho a `vuelve_al_estado_0`, y el attract acaba
+# saltando ahi igualmente, asi que el ciclo del demo queda como estaba.
+
+[codigo L_43EB]
+jp vuelve_al_estado_0 => jp attract
