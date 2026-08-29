@@ -14,7 +14,7 @@ WORK     = work
 ORG      = 0x4000
 TITULO   = KONAMI'S MAHJONG - Konami - MSX1 - cartucho RC-707 de 32 KB en las paginas 1 y 2
 
-all: listado notas verify sanity parche test
+all: listado notas verify sanity test
 
 $(ROM):
 	@echo "=================================================================="
@@ -87,29 +87,6 @@ notas: $(SRC)/mahjong.asm
 densidad:
 	@python3 tools/densidad.py $(SRC)/mahjong.asm
 
-# EL PARCHE DE TRADUCCION (paso 4). De las definiciones legibles de
-# src/parche_en/ salen los fragmentos; parchea.py los empalma en una copia del
-# listado, ensambla y comprueba que FUERA de los bloques tocados la ROM es
-# identica a la original; y de la ROM modificada sale el IPS, que es lo unico
-# que se distribuye. La ultima linea es la prueba que decide: original +
-# parche = modificada, byte a byte.
-PARCHE = parche/mahjong_en.ips
-ROM_EN = $(WORK)/mahjong_en.rom
-
-parche: $(ROM) $(SRC)/mahjong.asm src/parche_en/parche.txt
-	@echo "=================================================================="
-	@echo " El parche de traduccion al ingles"
-	@echo "=================================================================="
-	python3 tools/construye_parche_en.py src/parche_en/parche.txt src/parche_en/fuentes 	        $(SRC)/mahjong.asm $(SRC)/mahjong.notes $(ROM) $(WORK)/parche_en
-	python3 tools/parchea.py $(SRC)/mahjong.asm $(WORK)/parche_en $(WORK)/mahjong_en.asm $(ROM)
-	cp $(WORK)/mahjong_en.bin $(ROM_EN)
-	python3 tools/ips.py make $(ROM) $(ROM_EN) $(PARCHE)
-	python3 tools/ips.py check $(ROM) $(PARCHE) $(ROM_EN)
-
-# La ROM traducida en openMSX, para verla con los ojos.
-juega_en: $(ROM_EN)
-	"C:/Program Files/openMSX/openmsx.exe" -machine Philips_VG_8020 -cart $(ROM_EN)
-
 # ---------------------------------------------------------------------------
 # LAS IMAGENES Y LA WEB
 # ---------------------------------------------------------------------------
@@ -140,4 +117,4 @@ web:
 clean:
 	rm -rf $(WORK)/mahjong.trace.json $(WORK)/mahjong.map $(WORK)/png
 
-.PHONY: all comprueba trace listado notas verify sanity test densidad parche juega_en capturas web clean
+.PHONY: all comprueba trace listado notas verify sanity test densidad capturas web clean
