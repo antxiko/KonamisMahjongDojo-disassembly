@@ -779,8 +779,8 @@ attract_pinta:
 	ld d,(hl)
 	ex de,hl
 	call L_409D		; el interprete de formato A, por la puerta que PINTA
-	ld a,040h
-	ld (0e004h),a		; 64 x 4 fotogramas: algo mas de cinco segundos
+	ld a,050h
+	ld (0e004h),a		; 80 x 4 fotogramas: 6,4 s, que dan para leer la pantalla
 	ret			; y a seguir en el estado 14, que volvera a llamarnos
 attract_termina:
 	jp vuelve_al_estado_0
@@ -815,7 +815,13 @@ attract_tabla:
 	defw attract_5
 	defw attract_6
 	defw attract_7
-attract_cuantas: equ 7
+	defw attract_8
+	defw attract_9
+	defw attract_10
+	defw attract_11
+	defw attract_12
+	defw attract_13
+attract_cuantas: equ 13
 
 
 # La A que falta, en los tres tercios: ocho bytes de patron a 0x2180/0x2980/
@@ -832,44 +838,119 @@ attract_cuantas: equ 7
 @0x1180 {F1 F1 F1 F1 F1 F1 F1 F1}
 
 
+# EL TUTORIAL, trece pantallas. El contenido sale de docs/reglas_del_cartucho.md
+# -el manual del paso 5, con cada regla anclada a la rutina que la decide-, asi
+# que lo que se ensena aqui es lo que hace ESTE cartucho y no el mahjong de un
+# libro: dos jugadores, treinta mil puntos cada uno, y el furiten de la casa.
+#
+# Sin una sola cifra: los digitos no estan cargados en esta pantalla (0x10-0x19
+# son los trozos del rotulo END), asi que los numeros van escritos con letras.
+
 [diapositiva attract_1 charset=recuento]
-f8  c10  "HOW TO PLAY"
-f12 c9   "MAHJONG DOJO"
+centro f6  "HOW TO PLAY"
+centro f8  "MAHJONG DOJO"
+centro f13 "A GAME FOR TWO PLAYERS"
+centro f15 "YOU AND THE COMPUTER"
 
 [diapositiva attract_2 charset=recuento]
-f2  c12  "THE HAND"
-fichas f6 c9  MAN1 MAN2 MAN3 HUECO SOU4 SOU5 SOU6
-fichas f11 c6  MAN7 MAN7 MAN7 HUECO SOU9 SOU9 SOU9 HUECO PIN1 PIN1
-f17 c5   "FOUR SETS AND ONE PAIR"
+centro f2  "THE TILES"
+fichas centro f6  MAN1 MAN5 MAN9 SOU1 SOU5 SOU9 PIN1
+centro f12 "THREE SUITS NUMBERED"
+centro f14 "ONE TO NINE"
+centro f17 "PLUS WINDS AND DRAGONS"
+centro f19 "FOUR COPIES OF EACH"
 
 [diapositiva attract_3 charset=recuento]
-f2  c13  "A RUN"
-fichas f7 c13  SOU3 SOU4 SOU5
-f14 c9   "THREE IN A ROW"
-f16 c11  "SAME SUIT"
+centro f2  "YOUR HAND"
+fichas centro f6  MAN1 MAN2 MAN3 SOU4 SOU5 SOU6 MAN7 MAN7 MAN7 SOU9 SOU9 SOU9 PIN1
+centro f12 "YOU HOLD THIRTEEN TILES"
+centro f15 "EACH TURN YOU DRAW ONE"
+centro f17 "AND THROW ONE AWAY"
 
 [diapositiva attract_4 charset=recuento]
-f2  c11  "A TRIPLET"
-fichas f7 c13  MAN7 MAN7 MAN7
-f14 c8   "THREE OF A KIND"
+centro f2  "THE GOAL"
+fichas centro f6  MAN1 MAN2 MAN3 HUECO SOU4 SOU5 SOU6
+fichas centro f11  MAN7 MAN7 MAN7 HUECO SOU9 SOU9 SOU9 HUECO PIN1 PIN1
+centro f17 "FOUR SETS AND ONE PAIR"
+centro f19 "FOURTEEN TILES IN ALL"
 
 [diapositiva attract_5 charset=recuento]
-f2  c12  "THE PAIR"
-fichas f7 c14  PIN1 PIN1
-f14 c9   "TWO THE SAME"
-f16 c6   "EVERY HAND NEEDS ONE"
+centro f2  "A RUN"
+fichas centro f6  SOU3 SOU4 SOU5
+centro f12 "THREE TILES IN ORDER"
+centro f14 "ALL OF THE SAME SUIT"
+centro f17 "WINDS AND DRAGONS"
+centro f19 "CANNOT MAKE RUNS"
 
 [diapositiva attract_6 charset=recuento]
-f2  c13  "TO WIN"
-f8  c4   "TSUMO"
-f8  c12  "YOU DRAW IT"
-f12 c4   "RON"
-f12 c12  "HE DISCARDS IT"
-f18 c7   "AND CALL THE HAND"
+centro f2  "A TRIPLET"
+fichas centro f6  MAN7 MAN7 MAN7
+centro f12 "THREE TILES THE SAME"
+centro f15 "ANY TILE CAN MAKE ONE"
 
 [diapositiva attract_7 charset=recuento]
-f8  c5   "PRESS ONE TWO OR THREE"
-f12 c11  "TO START"
+centro f2  "THE PAIR"
+fichas centro f6  PIN1 PIN1
+centro f12 "TWO TILES THE SAME"
+centro f15 "EVERY HAND NEEDS ONE"
+
+[diapositiva attract_8 charset=recuento]
+centro f2  "CALLING"
+centro f6  "WHEN YOUR RIVAL THROWS"
+centro f8  "A TILE THAT YOU NEED"
+f12 c3   "PON"
+f12 c9   "TAKE IT FOR A TRIPLET"
+f14 c3   "CHI"
+f14 c9   "TAKE IT FOR A RUN"
+f16 c3   "KAN"
+f16 c9   "TAKE A FOURTH COPY"
+centro f20 "BUT YOUR HAND OPENS UP"
+
+[diapositiva attract_9 charset=recuento]
+centro f2  "RIICHI"
+centro f6  "ONE TILE AWAY FROM"
+centro f8  "WINNING AND YOUR HAND"
+centro f10 "STILL CLOSED"
+centro f14 "DECLARE RIICHI"
+centro f17 "IT COSTS ONE THOUSAND"
+centro f19 "AND YOUR HAND IS FROZEN"
+
+[diapositiva attract_10 charset=recuento]
+centro f2  "TO WIN"
+f7  c5   "TSUMO"
+f7  c13  "YOU DRAW IT"
+f10 c5   "RON"
+f10 c13  "HE THROWS IT"
+centro f14 "THEN CALL AGARI"
+centro f18 "HAN AND FU MAKE"
+centro f20 "THE HAND WORTH MORE"
+
+[diapositiva attract_11 charset=recuento]
+centro f2  "BE CAREFUL"
+centro f6  "IF YOU HAVE ALREADY"
+centro f8  "THROWN A TILE THAT"
+centro f10 "COMPLETES YOUR HAND"
+centro f12 "YOU CANNOT CALL RON"
+centro f16 "CALLING WITH NO HAND"
+centro f18 "IS A PENALTY"
+
+[diapositiva attract_12 charset=recuento]
+centro f2  "THE SCORE"
+centro f6  "BOTH START WITH"
+centro f8  "THIRTY THOUSAND POINTS"
+centro f12 "THE DORA TILES"
+centro f14 "ARE WORTH MORE"
+centro f18 "TWO ROUNDS EAST AND SOUTH"
+
+[diapositiva attract_13 charset=recuento]
+centro f4  "PRESS ONE TWO OR THREE"
+centro f6  "TO START"
+f11 c6   "ONE"
+f11 c14  "AMATEUR"
+f13 c6   "TWO"
+f13 c14  "SEMIPROFESSIONAL"
+f15 c6   "THREE"
+f15 c14  "PROFESSIONAL"
 
 
 # El enganche, un solo `jp`: en vez de cerrar el ciclo, pasa por el attract.

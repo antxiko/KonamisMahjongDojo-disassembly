@@ -77,6 +77,8 @@ definen en una seccion [patrones] y se usan despues.
       fFILA cCOL [charset] token token ...
       @0xDIRECCION      [charset] token token ...   destino CRUDO de la VRAM
       token <glifo@fuente>: los ocho bytes del patron de un glifo de 8x8
+      centro fFILA [charset] token ...        texto centrado en las 32 columnas
+      fichas centro fFILA MAN1 SOU5 ...      hilera de fichas centrada
       fichas fFILA cCOL MAN1 SOU5 DORSO ...   una hilera de fichas del mahjong,
           por su palo y numero (MAN/PIN/SOU/HON, mas DORSO y HUECO). Los tiles
           salen de la tabla 0x4735 de la ROM: no se escriben a mano.
@@ -356,6 +358,8 @@ def cuerpo_de(resto, charset):
 
 RE_CRUDO = re.compile(r"^@(0x[0-9A-Fa-f]+)\s+(\w+)?\s*(.*)$")
 RE_FICHAS = re.compile(r"^fichas\s+f(\d+)\s+c(\d+)\s+(.*)$")
+RE_CENTRO = re.compile(r"^centro\s+f(\d+)\s+(\w+)?\s*(.*)$")
+RE_FICENTRO = re.compile(r"^fichas\s+centro\s+f(\d+)\s+(.*)$")
 
 
 def lineas_de_texto(lineas, charset_defecto):
@@ -366,9 +370,27 @@ def lineas_de_texto(lineas, charset_defecto):
     patrones y de colores del VDP-, que es como el attract carga sus tiles."""
     out = []
     for ln in lineas:
+        fc = RE_FICENTRO.match(ln)
+        if fc:
+            # una hilera de fichas centrada: cada ficha son DOS columnas
+            nombres = fc.group(2).split()
+            out += filas_de_fichas(int(fc.group(1)), (32 - 2 * len(nombres)) // 2, nombres)
+            continue
         f = RE_FICHAS.match(ln)
         if f:
             out += filas_de_fichas(int(f.group(1)), int(f.group(2)), f.group(3).split())
+            continue
+        ce = RE_CENTRO.match(ln)
+        if ce:
+            # texto CENTRADO en las 32 columnas: la columna la calcula el
+            # generador, que en un tutorial de trece pantallas es la diferencia
+            # entre poder reescribir una frase y tener que recontar a mano.
+            cs = ce.group(2) if ce.group(2) and es_charset(ce.group(2)) else charset_defecto
+            resto = ln[ce.end(2):] if (ce.group(2) and es_charset(ce.group(2))) else ln[ce.end(1):]
+            datos = cuerpo_de(resto, cs)
+            if len(datos) > 32:
+                raise SystemExit("no cabe centrado, %d celdas de 32: %r" % (len(datos), ln))
+            out.append((vram(int(ce.group(1)), (32 - len(datos)) // 2), datos))
             continue
         c = RE_CRUDO.match(ln)
         if c:
