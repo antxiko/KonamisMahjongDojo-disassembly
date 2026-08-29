@@ -844,21 +844,26 @@ attract_borra:
 	ret
 
 attract_tabla:
-	defw attract_1
-	defw attract_2
-	defw attract_3
-	defw attract_4
-	defw attract_5
-	defw attract_6
-	defw attract_7
-	defw attract_8
-	defw attract_9
-	defw attract_10
-	defw attract_11
-	defw attract_12
-	defw attract_13
-	defw attract_14
-attract_cuantas: equ 14
+	defw attract_como_jugar
+	defw attract_las_fichas
+	defw attract_vientos_y_dragones
+	defw attract_tu_mano
+	defw attract_la_mesa
+	defw attract_el_objetivo
+	defw attract_la_escalera
+	defw attract_el_trio
+	defw attract_la_pareja
+	defw attract_turno_a_turno
+	defw attract_los_cantos
+	defw attract_el_riichi
+	defw attract_ganar
+	defw attract_el_furiten
+	defw attract_fin_de_la_mano
+	defw attract_el_recuento
+	defw attract_el_marcador
+	defw attract_lo_que_has_visto
+	defw attract_las_teclas
+attract_cuantas: equ 19
 
 
 # Los tiles que faltan, sacados de la ROM ORIGINAL y reubicados. A partir de
@@ -886,17 +891,17 @@ DORSO
 @0x0180 {F1 F1 F1 F1 F1 F1 F1 F1}
 
 
-# EL TUTORIAL, catorce pantallas. El contenido sale de docs/reglas_del_cartucho.md
+# EL TUTORIAL, diecinueve pantallas. El contenido sale de docs/reglas_del_cartucho.md
 # -el manual del paso 5, con cada regla anclada a la rutina que la decide-, asi
 # que lo que se ensena aqui es lo que hace ESTE cartucho y no el mahjong de un
 # libro: dos jugadores, treinta mil puntos cada uno, y el furiten de la casa.
 #
 # Y se ensena CON FICHAS: las treinta y cuatro estan dibujadas en alguna de las
-# catorce pantallas, y cada regla lleva al lado el ejemplo de lo que dice. Sin
+# diecinueve pantallas, y cada regla lleva al lado el ejemplo de lo que dice. Sin
 # una sola cifra: los digitos no estan cargados en esta pantalla (0x10-0x19 son
 # los trozos del rotulo END), asi que los numeros van escritos con letras.
 
-[diapositiva attract_1 charset=recuento]
+[diapositiva attract_como_jugar charset=recuento]
 centro f2  "HOW TO PLAY"
 centro f4  "MAHJONG DOJO"
 fichas centro f8  DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO
@@ -904,7 +909,7 @@ centro f14 "A GAME FOR TWO PLAYERS"
 centro f16 "YOU AND THE COMPUTER"
 centro f20 "WATCH AND LEARN"
 
-[diapositiva attract_2 charset=recuento]
+[diapositiva attract_las_fichas charset=recuento]
 centro f0  "THE TILES"
 centro f2  "THREE SUITS ONE TO NINE"
 fichas centro f4   MAN1 MAN2 MAN3 MAN4 MAN5 MAN6 MAN7 MAN8 MAN9
@@ -913,7 +918,7 @@ fichas centro f14  SOU1 SOU2 SOU3 SOU4 SOU5 SOU6 SOU7 SOU8 SOU9
 centro f19 "FOUR COPIES OF EACH TILE"
 centro f21 "AND SEVEN MORE TO COME"
 
-[diapositiva attract_3 charset=recuento]
+[diapositiva attract_vientos_y_dragones charset=recuento]
 centro f1  "WINDS AND DRAGONS"
 fichas f4 c4   HON1
 f5  c8   "EAST"
@@ -931,7 +936,7 @@ fichas f19 c4  HON7
 f20 c8   "RED"
 f20 c16  "NEVER IN A RUN"
 
-[diapositiva attract_4 charset=recuento]
+[diapositiva attract_tu_mano charset=recuento]
 centro f1  "YOUR HAND"
 fichas centro f4  MAN1 MAN2 MAN3 SOU4 SOU5 SOU6 MAN7 MAN7 MAN7 SOU9 SOU9 SOU9 PIN1
 centro f9  "THIRTEEN TILES"
@@ -939,7 +944,16 @@ centro f12 "EACH TURN YOU DRAW ONE"
 fichas centro f15  PIN5
 centro f20 "AND THROW ONE AWAY"
 
-[diapositiva attract_5 charset=recuento]
+[diapositiva attract_la_mesa charset=recuento]
+centro f0  "THE TABLE"
+fichas centro f2   DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO DORSO
+centro f6  "HIS HAND FACE DOWN"
+fichas centro f9   MAN2 SOU7 HON1 PIN4 SOU2
+centro f13 "WHAT BOTH HAVE THROWN"
+fichas centro f16  MAN1 MAN2 MAN3 SOU4 SOU5 SOU6 MAN7 MAN7 MAN7 SOU9 SOU9 SOU9 PIN1
+centro f20 "YOUR HAND FACE UP"
+
+[diapositiva attract_el_objetivo charset=recuento]
 centro f1  "THE GOAL"
 centro f3  "FOUR SETS AND ONE PAIR"
 fichas centro f6   MAN1 MAN2 MAN3 HUECO SOU4 SOU5 SOU6
@@ -947,7 +961,7 @@ fichas centro f11  MAN7 MAN7 MAN7 HUECO PIN2 PIN2 PIN2
 fichas centro f16  SOU9 SOU9
 centro f21 "FOURTEEN TILES IN ALL"
 
-[diapositiva attract_6 charset=recuento]
+[diapositiva attract_la_escalera charset=recuento]
 centro f1  "A RUN"
 centro f3  "THREE IN ORDER SAME SUIT"
 fichas centro f6   SOU3 SOU4 SOU5
@@ -955,7 +969,7 @@ fichas centro f11  PIN6 PIN7 PIN8
 centro f16 "BUT NEVER LIKE THIS"
 fichas centro f18  HON1 HON2 HON3
 
-[diapositiva attract_7 charset=recuento]
+[diapositiva attract_el_trio charset=recuento]
 centro f1  "A TRIPLET"
 centro f3  "THREE TILES THE SAME"
 fichas centro f6   MAN7 MAN7 MAN7
@@ -963,7 +977,7 @@ centro f11 "ANY TILE CAN MAKE ONE"
 fichas centro f14  HON6 HON6 HON6
 centro f19 "EVEN A WIND OR A DRAGON"
 
-[diapositiva attract_8 charset=recuento]
+[diapositiva attract_la_pareja charset=recuento]
 centro f1  "THE PAIR"
 centro f3  "TWO TILES THE SAME"
 fichas centro f6   PIN1 PIN1
@@ -972,7 +986,17 @@ centro f13 "AND ONLY ONE"
 fichas centro f16  HON5 HON5
 centro f21 "THE WHITE DRAGON IS BLANK"
 
-[diapositiva attract_9 charset=recuento]
+[diapositiva attract_turno_a_turno charset=recuento]
+centro f0  "TURN BY TURN"
+centro f2  "YOU TAKE ONE FROM THE WALL"
+fichas centro f4   DORSO
+centro f8  "AND YOU THROW ONE OUT"
+fichas centro f10  SOU2
+centro f14 "IT STAYS ON THE TABLE"
+centro f16 "FOR BOTH TO SEE"
+centro f19 "THEN IT IS HIS TURN"
+
+[diapositiva attract_los_cantos charset=recuento]
 centro f0  "CALLING"
 centro f2  "WHEN YOUR RIVAL THROWS"
 f6  c1   "PON"
@@ -989,7 +1013,7 @@ fichas f15 c13  HON1
 f16 c17  "FOUR"
 centro f21 "BUT YOUR HAND OPENS UP"
 
-[diapositiva attract_10 charset=recuento]
+[diapositiva attract_el_riichi charset=recuento]
 centro f0  "RIICHI"
 fichas centro f2  MAN1 MAN2 MAN3 SOU4 SOU5 SOU6 MAN7 MAN7 MAN7 SOU9 SOU9 PIN1 PIN1
 centro f7  "ONE TILE AWAY AND CLOSED"
@@ -999,7 +1023,7 @@ centro f16 "DECLARE RIICHI"
 centro f18 "IT COSTS ONE THOUSAND"
 centro f20 "AND YOUR HAND IS FROZEN"
 
-[diapositiva attract_11 charset=recuento]
+[diapositiva attract_ganar charset=recuento]
 centro f0  "TO WIN"
 f4  c2   "TSUMO"
 fichas f3 c11  PIN1
@@ -1012,7 +1036,7 @@ centro f17 "HAN AND FU MAKE"
 centro f19 "THE HAND WORTH MORE"
 centro f21 "AND DORA COUNTS TOO"
 
-[diapositiva attract_12 charset=recuento]
+[diapositiva attract_el_furiten charset=recuento]
 centro f0  "BE CAREFUL"
 centro f2  "IF YOU ALREADY THREW AWAY"
 fichas centro f4  PIN2 SOU7 MAN4 PIN1 SOU2
@@ -1023,7 +1047,28 @@ centro f18 "YOU CANNOT CALL RON"
 centro f20 "AND CALLING WITH NO HAND"
 centro f22 "IS A PENALTY"
 
-[diapositiva attract_13 charset=recuento]
+[diapositiva attract_fin_de_la_mano charset=recuento]
+centro f0  "THE HAND ENDS"
+centro f2  "WHEN SOMEONE CALLS AGARI"
+fichas centro f4   MAN7 MAN7 MAN7
+centro f9  "OR WHEN THE THROWS RUN OUT"
+centro f11 "THE DEALER THROWS TWENTY TIMES"
+centro f13 "AND THE OTHER EIGHTEEN"
+fichas centro f16  DORSO DORSO DORSO
+centro f21 "THEN NOBODY WINS THE HAND"
+
+[diapositiva attract_el_recuento charset=recuento]
+centro f0  "THE COUNT"
+centro f2  "BOTH HANDS ARE TURNED OVER"
+fichas centro f4   MAN1 MAN2 MAN3 HUECO MAN7 MAN7 MAN7 HUECO SOU9 SOU9
+centro f9  "AND THE HAND IS BROKEN"
+centro f11 "INTO ITS SETS"
+centro f14 "FU AND HAN GIVE THE PRICE"
+centro f16 "AND THE LOSER PAYS IT"
+centro f19 "THEN THE NEXT HAND IS DEALT"
+centro f21 "UNTIL THE TWO ROUNDS ARE DONE"
+
+[diapositiva attract_el_marcador charset=recuento]
 centro f0  "THE SCORE"
 centro f2  "BOTH START WITH"
 centro f4  "THIRTY THOUSAND POINTS"
@@ -1033,7 +1078,17 @@ centro f14 "AND THE NEXT ONE IS DORA"
 fichas centro f16  SOU5
 centro f21 "TWO ROUNDS EAST AND SOUTH"
 
-[diapositiva attract_14 charset=recuento]
+[diapositiva attract_lo_que_has_visto charset=recuento]
+centro f0  "WHAT YOU JUST SAW"
+centro f3  "THAT WAS A REAL HAND"
+centro f5  "THE COMPUTER PLAYING ITSELF"
+centro f8  "THE DEAL"
+centro f10 "THEN TURN AFTER TURN"
+centro f12 "THEN THE COUNT"
+fichas centro f15  MAN1 MAN2 MAN3 HUECO SOU9 SOU9
+centro f20 "NOW IT IS YOUR TURN"
+
+[diapositiva attract_las_teclas charset=recuento]
 centro f3  "PRESS ONE TWO OR THREE"
 centro f5  "TO START"
 f10 c6   "ONE"
