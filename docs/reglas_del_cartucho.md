@@ -17,11 +17,12 @@ Los estados:
   **no** puede anclar al binario.
 
 Cerrado el 2026-08-29 (paso 5). Las medidas nuevas de esta tanda se hicieron
-con dos guiones de emulador que quedan en el repositorio:
+con dos guiones de emulador. Uno queda en este repositorio:
 `tools/omsx_mide_pagos.tcl` (la tabla de pago y los palos de riichi, llamando a
-las rutinas del cartucho con la RAM puesta a mano) y `tools/omsx_fuerza_pantallas.tcl`
-(las pantallas que el demo no enseña). Los volcados de VRAM y RAM del demo
-salen de `tools/omsx_vuelca_vram.tcl`.
+las rutinas del cartucho con la RAM puesta a mano). El otro, el que fuerza las
+pantallas que el demo no enseña, se marchó con el parche al inglés y vive en
+**su** repositorio, no en este. Los volcados de VRAM y RAM del demo salen de
+`tools/omsx_vuelca_vram.tcl`.
 
 Lo que dice "jugador 1" es la mano de abajo (0xE13A, río 0xE15E, marcador
 0xE047); "jugador 2" es la de arriba (0xE14C, río 0xE172, marcador 0xE044).
